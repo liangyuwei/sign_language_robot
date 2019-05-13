@@ -1,0 +1,37 @@
+ <launch>
+
+ <group ns="left">
+   <arg name="limited" default="false"/>
+   <arg name="robot_ip" default="192.168.0.108"/>
+   <arg name="reverse_port" default="50001"/>
+   <arg name="min_payload"  default="0.0"/>
+   <arg name="max_payload"  default="5.0"/>
+   <arg name="prefix" default="left_" />
+  <include file="$(find ur_bringup)/launch/ur5_bringup.launch">
+   <arg name="limited" value="$(arg limited)"/>
+   <arg name="robot_ip" value="$(arg robot_ip)"/>
+   <arg name="reverse_port" value="$(arg reverse_port)"/>
+   <arg name="min_payload"  value="$(arg min_payload)"/>
+   <arg name="max_payload"  value="$(arg max_payload)"/>
+   <arg name="prefix" value="$(arg prefix)"/>
+  </include>
+ </group>
+
+ <group ns="right">
+   <arg name="limited" default="false"/>
+   <arg name="robot_ip" default="192.168.0.109"/>    
+   <arg name="reverse_port" default="50002"/>    
+   <arg name="min_payload"  default="0.0"/>
+   <arg name="max_payload"  default="5.0"/>
+   <arg name="prefix" default="right_" />
+  <include file="$(find ur_bringup)/launch/ur5_bringup.launch">
+   <arg name="limited" value="$(arg limited)"/>
+   <arg name="robot_ip" value="$(arg robot_ip)"/>
+   <arg name="reverse_port" value="$(arg reverse_port)"/>
+   <arg name="min_payload"  value="$(arg min_payload)"/>
+   <arg name="max_payload"  value="$(arg max_payload)"/>
+   <arg name="prefix" value="$(arg prefix)"/>
+  </include>
+ </group>
+
+</launch>

@@ -1,0 +1,104 @@
+# joint_limits.yaml allows the dynamics properties specified in the URDF to be overwritten or augmented as needed
+# Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
+# Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits]
+joint_limits:
+  left_elbow_joint:
+    has_velocity_limits: true
+    max_velocity: 3.15
+    has_acceleration_limits: false
+    max_acceleration: 0
+  left_rh_l1:
+    has_velocity_limits: true
+    max_velocity: 6.5
+    has_acceleration_limits: false
+    max_acceleration: 0
+  left_rh_l2:
+    has_velocity_limits: true
+    max_velocity: 6.5
+    has_acceleration_limits: false
+    max_acceleration: 0
+  left_rh_p12_rn:
+    has_velocity_limits: true
+    max_velocity: 6.5
+    has_acceleration_limits: false
+    max_acceleration: 0
+  left_rh_r2:
+    has_velocity_limits: true
+    max_velocity: 6.5
+    has_acceleration_limits: false
+    max_acceleration: 0
+  left_shoulder_lift_joint:
+    has_velocity_limits: true
+    max_velocity: 3.15
+    has_acceleration_limits: false
+    max_acceleration: 0
+  left_shoulder_pan_joint:
+    has_velocity_limits: true
+    max_velocity: 3.15
+    has_acceleration_limits: false
+    max_acceleration: 0
+  left_wrist_1_joint:
+    has_velocity_limits: true
+    max_velocity: 3.2
+    has_acceleration_limits: false
+    max_acceleration: 0
+  left_wrist_2_joint:
+    has_velocity_limits: true
+    max_velocity: 3.2
+    has_acceleration_limits: false
+    max_acceleration: 0
+  left_wrist_3_joint:
+    has_velocity_limits: true
+    max_velocity: 3.2
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_elbow_joint:
+    has_velocity_limits: true
+    max_velocity: 3.15
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_rh_l1:
+    has_velocity_limits: true
+    max_velocity: 6.5
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_rh_l2:
+    has_velocity_limits: true
+    max_velocity: 6.5
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_rh_p12_rn:
+    has_velocity_limits: true
+    max_velocity: 6.5
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_rh_r2:
+    has_velocity_limits: true
+    max_velocity: 6.5
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_shoulder_lift_joint:
+    has_velocity_limits: true
+    max_velocity: 3.15
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_shoulder_pan_joint:
+    has_velocity_limits: true
+    max_velocity: 3.15
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_wrist_1_joint:
+    has_velocity_limits: true
+    max_velocity: 3.2
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_wrist_2_joint:
+    has_velocity_limits: true
+    max_velocity: 3.2
+    has_acceleration_limits: false
+    max_acceleration: 0
+  right_wrist_3_joint:
+    has_velocity_limits: true
+    max_velocity: 3.2
+    has_acceleration_limits: false
+    max_acceleration: 0
