@@ -594,6 +594,20 @@ class MoveGroupPythonIntefaceTutorial(object):
     current_pose = self.group.get_current_pose().pose
     return plan, all_close(pose_goal, current_pose, 0.01)
 
+  def add_mesh(self):
+
+    pose = geometry_msgs.msg.PoseStamped()
+    pose.header.frame_id = "world"
+    pose.pose.orientation.w = 1.0
+    pose.pose.position.x = 0.4
+    pose.pose.position.y = 0.0
+    pose.pose.position.z = 0.4
+    file_name = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_body.STL"
+    mesh_name = "flash_body"
+
+    self.scene.add_mesh(mesh_name, pose, file_name, [0.001, 0.001, 0.001])
+
+
 
 def main():
 
@@ -619,6 +633,9 @@ def main():
 
     import pdb
     pdb.set_trace()
+
+    ### Add mesh
+    
 
     ### remove the table
     tutorial.remove_object("bottom", timeout=4)
