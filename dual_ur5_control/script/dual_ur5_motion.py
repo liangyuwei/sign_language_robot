@@ -594,18 +594,18 @@ class MoveGroupPythonIntefaceTutorial(object):
     current_pose = self.group.get_current_pose().pose
     return plan, all_close(pose_goal, current_pose, 0.01)
 
-  def add_mesh(self):
+#  def add_mesh(self, mesh_name, pose, file_path, size=[1, 1, 1]):
 
-    pose = geometry_msgs.msg.PoseStamped()
-    pose.header.frame_id = "world"
-    pose.pose.orientation.w = 1.0
-    pose.pose.position.x = 0.4
-    pose.pose.position.y = 0.0
-    pose.pose.position.z = 0.4
-    file_name = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_body.STL"
-    mesh_name = "flash_body"
+#    pose = geometry_msgs.msg.PoseStamped()
+#    pose.header.frame_id = "world"
+#    pose.pose.orientation.w = 1.0
+#    pose.pose.position.x = 0.4
+#    pose.pose.position.y = 0.0
+#    pose.pose.position.z = 0.4
+#    file_name = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_body.STL"
+#    mesh_name = "flash_body"
 
-    self.scene.add_mesh(mesh_name, pose, file_name, [0.001, 0.001, 0.001])
+#    self.scene.add_mesh(mesh_name, pose, file_path, size)
 
 
 
@@ -620,25 +620,70 @@ def main():
 
 
     ### Go to the given joint state
-    #print "============ Go to joint state ..."
-    #tutorial.go_to_joint_state()
+    '''
+    print "============ Go to joint state ..."
+    tutorial.go_to_joint_state()
+    '''
 
-
-    ### add collision objects
+    ### Add a table
+    '''
     print "============ Adding table..."
     bottom_width = 0.8
     bottom_height = 0.1
     x_offset = 0.01
     tutorial.add_object("bottom", [bottom_width/2.0 + x_offset, 0.0, bottom_height/2.0], [bottom_width, bottom_width, bottom_height], "world", timeout=4)
+    '''
 
-    import pdb
-    pdb.set_trace()
 
     ### Add mesh
-    
+    import pdb
+    pdb.set_trace()
+    # flash body
+    fb_ee_link = 'right_ee_link'
+    fb_pose = geometry_msgs.msg.PoseStamped()
+    fb_pose.header.frame_id = fb_ee_link
+    fb_pose.pose.orientation.x = 0.0
+    fb_pose.pose.orientation.y = 0.707
+    fb_pose.pose.orientation.z = 0.707
+    fb_pose.pose.orientation.w = 0.0
+    fb_pose.pose.position.x = 0.16
+    fb_pose.pose.position.y = 0.0#-0.02
+    fb_pose.pose.position.z = 0.0#-0.01
+    fb_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_body_new.STL"
+    fb_mesh_name = "flash_body"
+    fb_size = [0.001, 0.001, 0.001]
+    tutorial.scene.add_mesh(fb_mesh_name, fb_pose, fb_file_path, fb_size)
+    # flash hat
+    fh_ee_link = 'left_ee_link'
+    fh_pose = geometry_msgs.msg.PoseStamped()
+    fh_pose.header.frame_id = fh_ee_link
+    fh_pose.pose.orientation.x = 0.0
+    fh_pose.pose.orientation.y = 0.707
+    fh_pose.pose.orientation.z = 0.707
+    fh_pose.pose.orientation.w = 0.0
+    fh_pose.pose.position.x = 0.1
+    fh_pose.pose.position.y = -0.02
+    fh_pose.pose.position.z = -0.01
+    fh_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_hat.STL"
+    fh_mesh_name = "flash_hat"
+    fh_size = [0.001, 0.001, 0.001]
 
-    ### remove the table
-    tutorial.remove_object("bottom", timeout=4)
+    tutorial.scene.add_mesh(fh_mesh_name, fh_pose, fh_file_path, fh_size)
+
+
+    ### Attach mesh   
+    # flash body
+    fb_grasping_group = 'right_gripper'
+    touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
+    tutorial.scene.attach_mesh(fb_ee_link, fb_mesh_name, fb_pose, touch_links=touch_links)
+
+
+    ### Detach mesh
+    tutorial.scene.remove_attached_object(eef_link, fb_mesh_name)
+
+
+    ### Remove mesh
+    tutorial.remove_object(fb_mesh_name, timeout=4)
 
 
     ### Planning of two ur5 arms
