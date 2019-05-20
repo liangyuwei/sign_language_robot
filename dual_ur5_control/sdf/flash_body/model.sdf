@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+
+<sdf version='1.6'>
+  <model name='flash_body'>
+    <link name='flash_body_link'>
+      <pose>0 0 0 0 0 0</pose>
+      
+
+      <visual name='flash_body_visual'>
+        <geometry>
+          <mesh>
+            <uri>model://flash_body/meshes/flash_body.STL</uri>
+            <!--scale> 1.35040241992 1.35040241992</scale-->
+          </mesh>
+        </geometry>
+      </visual>
+      
+      <collision name='flash_body_collision'>
+        <geometry>
+          <mesh>
+            <uri>model://flash_body/meshes/flash_body.STL</uri>
+            <!--scale>1.35040241992 1.35040241992 1.35040241992</scale-->
+          </mesh>
+        </geometry>
+      </collision>
+      
+    </link>
+    
+  </model>
+</sdf>

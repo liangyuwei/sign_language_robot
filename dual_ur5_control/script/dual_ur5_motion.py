@@ -47,6 +47,7 @@ import sys
 import copy
 import rospy
 import math
+import numpy as np
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
@@ -153,7 +154,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     group = self.group
 
     joint_goal = group.get_current_joint_values()
-    '''
+    ''
     joint_goal[0] = 0 
     joint_goal[1] = 0
     joint_goal[2] = 0
@@ -183,13 +184,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     joint_goal[10] = math.pi/2
     joint_goal[11] = 0
     '''
-    joint_goal[0] = -math.pi
-    joint_goal[1] = math.pi * 0.75
-    joint_goal[2] = math.pi/2
-    joint_goal[3] = math.pi
-    joint_goal[4] = math.pi/2
-    joint_goal[5] = 0
-    '''
+
     # The go command can be called with joint values, poses, or without any
     # parameters if you have already set the pose or joint target for the group
     group.go(joint_goal, wait=True)
@@ -607,6 +602,97 @@ class MoveGroupPythonIntefaceTutorial(object):
 
 #    self.scene.add_mesh(mesh_name, pose, file_path, size)
 
+  def merge_two_traj(self, x1, t1, x2, t2, dim):
+    # liangyuwei: This function merges two differently time-parameterized trajectories by linear interpolation.
+    # dim - the dimension of x1 and x2
+    
+    # Merge the time sequences
+    t1 = np.array(t1)
+    t2 = np.array(t2)
+    t_merged = np.concatenate((t1, t2)) 
+    t_merged = np.unique(t_merged) # .unique returns the sorted unique elements of an array
+
+    # Merge different dimensions of x1 and x2
+    #for i in range(dim):
+      
+    
+    
+
+    #return x1_merged, x2_merged
+
+  def plan_motion(self, x_start, w_start, x_mid, w_mid, x_final, w_final, planning_time, left_or_right_eef):
+    # liangyuwei: This function computes a cartesian path with regard to the specified starting point, via point and the final point.
+
+
+
+    ### Set initial pose
+    if (left_or_right_eef): # 1 or left eff
+      group = moveit_commander.MoveGroupCommander("left_arm")
+      left_pose_target = group.get_current_pose('left_ee_link')
+      left_pose_target.pose.position.x = x_start[0]
+      left_pose_target.pose.position.y = x_start[1]
+      left_pose_target.pose.position.z = x_start[2]
+      left_pose_target.pose.orientation.x = w_start[0]
+      left_pose_target.pose.orientation.y = w_start[1]
+      left_pose_target.pose.orientation.z = w_start[2]
+      left_pose_target.pose.orientation.w = w_start[3]
+      group.set_pose_target(left_pose_target, 'left_ee_link')
+    else:
+      group = moveit_commander.MoveGroupCommander("right_arm")
+      right_pose_target = group.get_current_pose('right_ee_link')
+      right_pose_target.pose.position.x = x_start[0]
+      right_pose_target.pose.position.y = x_start[1]
+      right_pose_target.pose.position.z = x_start[2]
+      right_pose_target.pose.orientation.x = w_start[0]
+      right_pose_target.pose.orientation.y = w_start[1]
+      right_pose_target.pose.orientation.z = w_start[2]
+      right_pose_target.pose.orientation.w = w_start[3]
+      group.set_pose_target(right_pose_target, 'right_ee_link')
+    # set planning time
+    group.set_planning_time(planning_time)
+    # plan
+    plan = group.go(wait=True)
+    # stop
+    group.stop()
+    # clear targets
+    group.clear_pose_targets()
+
+    ### Set via point
+    waypoints = []
+    wpose = group.get_current_pose().pose
+    # first mid point
+    wpose.position.x = x_mid[0] # scale * 0.2  
+    wpose.position.y = x_mid[1] # scale * 0.0 # move to the middle
+    wpose.position.z = x_mid[2] # scale * 0.315  # minimum height
+    wpose.orientation.x = w_mid[0]
+    wpose.orientation.y = w_mid[1]
+    wpose.orientation.z = w_mid[2]
+    wpose.orientation.w = w_mid[3]
+    waypoints.append(copy.deepcopy(wpose))
+
+    ### Set the final point 
+    wpose.position.x = x_final[0]
+    wpose.position.y = x_final[1]
+    wpose.position.z = x_final[2]
+    wpose.orientation.x = w_final[0]
+    wpose.orientation.y = w_final[1]
+    wpose.orientation.z = w_final[2]
+    wpose.orientation.w = w_final[3]
+    waypoints.append(copy.deepcopy(wpose))
+
+    ### Compute a cartesian path
+    (plan, fraction) = group.compute_cartesian_path(
+                                       waypoints,   # waypoints to follow
+                                       0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                       0.0,     # jump_threshold
+                                       avoid_collisions=False)         
+
+    ### Execute the plan
+    self.execute_plan(plan)
+
+
+    return plan 
+
 
 
 def main():
@@ -620,10 +706,11 @@ def main():
 
 
     ### Go to the given joint state
-    '''
+    ''
     print "============ Go to joint state ..."
     tutorial.go_to_joint_state()
-    '''
+    ''
+
 
     ### Add a table
     '''
@@ -636,20 +723,18 @@ def main():
 
 
     ### Add mesh
-    import pdb
-    pdb.set_trace()
     # flash body
     fb_ee_link = 'right_ee_link'
     fb_pose = geometry_msgs.msg.PoseStamped()
     fb_pose.header.frame_id = fb_ee_link
     fb_pose.pose.orientation.x = 0.0
-    fb_pose.pose.orientation.y = 0.707
-    fb_pose.pose.orientation.z = 0.707
-    fb_pose.pose.orientation.w = 0.0
-    fb_pose.pose.position.x = 0.16
-    fb_pose.pose.position.y = 0.0#-0.02
-    fb_pose.pose.position.z = 0.0#-0.01
-    fb_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_body_new.STL"
+    fb_pose.pose.orientation.y = 0.0
+    fb_pose.pose.orientation.z = 0.0
+    fb_pose.pose.orientation.w = 1.0
+    fb_pose.pose.position.x = 0.07
+    fb_pose.pose.position.y = 0.0
+    fb_pose.pose.position.z = 0.0
+    fb_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_body_final.STL"
     fb_mesh_name = "flash_body"
     fb_size = [0.001, 0.001, 0.001]
     tutorial.scene.add_mesh(fb_mesh_name, fb_pose, fb_file_path, fb_size)
@@ -658,16 +743,15 @@ def main():
     fh_pose = geometry_msgs.msg.PoseStamped()
     fh_pose.header.frame_id = fh_ee_link
     fh_pose.pose.orientation.x = 0.0
-    fh_pose.pose.orientation.y = 0.707
-    fh_pose.pose.orientation.z = 0.707
-    fh_pose.pose.orientation.w = 0.0
-    fh_pose.pose.position.x = 0.1
-    fh_pose.pose.position.y = -0.02
-    fh_pose.pose.position.z = -0.01
-    fh_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_hat.STL"
+    fh_pose.pose.orientation.y = 0.0
+    fh_pose.pose.orientation.z = 0.0
+    fh_pose.pose.orientation.w = 1.0
+    fh_pose.pose.position.x = 0.07
+    fh_pose.pose.position.y = 0.0
+    fh_pose.pose.position.z = 0.0
+    fh_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_hat_final.STL"
     fh_mesh_name = "flash_hat"
     fh_size = [0.001, 0.001, 0.001]
-
     tutorial.scene.add_mesh(fh_mesh_name, fh_pose, fh_file_path, fh_size)
 
 
@@ -676,27 +760,39 @@ def main():
     fb_grasping_group = 'right_gripper'
     touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
     tutorial.scene.attach_mesh(fb_ee_link, fb_mesh_name, fb_pose, touch_links=touch_links)
+    fh_grasping_group = 'left_gripper'
+    touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
+    tutorial.scene.attach_mesh(fh_ee_link, fh_mesh_name, fh_pose, touch_links=touch_links)
 
 
-    ### Detach mesh
-    tutorial.scene.remove_attached_object(eef_link, fb_mesh_name)
-
-
-    ### Remove mesh
-    tutorial.remove_object(fb_mesh_name, timeout=4)
-
-
-    ### Planning of two ur5 arms
+    ### Planning of two ur5 arms: go to pose goal
+    '''
+    import pdb
+    pdb.set_trace()
     # get pose target for dual_arms
     left_pose_target = tutorial.group.get_current_pose('left_ee_link')
     right_pose_target = tutorial.group.get_current_pose('right_ee_link')
     # set new targets
-    left_pose_target.pose.position.z -= 0.2
-    left_pose_target.pose.position.x -= 0.1
-    left_pose_target.pose.position.y += 0.08
-    right_pose_target.pose.position.z -= 0.3
-    right_pose_target.pose.position.x += 0.2
-    right_pose_target.pose.position.y -= 0.1
+    left_pos_tmp = [0.51, 0.3, 0.31] #[0.51, 0.3, 0.31] - start
+    left_pose_target.pose.position.x = left_pos_tmp[0]
+    left_pose_target.pose.position.y = left_pos_tmp[1]
+    left_pose_target.pose.position.z = left_pos_tmp[2]
+    left_pose_tmp = [0, 0, -0.707, 0.707]
+    left_pose_target.pose.orientation.x = left_pose_tmp[0]#-0.707#0.0
+    left_pose_target.pose.orientation.y = left_pose_tmp[1]#0.707#0.0
+    left_pose_target.pose.orientation.z = left_pose_tmp[2]#0.0#-0.707
+    left_pose_target.pose.orientation.w = left_pose_tmp[3]#0.0#0.707#1.0
+
+    right_pos_tmp = [0.51, -0.13, 0.31] # [0.51, -0.3, 0.31] - start
+    right_pose_target.pose.position.x = right_pos_tmp[0]
+    right_pose_target.pose.position.y = right_pos_tmp[1]
+    right_pose_target.pose.position.z = right_pos_tmp[2]
+    right_pose_tmp = [0, 0, 0.707, 0.707]
+    right_pose_target.pose.orientation.x = right_pose_tmp[0]#0.707#0.0
+    right_pose_target.pose.orientation.y = right_pose_tmp[1]#0.707#0.0
+    right_pose_target.pose.orientation.z = right_pose_tmp[2]#0.0#0.707
+    right_pose_target.pose.orientation.w = right_pose_tmp[3]#0.0#0.707#1.0
+
     tutorial.group.set_pose_target(left_pose_target, 'left_ee_link')
     tutorial.group.set_pose_target(right_pose_target, 'right_ee_link')
     # plan
@@ -705,104 +801,111 @@ def main():
     tutorial.group.stop()
     # clear targets
     tutorial.group.clear_pose_targets()
-
-
-
-    import pdb
-    pdb.set_trace()
+    '''
 
     
-    ### Pland and display a cartesian trajectory
-    print "============ Press `Enter` to plan and display a Cartesian path ..."
-    raw_input()
-    plan_part_1, tmp = tutorial.go_left_goal() # go to initial state
-    mid_point = [0.2, 0.0, 0.315]
-                # [0.6, 0.1, 0.45] # imi 10
-                # [0.7, 0.0, 0.355] # imi 9
-                # [0.6, -0.1, 0.4] # imi 8
-                # [0.5, 0.0, 0.415] # imi 7
-                # [0.45, 0.0, 0.53] # imi 6
-                # [0.4, 0.0, 0.6] # imi 5
-                # [0.2, -0.1, 0.345] # imi 4
-                # [0.2, 0.1, 0.325] # imi 3
-                # [0.15, 0.0, 0.345] # imi 2
-                # [0.2, 0.0, 0.315] # imi 1
-    cartesian_plan, fraction = tutorial.plan_cartesian_path(mid_point)
+    ### Planning of two ur5 arms: plan a cartesian path
+    import pdb
+    pdb.set_trace()
+    print "============ Plan and display a Cartesian path ..."
+    # left arm
+    l_x_start = [0.51, 0.5, 0.31]
+    l_x_mid = [0.36, 0.3, 0.25] # from mid to final, only y changes and differs
+    l_x_final = [0.36, 0.16, 0.25]
 
-    print "============ Press `Enter` to display a saved trajectory (this will replay the Cartesian path)  ..."
-    raw_input()
+    l_w_start = [0, 0, -0.707, 0.707]
+    l_w_mid = [0, 0, -0.707, 0.707]
+    l_w_final = [0, 0, -0.707, 0.707]
+
+    planning_time = 5
+
+    left_or_right_eef = True
+
+    plan_l = tutorial.plan_motion(l_x_start, l_w_start, l_x_mid, l_w_mid, l_x_final, l_w_final, planning_time, left_or_right_eef)
+
+    # right arm
+    r_x_start = [0.51, -0.5, 0.31]
+    r_x_mid = [0.36, -0.37, 0.25]
+    r_x_final = [0.36, -0.1, 0.25]
+
+    r_w_start = [0, 0, 0.707, 0.707]
+    r_w_mid = [0, 0, 0.707, 0.707]
+    r_w_final = [0, 0, 0.707, 0.707]
+
+    planning_time = 5
+
+    left_or_right_eef = False
+
+    plan_r = tutorial.plan_motion(r_x_start, r_w_start, r_x_mid, r_w_mid, r_x_final, r_w_final, planning_time, left_or_right_eef)
+
+
+    ### Displan a plan
+    '''
+    print "============ Display a saved trajectory (this will replay the Cartesian path)  ..."
     tutorial.display_trajectory(cartesian_plan)
+    '''
 
-    print "============ Press `Enter` to execute a saved path ..."
-    raw_input()
+    ### Execute a plan
+    '''
+    print "============ Execute a saved path ..."    
     import pdb
     pdb.set_trace()
     tutorial.execute_plan(cartesian_plan)
+    '''
 
 
+    ### Use h5py to store the generated motion plan
+    ''
     import pdb
     pdb.set_trace()
-
-    '''
-    #Use h5py to store the generated motion plan
     import h5py
     import numpy as np
-    # process the data using numpy
-    len_sample = len(cartesian_plan.joint_trajectory.points)
-    pos = np.zeros((len_sample, 6), dtype=float)
-    vel = np.zeros((len_sample, 6), dtype=float)
-    acc = np.zeros((len_sample, 6), dtype=float)
-    time_from_start = np.zeros((len_sample,), dtype=float)
-    for i in range(len_sample):
+    # process the data using numpy 
+    cartesian_plan = plan_l # plan_r
+    imi_path_name = "traj_pair_l_5" # traj_pair_r_1
+    for j in range(2):
+      len_sample = len(cartesian_plan.joint_trajectory.points)
+      pos = np.zeros((len_sample, 6), dtype=float)
+      vel = np.zeros((len_sample, 6), dtype=float)
+      acc = np.zeros((len_sample, 6), dtype=float)
+      time_from_start = np.zeros((len_sample,), dtype=float)
+      for i in range(len_sample):
         pos[i] = np.array(cartesian_plan.joint_trajectory.points[i].positions)
         vel[i] = np.array(cartesian_plan.joint_trajectory.points[i].velocities)
         acc[i] = np.array(cartesian_plan.joint_trajectory.points[i].accelerations) 
         time_from_start[i] = cartesian_plan.joint_trajectory.points[i].time_from_start.to_sec()
+
+      # store the results using h5py
+      f = h5py.File("dual_ur5_joint_trajectory.h5", "a")
+
+      path_group =  f.create_group(imi_path_name)
+      path_group.create_dataset("pos", data=pos, dtype=float)
+      path_group.create_dataset("vel", data=vel, dtype=float)
+      path_group.create_dataset("acc", data=acc, dtype=float)    
+      path_group.create_dataset("time_from_start", data=time_from_start, dtype=float)
+      f.close()
+    
+      # set to plan_r for the next iteration
+      cartesian_plan = plan_r
+      imi_path_name = "traj_pair_r_5"
+
+    ''
+
+    ### Detach mesh
+    ''
     import pdb
     pdb.set_trace()
-    # store the results using h5py
-    f = h5py.File("imi_joint_traj_dataset.h5", "a")
-    imi_path_name = "imi_path_10"
-    path_group =  f.create_group(imi_path_name)
-    path_group.create_dataset("pos", data=pos, dtype=float)
-    path_group.create_dataset("vel", data=vel, dtype=float)
-    path_group.create_dataset("acc", data=acc, dtype=float)    
-    path_group.create_dataset("time_from_start", data=time_from_start, dtype=float)
-    f.close()
-    '''
+    tutorial.scene.remove_attached_object(fb_ee_link, fb_mesh_name)
+    tutorial.scene.remove_attached_object(fh_ee_link, fh_mesh_name)
+    ''
 
-    import pdb
-    pdb.set_trace()
+    ### Remove mesh
+    ''
+    tutorial.remove_object(fb_mesh_name, timeout=4)
+    tutorial.remove_object(fh_mesh_name, timeout=4)
+    ''
 
-    print "Remove object, then exit..."
-    tutorial.remove_object("bottom", timeout=4)
-    tutorial.remove_object("pillar", timeout=4)
 
-    import pdb
-    pdb.set_trace()
-
-    print "============ Press `Enter` to add a box to the planning scene ..."
-    raw_input()
-    tutorial.add_box()
-
-    print "============ Press `Enter` to attach a Box to the Panda robot ..."
-    raw_input()
-    tutorial.attach_box()
-
-    print "============ Press `Enter` to plan and execute a path with an attached collision object ..."
-    raw_input()
-    cartesian_plan, fraction = tutorial.plan_cartesian_path(scale=-1)
-    tutorial.execute_plan(cartesian_plan)
-
-    print "============ Press `Enter` to detach the box from the Panda robot ..."
-    raw_input()
-    tutorial.detach_box()
-
-    print "============ Press `Enter` to remove the box from the planning scene ..."
-    raw_input()
-    tutorial.remove_box()
-
-    print "============ Python tutorial demo complete!"
   except rospy.ROSInterruptException:
     return
 
@@ -811,6 +914,7 @@ def main():
 
 
 if __name__ == '__main__':
+
   main()
 
 
