@@ -47,6 +47,7 @@ import sys
 import copy
 import rospy
 import math
+import tf
 import numpy as np
 import moveit_commander
 import moveit_msgs.msg
@@ -626,6 +627,7 @@ class MoveGroupPythonIntefaceTutorial(object):
 
 
     ### Set initial pose
+    print "== Set initial pose =="
     if (left_or_right_eef): # 1 or left eff
       group = moveit_commander.MoveGroupCommander("left_arm")
       left_pose_target = group.get_current_pose('left_ee_link')
@@ -658,6 +660,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     group.clear_pose_targets()
 
     ### Set via point
+    print "== Set via point =="
     waypoints = []
     wpose = group.get_current_pose().pose
     # first mid point
@@ -671,6 +674,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     waypoints.append(copy.deepcopy(wpose))
 
     ### Set the final point 
+    print "== Set final pose =="
     wpose.position.x = x_final[0]
     wpose.position.y = x_final[1]
     wpose.position.z = x_final[2]
@@ -681,6 +685,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     waypoints.append(copy.deepcopy(wpose))
 
     ### Compute a cartesian path
+    print "== Compute a cartesian path =="
     (plan, fraction) = group.compute_cartesian_path(
                                        waypoints,   # waypoints to follow
                                        0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
@@ -688,6 +693,7 @@ class MoveGroupPythonIntefaceTutorial(object):
                                        avoid_collisions=False)         
 
     ### Execute the plan
+    print "== Execute the plan =="
     self.execute_plan(plan)
 
 
@@ -773,21 +779,21 @@ def main():
     left_pose_target = tutorial.group.get_current_pose('left_ee_link')
     right_pose_target = tutorial.group.get_current_pose('right_ee_link')
     # set new targets
-    left_pos_tmp = [0.51, 0.3, 0.31] #[0.51, 0.3, 0.31] - start
-    left_pose_target.pose.position.x = left_pos_tmp[0]
-    left_pose_target.pose.position.y = left_pos_tmp[1]
-    left_pose_target.pose.position.z = left_pos_tmp[2]
-    left_pose_tmp = [0, 0, -0.707, 0.707]
+    #left_pos_tmp = [0.51, 0.3, 0.31] #[0.51, 0.3, 0.31] - start
+    #left_pose_target.pose.position.x = left_pos_tmp[0]
+    #left_pose_target.pose.position.y = left_pos_tmp[1]
+    #left_pose_target.pose.position.z = left_pos_tmp[2]
+    left_pose_tmp = tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
     left_pose_target.pose.orientation.x = left_pose_tmp[0]#-0.707#0.0
     left_pose_target.pose.orientation.y = left_pose_tmp[1]#0.707#0.0
     left_pose_target.pose.orientation.z = left_pose_tmp[2]#0.0#-0.707
     left_pose_target.pose.orientation.w = left_pose_tmp[3]#0.0#0.707#1.0
 
-    right_pos_tmp = [0.51, -0.13, 0.31] # [0.51, -0.3, 0.31] - start
-    right_pose_target.pose.position.x = right_pos_tmp[0]
-    right_pose_target.pose.position.y = right_pos_tmp[1]
-    right_pose_target.pose.position.z = right_pos_tmp[2]
-    right_pose_tmp = [0, 0, 0.707, 0.707]
+    #right_pos_tmp = [0.51, -0.13, 0.31] # [0.51, -0.3, 0.31] - start
+    #right_pose_target.pose.position.x = right_pos_tmp[0]
+    #right_pose_target.pose.position.y = right_pos_tmp[1]
+    #right_pose_target.pose.position.z = right_pos_tmp[2]
+    right_pose_tmp = tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
     right_pose_target.pose.orientation.x = right_pose_tmp[0]#0.707#0.0
     right_pose_target.pose.orientation.y = right_pose_tmp[1]#0.707#0.0
     right_pose_target.pose.orientation.z = right_pose_tmp[2]#0.0#0.707
@@ -810,12 +816,12 @@ def main():
     print "============ Plan and display a Cartesian path ..."
     # left arm
     l_x_start = [0.51, 0.5, 0.31]
-    l_x_mid = [0.36, 0.3, 0.25] # from mid to final, only y changes and differs
-    l_x_final = [0.36, 0.16, 0.25]
+    l_x_mid = [0.2, 0.1, 0.30] # from mid to final, only y changes and differs
+    l_x_final = [0.30, 0.0, 0.30]
 
     l_w_start = [0, 0, -0.707, 0.707]
-    l_w_mid = [0, 0, -0.707, 0.707]
-    l_w_final = [0, 0, -0.707, 0.707]
+    l_w_mid = tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
+    l_w_final = tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
 
     planning_time = 5
 
@@ -825,12 +831,12 @@ def main():
 
     # right arm
     r_x_start = [0.51, -0.5, 0.31]
-    r_x_mid = [0.36, -0.37, 0.25]
-    r_x_final = [0.36, -0.1, 0.25]
+    r_x_mid = [0.58, -0.28, 0.30]
+    r_x_final = [0.48, -0.18, 0.30]
 
     r_w_start = [0, 0, 0.707, 0.707]
-    r_w_mid = [0, 0, 0.707, 0.707]
-    r_w_final = [0, 0, 0.707, 0.707]
+    r_w_mid = tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
+    r_w_final = tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
 
     planning_time = 5
 
@@ -862,7 +868,8 @@ def main():
     import numpy as np
     # process the data using numpy 
     cartesian_plan = plan_l # plan_r
-    imi_path_name = "traj_pair_l_5" # traj_pair_r_1
+    index = "13"
+    imi_path_name = "traj_pair_l_" + index # traj_pair_r_1
     for j in range(2):
       len_sample = len(cartesian_plan.joint_trajectory.points)
       pos = np.zeros((len_sample, 6), dtype=float)
@@ -887,7 +894,7 @@ def main():
     
       # set to plan_r for the next iteration
       cartesian_plan = plan_r
-      imi_path_name = "traj_pair_r_5"
+      imi_path_name = "traj_pair_r_" + index
 
     ''
 
