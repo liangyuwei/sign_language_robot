@@ -688,7 +688,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     print "== Compute a cartesian path =="
     (plan, fraction) = group.compute_cartesian_path(
                                        waypoints,   # waypoints to follow
-                                       0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                       0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
                                        0.0,     # jump_threshold
                                        avoid_collisions=False)         
 
@@ -811,17 +811,18 @@ def main():
 
     
     ### Planning of two ur5 arms: plan a cartesian path
+    '''
     import pdb
     pdb.set_trace()
     print "============ Plan and display a Cartesian path ..."
     # left arm
     l_x_start = [0.51, 0.5, 0.31]
-    l_x_mid = [0.42, 0.35, 0.28] # from mid to final, only y changes and differs
-    l_x_final = [0.42, 0.2, 0.28]
+    l_x_mid = [0.2, 0.1, 0.30] # from mid to final, only y changes and differs
+    l_x_final = [0.30, 0.0, 0.30]
 
     l_w_start = [0, 0, -0.707, 0.707]
-    l_w_mid = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
-    l_w_final = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
+    l_w_mid = tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
+    l_w_final = tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
 
     planning_time = 5
 
@@ -831,21 +832,21 @@ def main():
 
     # right arm
     r_x_start = [0.51, -0.5, 0.31]
-    r_x_mid = [0.42, -0.23, 0.28]
-    r_x_final = [0.42, -0.06, 0.28]
+    r_x_mid = [0.58, -0.28, 0.30]
+    r_x_final = [0.48, -0.18, 0.30]
 
     r_w_start = [0, 0, 0.707, 0.707]
-    r_w_mid = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
-    r_w_final = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
+    r_w_mid = tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
+    r_w_final = tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
 
     planning_time = 5
 
     left_or_right_eef = False
 
     plan_r = tutorial.plan_motion(r_x_start, r_w_start, r_x_mid, r_w_mid, r_x_final, r_w_final, planning_time, left_or_right_eef)
+    '''
 
-
-    ### Displan a plan
+    ### Display a plan
     '''
     print "============ Display a saved trajectory (this will replay the Cartesian path)  ..."
     tutorial.display_trajectory(cartesian_plan)
@@ -897,6 +898,30 @@ def main():
       imi_path_name = "traj_pair_r_" + index
 
     '''
+
+    ### Load a trajectory from h5 file
+    print "========== Load joint trajectory from h5 file "
+    import h5py
+    import numpy as np
+    f = h5py.File("", "r")
+    dual_traj = f[]
+
+    
+    ### Create a plan using the imported trajectory
+    print "========== Create a plan from imported trajectory "
+    cartesian_plan = moveit_msgs.msg.RobotTrajectory()
+    carteisan_plan.joint_trajectory.header.frame_id = '/world'
+    cartesian_plan.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', '']
+    for i in range():
+        traj_point = trajectory_msgs.msg.JointTrajectoryPoint()
+        traj_point.positions = 
+        t = rospy.Time(i*0.005)
+        traj_point.time_from_start.secs = t.secs
+        traj_point.time_from_start.nsecs = t.nsecs
+        cartesian_plan.joint_trajectory.points.append(traj_point)
+
+ 
+   
 
     ### Detach mesh
     ''
