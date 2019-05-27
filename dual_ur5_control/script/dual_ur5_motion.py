@@ -819,8 +819,8 @@ def main():
     print "============ Plan and display a Cartesian path ..."
     # left arm
     l_x_start = [0.5, 0.3, 0.35]
-    l_x_mid = [0.4, 0.18, 0.3] # from mid to final, only y changes and differs
-    l_x_final = [0.4, 0.13, 0.3]
+    l_x_mid = [0.55, 0.25, 0.25] # from mid to final, only y changes and differs
+    l_x_final = [0.55, 0.18, 0.25]
 
     l_w_start = [0, 0, -0.707, 0.707]
     l_w_mid = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
@@ -837,8 +837,8 @@ def main():
 
     # right arm
     r_x_start = [0.5, -0.3, 0.35]
-    r_x_mid = [0.4, -0.23, 0.3]
-    r_x_final = [0.4, -0.13, 0.3]
+    r_x_mid = [0.55, -0.26, 0.25]
+    r_x_final = [0.55, -0.08, 0.25]
 
     r_w_start = [0, 0, 0.707, 0.707]
     r_w_mid = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
@@ -874,7 +874,7 @@ def main():
     import numpy as np
     # process the data using numpy 
     cartesian_plan = plan_l
-    index = "10"
+    index = "25"
     imi_path_name = "traj_pair_l_" + index # traj_pair_r_1
     for j in range(2):
       len_sample = len(cartesian_plan.joint_trajectory.points)
@@ -889,7 +889,7 @@ def main():
         time_from_start[i] = cartesian_plan.joint_trajectory.points[i].time_from_start.to_sec()
 
       # store the results using h5py
-      f = h5py.File("dual_ur5_joint_trajectory_same_start_goal.h5", "a")
+      f = h5py.File("dual_ur5_joint_trajectory_same_start_diff_goal.h5", "a")
 
       path_group =  f.create_group(imi_path_name)
       path_group.create_dataset("pos", data=pos, dtype=float)
