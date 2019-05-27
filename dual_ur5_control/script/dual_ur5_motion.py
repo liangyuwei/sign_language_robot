@@ -639,6 +639,7 @@ class MoveGroupPythonIntefaceTutorial(object):
       left_pose_target.pose.orientation.z = w_start[2]
       left_pose_target.pose.orientation.w = w_start[3]
       group.set_pose_target(left_pose_target, 'left_ee_link')
+      group.allow_replanning(True)
     else:
       group = moveit_commander.MoveGroupCommander("right_arm")
       right_pose_target = group.get_current_pose('right_ee_link')
@@ -650,6 +651,8 @@ class MoveGroupPythonIntefaceTutorial(object):
       right_pose_target.pose.orientation.z = w_start[2]
       right_pose_target.pose.orientation.w = w_start[3]
       group.set_pose_target(right_pose_target, 'right_ee_link')
+      group.allow_replanning(True)
+
     # set planning time
     group.set_planning_time(planning_time)
     # plan
@@ -688,7 +691,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     print "== Compute a cartesian path =="
     (plan, fraction) = group.compute_cartesian_path(
                                        waypoints,   # waypoints to follow
-                                       0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                       0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
                                        0.0,     # jump_threshold
                                        avoid_collisions=False)         
 
@@ -815,30 +818,33 @@ def main():
     pdb.set_trace()
     print "============ Plan and display a Cartesian path ..."
     # left arm
-    l_x_start = [0.51, 0.5, 0.31]
-    l_x_mid = [0.42, 0.35, 0.28] # from mid to final, only y changes and differs
-    l_x_final = [0.42, 0.2, 0.28]
+    l_x_start = [0.5, 0.3, 0.35]
+    l_x_mid = [0.4, 0.18, 0.3] # from mid to final, only y changes and differs
+    l_x_final = [0.4, 0.13, 0.3]
 
     l_w_start = [0, 0, -0.707, 0.707]
     l_w_mid = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
     l_w_final = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
 
-    planning_time = 5
+    planning_time = 3
 
     left_or_right_eef = True
 
     plan_l = tutorial.plan_motion(l_x_start, l_w_start, l_x_mid, l_w_mid, l_x_final, l_w_final, planning_time, left_or_right_eef)
 
+    import pdb
+    pdb.set_trace()
+
     # right arm
-    r_x_start = [0.51, -0.5, 0.31]
-    r_x_mid = [0.42, -0.23, 0.28]
-    r_x_final = [0.42, -0.06, 0.28]
+    r_x_start = [0.5, -0.3, 0.35]
+    r_x_mid = [0.4, -0.23, 0.3]
+    r_x_final = [0.4, -0.13, 0.3]
 
     r_w_start = [0, 0, 0.707, 0.707]
     r_w_mid = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
     r_w_final = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
 
-    planning_time = 5
+    planning_time = 3
 
     left_or_right_eef = False
 
@@ -861,14 +867,14 @@ def main():
 
 
     ### Use h5py to store the generated motion plan
-    '''
+    ''
     import pdb
     pdb.set_trace()
     import h5py
     import numpy as np
     # process the data using numpy 
     cartesian_plan = plan_l
-    index = "13"
+    index = "10"
     imi_path_name = "traj_pair_l_" + index # traj_pair_r_1
     for j in range(2):
       len_sample = len(cartesian_plan.joint_trajectory.points)
@@ -883,7 +889,7 @@ def main():
         time_from_start[i] = cartesian_plan.joint_trajectory.points[i].time_from_start.to_sec()
 
       # store the results using h5py
-      f = h5py.File("dual_ur5_joint_trajectory.h5", "a")
+      f = h5py.File("dual_ur5_joint_trajectory_same_start_goal.h5", "a")
 
       path_group =  f.create_group(imi_path_name)
       path_group.create_dataset("pos", data=pos, dtype=float)
@@ -896,7 +902,7 @@ def main():
       cartesian_plan = plan_r
       imi_path_name = "traj_pair_r_" + index
 
-    '''
+    ''
 
     ### Detach mesh
     ''
