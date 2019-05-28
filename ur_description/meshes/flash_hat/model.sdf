@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+
+<sdf version='1.6'>
+  <model name='37_adjustable_wrench_2'>
+    <link name='adjustable_wrench'>
+      <pose>0 0 0.00605830072678 0 0 0</pose>
+      <inertial>
+        <mass>1.0</mass>
+        <inertia>
+          <ixx>0.00354850587253</ixx>
+          <ixy>0.0</ixy>
+          <iyy>0.000227406875095</iyy>
+          <ixz>0.0</ixz>
+          <iyz>0.0</iyz>
+          <izz>0.00334556766923</izz>
+        </inertia>
+      </inertial>
+      <visual name='adjustable_wrench_visual'>
+        <geometry>
+          <mesh>
+            <uri>model://37_adjustable_wrench_2/meshes/adjustable_wrench.dae</uri>
+            <scale>0.022494386807 0.022494386807 0.022494386807</scale>
+          </mesh>
+        </geometry>
+      </visual>
+      
+      <collision name='adjustable_wrench_collision'>
+        <geometry>
+          <mesh>
+            <uri>model://37_adjustable_wrench_2/meshes/adjustable_wrench.dae</uri>
+            <scale>0.022494386807 0.022494386807 0.022494386807</scale>
+          </mesh>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <mu>20.0</mu>
+              <mu2>20.0</mu2>
+              <fdir1>0.0 0.0 1.0</fdir1>
+            </ode>
+          </friction>
+          <contact>
+            <ode>
+              <kp>10.0</kp>
+              <kd>0.0</kd>
+              <min_depth>0.0</min_depth>
+            </ode>
+          </contact>
+          <soft_contact>
+            <dart>
+              <stiffness>100</stiffness>
+              <damping>10</damping>
+            </dart>
+          </soft_contact>
+        </surface>
+      </collision>
+      
+    </link>
+    
+  </model>
+</sdf>

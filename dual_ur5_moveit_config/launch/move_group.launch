@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <launch>
 
   <include file="$(find dual_ur5_moveit_config)/launch/planning_context.launch" />
@@ -46,7 +47,7 @@
   <!-- Trajectory Execution Functionality -->
   <include ns="move_group" file="$(find dual_ur5_moveit_config)/launch/trajectory_execution.launch.xml" if="$(arg allow_trajectory_execution)">
     <arg name="moveit_manage_controllers" value="true" />
-    <arg name="moveit_controller_manager" value="ur5" unless="$(arg fake_execution)"/>
+    <arg name="moveit_controller_manager" value="dual_ur5" unless="$(arg fake_execution)"/>
     <arg name="moveit_controller_manager" value="fake" if="$(arg fake_execution)"/>
   </include>
 
