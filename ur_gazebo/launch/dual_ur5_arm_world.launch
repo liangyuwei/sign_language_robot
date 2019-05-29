@@ -23,4 +23,11 @@
   <rosparam file="$(find ur_gazebo)/controller/dual_ur5_controller.yaml" command="load"/>
   <node name="dual_ur5_controller_manager" pkg="controller_manager" type="controller_manager" ns="dual_ur5_arm" args="spawn joint_state_controller left_arm_joint_controller right_arm_joint_controller left_gripper_controller right_gripper_controller" respawn="false" output="screen"/>
 
+  <!-- Convert joint states to TF transforms for rviz, etc -->
+  <!--node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"
+	respawn="false" output="screen">
+    <remap from="/joint_states" to="/dual_ur5_arm/joint_states" />
+  </node-->
+
+
 </launch>

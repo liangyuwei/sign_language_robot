@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Launch Gazebo -->
+  <!--include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" default="worlds/empty.world"/>
+    <arg name="paused" value="false"/>
+    <arg name="gui" value="true"/>
+    <!- -arg name="physics" value="ode" /- ->
+  </include-->
+
+  <!-- Spawn flash -->
+  <node name="spawn_flash_body" pkg="gazebo_ros" type="spawn_model" args="-file $(find ur_description)/meshes/flash_body/model.sdf -sdf -model flash_body -x 0.5 -y -0.4 -z 0.1 -P 1.57" /> <!-- roll -3.139901, pitch 1.570792-->
+
+  <node name="spawn_flash_hat" pkg="gazebo_ros" type="spawn_model" args="-file $(find ur_description)/meshes/flash_hat/model.sdf -sdf -model flash_hat -x 0.5 -y 0.4 -z 0.04 -P 1.57" />
+
+
+</launch>

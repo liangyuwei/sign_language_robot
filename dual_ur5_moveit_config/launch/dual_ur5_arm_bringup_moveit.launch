@@ -5,6 +5,9 @@
   <!-- Launch Gazebo -->
   <include file="$(find ur_gazebo)/launch/dual_ur5_arm_world.launch" />
 
+  <!-- Load flash model -->
+  <include file="$(find ur_description)/launch/load_flash.launch" />
+
   <!-- Launch RViz with MoveIt -->
   <include file="$(find dual_ur5_moveit_config)/launch/demo.launch" />
 

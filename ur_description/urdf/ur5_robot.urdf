@@ -4,6 +4,37 @@
 <!-- |    EDITING THIS FILE BY HAND IS NOT RECOMMENDED                                 | -->
 <!-- =================================================================================== -->
 <robot name="ur5" xmlns:xacro="http://wiki.ros.org/xacro">
+
+  <gazebo>
+    <plugin name="gazebo_grasp_fix" filename="libgazebo_grasp_fix.so">
+      <arm>
+        <arm_name>right_ur5_arm</arm_name>
+        <palm_link>right_wrist_3_link</palm_link>
+        <gripper_link>right_rh_p12_rn_base</gripper_link>
+        <gripper_link>right_rh_p12_rn_r1</gripper_link>
+        <gripper_link>right_rh_p12_rn_r2</gripper_link>
+        <gripper_link>right_rh_p12_rn_l1</gripper_link>
+        <gripper_link>right_rh_p12_rn_l2</gripper_link>
+      </arm>
+      <arm>
+        <arm_name>left_ur5_arm</arm_name>
+        <palm_link>left_wrist_3_link</palm_link>
+        <gripper_link>left_rh_p12_rn_base</gripper_link>
+        <gripper_link>left_rh_p12_rn_r1</gripper_link>
+        <gripper_link>left_rh_p12_rn_r2</gripper_link>
+        <gripper_link>left_rh_p12_rn_l1</gripper_link>
+        <gripper_link>left_rh_p12_rn_l2</gripper_link>
+      </arm>
+      <forces_angle_tolerance>100</forces_angle_tolerance>
+      <update_rate>4</update_rate>
+      <grip_count_threshold>4</grip_count_threshold>
+      <max_grip_count>8</max_grip_count>
+      <release_tolerance>0.005</release_tolerance>
+      <disable_collisions_on_attach>false</disable_collisions_on_attach>
+      <contact_topic>__default_topic__</contact_topic>
+    </plugin>
+  </gazebo>
+
   <gazebo>
     <plugin filename="libgazebo_ros_control.so" name="ros_control">
       <robotNamespace>dual_ur5_arm</robotNamespace>
@@ -755,10 +786,10 @@
   <transmission name="left_tran_r1">
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="left_rh_p12_rn">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
     </joint>
     <actuator name="left_motor_r1">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
   </transmission>
@@ -797,10 +828,10 @@
   <transmission name="left_tran_r2">
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="left_rh_r2">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
     </joint>
     <actuator name="left_motor_r2">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
   </transmission>
@@ -839,10 +870,10 @@
   <transmission name="left_tran_l1">
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="left_rh_l1">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
     </joint>
     <actuator name="left_motor_l1">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
   </transmission>
@@ -881,10 +912,10 @@
   <transmission name="left_tran_l2">
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="left_rh_l2">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
     </joint>
     <actuator name="left_motor_l2">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
   </transmission>
@@ -955,10 +986,10 @@
   <transmission name="right_tran_r1">
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="right_rh_p12_rn">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
     </joint>
     <actuator name="right_motor_r1">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
   </transmission>
@@ -997,10 +1028,10 @@
   <transmission name="right_tran_r2">
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="right_rh_r2">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
     </joint>
     <actuator name="right_motor_r2">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
   </transmission>
@@ -1039,10 +1070,10 @@
   <transmission name="right_tran_l1">
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="right_rh_l1">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
     </joint>
     <actuator name="right_motor_l1">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
   </transmission>
@@ -1081,10 +1112,10 @@
   <transmission name="right_tran_l2">
     <type>transmission_interface/SimpleTransmission</type>
     <joint name="right_rh_l2">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
     </joint>
     <actuator name="right_motor_l2">
-      <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+      <hardwareInterface>hardware_interface/EffortJointInterface</hardwareInterface>
       <mechanicalReduction>1</mechanicalReduction>
     </actuator>
   </transmission>
@@ -1110,5 +1141,22 @@
       <inertia ixx="1.0" ixy="0.0" ixz="0.0" iyy="1.0" iyz="0.0" izz="1.0"/>
     </inertial>
   </link>
+
+  <!-- Modify the gripper link contact properties-->
+  <gazebo reference="left_rh_p12_rn_r2"> 
+    <kp>10000</kp>
+    <kd>1000</kd>
+    <minDepth>0.0</minDepth>  
+    <maxVel>0</maxVel>  
+  </gazebo>
+  <gazebo reference="right_rh_p12_rn_r2">  
+    <kp>10000</kp>
+    <kd>1000</kd>
+    <minDepth>0.0</minDepth>  
+    <maxVel>0</maxVel>  
+  </gazebo>
 <!-- above is the part of gripper -->  
+
+
 </robot>
+

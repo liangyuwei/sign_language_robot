@@ -691,7 +691,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     print "== Compute a cartesian path =="
     (plan, fraction) = group.compute_cartesian_path(
                                        waypoints,   # waypoints to follow
-                                       0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                       0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                        0.0,     # jump_threshold
                                        avoid_collisions=False)         
 
@@ -702,6 +702,38 @@ class MoveGroupPythonIntefaceTutorial(object):
 
     return plan 
 
+  def gripper_control(self, open_or_close=True, left_or_right=True):
+
+    # decide which gripper to control
+    if (left_or_right): # left
+      group_name = "left_gripper"
+    else: # right
+      group_name = "right_gripper"
+
+    # initialize the group
+    group = moveit_commander.MoveGroupCommander(group_name)
+
+    # get current joint values for later use
+    joint_goal = group.get_current_joint_values()
+
+    import pdb
+    pdb.set_trace()
+
+    # set angle
+    if (open_or_close): # open
+      ang = 0.0
+    else: # close
+      ang = 0.8  # max is 1.1
+    joint_goal[0] = ang
+    joint_goal[1] = ang * 1.0 / 1.1
+    joint_goal[2] = ang
+    joint_goal[3] = ang * 1.0 / 1.1
+
+    # execute
+    group.go(joint_goal, wait=True)
+
+    # Calling ``stop()`` ensures that there is no residual movement
+    group.stop()
 
 
 def main():
@@ -812,6 +844,47 @@ def main():
     tutorial.group.clear_pose_targets()
     '''
 
+    ### Go to grasp position
+#    import pdb
+#    pdb.set_trace()
+    # get pose target for dual_arms
+    left_pose_target = tutorial.group.get_current_pose('left_ee_link')
+    right_pose_target = tutorial.group.get_current_pose('right_ee_link')
+    # set new targets
+    left_pre_grasp_pos = [0.5, 0.4, 0.15] # 0.04 + 0.07
+    left_pose_target.pose.position.x = left_pre_grasp_pos[0]
+    left_pose_target.pose.position.y = left_pre_grasp_pos[1]
+    left_pose_target.pose.position.z = left_pre_grasp_pos[2]
+    left_pre_grasp_pose = tf.transformations.quaternion_from_euler(math.pi, math.pi/2, 0) #[0, 0, -0.707, 0.707]
+    left_pose_target.pose.orientation.x = left_pre_grasp_pose[0]
+    left_pose_target.pose.orientation.y = left_pre_grasp_pose[1]
+    left_pose_target.pose.orientation.z = left_pre_grasp_pose[2]
+    left_pose_target.pose.orientation.w = left_pre_grasp_pose[3]
+
+    right_pre_grasp_pos = [0.5, -0.4, 0.19] # 0.1 + 0.07
+    right_pose_target.pose.position.x = right_pre_grasp_pos[0]
+    right_pose_target.pose.position.y = right_pre_grasp_pos[1]
+    right_pose_target.pose.position.z = right_pre_grasp_pos[2]
+    right_pre_grasp_pose = tf.transformations.quaternion_from_euler(0, math.pi/2, math.pi) #[0, 0, 0.707, 0.707]
+    right_pose_target.pose.orientation.x = right_pre_grasp_pose[0]#0.707#0.0
+    right_pose_target.pose.orientation.y = right_pre_grasp_pose[1]#0.707#0.0
+    right_pose_target.pose.orientation.z = right_pre_grasp_pose[2]#0.0#0.707
+    right_pose_target.pose.orientation.w = right_pre_grasp_pose[3]#0.0#0.707#1.0
+
+    tutorial.group.set_pose_target(left_pose_target, 'left_ee_link')
+    tutorial.group.set_pose_target(right_pose_target, 'right_ee_link')
+    # plan
+    plan = tutorial.group.go(wait=True)
+    # stop
+    tutorial.group.stop()
+    # clear targets
+    tutorial.group.clear_pose_targets()
+
+    ### Execute grasping
+  #  open_or_close = True
+  #  left_or_right = True
+  #  tutorial.gripper_control(open_or_close, left_or_right)
+
     
     ### Planning of two ur5 arms: plan a cartesian path
     import pdb
@@ -820,7 +893,7 @@ def main():
     # left arm
     l_x_start = [0.5, 0.3, 0.35]
     l_x_mid = [0.55, 0.25, 0.25] # from mid to final, only y changes and differs
-    l_x_final = [0.55, 0.18, 0.25]
+    l_x_final = [0.55, 0.16, 0.25]
 
     l_w_start = [0, 0, -0.707, 0.707]
     l_w_mid = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
@@ -832,13 +905,13 @@ def main():
 
     plan_l = tutorial.plan_motion(l_x_start, l_w_start, l_x_mid, l_w_mid, l_x_final, l_w_final, planning_time, left_or_right_eef)
 
-    import pdb
-    pdb.set_trace()
+    #import pdb
+    #pdb.set_trace()
 
     # right arm
     r_x_start = [0.5, -0.3, 0.35]
     r_x_mid = [0.55, -0.26, 0.25]
-    r_x_final = [0.55, -0.08, 0.25]
+    r_x_final = [0.55, -0.15, 0.25]
 
     r_w_start = [0, 0, 0.707, 0.707]
     r_w_mid = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
