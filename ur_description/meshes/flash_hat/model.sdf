@@ -27,6 +27,9 @@
             <scale>0.001 0.001 0.001</scale>
           </mesh>
         </geometry>
+        <material> 
+          <ambient>0 1 0 1</ambient>
+        </material>
       </visual>
       
       <collision name='flash_hat_collision'>

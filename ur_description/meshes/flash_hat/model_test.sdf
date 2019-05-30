@@ -1,53 +1,61 @@
 <?xml version="1.0"?>
 
 <sdf version='1.6'>
-  <model name='flash_body'>
-    <link name='flash_body'>
+  <model name='flash_hat'>
+    <allow_auto_disable>1</allow_auto_disable>
+
+    <link name='flash_hat'>
       <pose>0 0 0 0 0 0</pose>
 
       <inertial>
-        <pose>0.05 0 0 0 0 0</pose>
+        <pose>0.02 0 0 0 0 0</pose>
         <mass>1.0</mass>
         <inertia>
           <ixx>0.0001667</ixx>
           <ixy>0.0</ixy>
-          <iyy>0.0008667</iyy>
+          <iyy>0.0001667</iyy>
           <ixz>0.0</ixz>
           <iyz>0.0</iyz>
-          <izz>0.0009667</izz>
+          <izz>0.0002667</izz>
         </inertia>
       </inertial>
 
-      <visual name='flash_body_visual'>
+      <visual name='flash_hat_visual'>
+        <pose>0 0 0 0 0 0</pose>
         <geometry>
           <mesh>
-            <uri>model://flash_body/meshes/flash_body_final.STL</uri>
+            <uri>model://flash_hat/meshes/flash_hat_final.STL</uri>
             <scale>0.001 0.001 0.001</scale>
           </mesh>
         </geometry>
         <material> 
-          <ambient>0 0 1 1</ambient>
+          <ambient>0 1 0 1</ambient>
         </material>
       </visual>
       
-      <collision name='flash_body_collision'>
+      <collision name='flash_hat_collision'>
+        <pose>0 0 0 0 0 0</pose>
         <geometry>
           <mesh>
-            <uri>model://flash_body/meshes/flash_body_final.STL</uri>
+            <uri>model://flash_hat/meshes/flash_hat_final.STL</uri>
             <scale>0.001 0.001 0.001</scale>
           </mesh>
         </geometry>
         <surface>
-          <contact>
+          <!--bounce>
+            <restitution_coefficient>1.0</restitution_coefficient>
+          </bounce-->
+          <!--contact>
             <ode>
               <kp>10000</kp>
               <kd>1000</kd>
               <max_vel>0</max_vel>
               <min_depth>0.0</min_depth>
             </ode>
-          </contact>
+          </contact-->
         </surface>
       </collision>
+      
     </link>
     
   </model>

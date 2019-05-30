@@ -35,3 +35,4 @@ controller_list:
   - name: fake_right_gripper_controller
     joints:
       - right_rh_p12_rn
+

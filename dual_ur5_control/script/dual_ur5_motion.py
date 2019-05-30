@@ -721,9 +721,9 @@ class MoveGroupPythonIntefaceTutorial(object):
 
     # set angle
     if (open_or_close): # open
-      ang = 0.0
+      ang = 0.2
     else: # close
-      ang = 0.8  # max is 1.1
+      ang = 0.7  # max is 1.1
     joint_goal[0] = ang
     joint_goal[1] = ang * 1.0 / 1.1
     joint_goal[2] = ang
@@ -735,6 +735,33 @@ class MoveGroupPythonIntefaceTutorial(object):
     # Calling ``stop()`` ensures that there is no residual movement
     group.stop()
 
+  def grasp(self):
+  
+    # moveit pick and place pipeline
+    grasp = moveit_msgs.msg.Grasp()
+    
+    ## fill in information
+    # grasp pose
+    grasp.grasp_pose.header.frame_id = "world"
+    grasp.grasp_pose.pose.position.x = 0.5 # 0.5
+    grasp.grasp_pose.pose.position.y = 0.4 # -0.4
+    grasp.grasp_pose.pose.position.z = 0.15 # 0.19
+    tmp = tf.transformations.quaternion_from_euler(math.pi, math.pi/2, 0)
+    grasp.grasp_pose.pose.orientation.x = tmp[0]
+    grasp.grasp_pose.pose.orientation.y = tmp[1]
+    grasp.grasp_pose.pose.orientation.z = tmp[2]
+    grasp.grasp_pose.pose.orientation.w = tmp[3]
+    # pre grasp approach
+    grasp.pre_grasp_approach.direction.header.frame_id = "world"
+    grasp.pre_grasp_approach.direction.vector.z = 1.0
+    grasp.pre_grasp_approach.desired_distance = 0.1
+    grasp.pre_grasp_approach.min_distance = 0.1 # error???
+    # post grasp retreat
+    grasp.post_grasp_retreat.direction.header.frame_id = "world"
+    grasp.post_grasp_retreat.direction.vector.z = -1.0
+    grasp.post_grasp_retreat.desired_distance = 0.1
+    grasp.post_grasp_retreat.min_distance = 0.1
+  
 
 def main():
 
