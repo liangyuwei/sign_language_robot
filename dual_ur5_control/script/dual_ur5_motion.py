@@ -52,6 +52,7 @@ import numpy as np
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
+import trajectory_msgs.msg
 from math import pi
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
@@ -737,15 +738,32 @@ class MoveGroupPythonIntefaceTutorial(object):
 
   def grasp(self):
   
-    # moveit pick and place pipeline
+    # moveit pick
     grasp = moveit_msgs.msg.Grasp()
     
     ## fill in information
+    grasp.id = "grasp_flash"
+
+    # pre grasp posture(open gripper)
+    grasp.pre_grasp_posture.header.frame_id = "world"
+    grasp.pre_grasp_posture.joint_names = ["right_rh_p12_rn", "right_rh_r2", "right_rh_l1", "right_rh_l2"]
+    grasp.pre_grasp_posture.points = [trajectory_msgs.msg.JointTrajectoryPoint()]
+    ang = 0.0
+    grasp.pre_grasp_posture.points[0].positions = [ang, ang/1.1, ang, ang/1.1]
+    grasp.pre_grasp_posture.points[0].time_from_start = rospy.Duration(0.5)
+    # grasp posture(close gripper)
+    grasp.grasp_posture.header.frame_id = "world"
+    grasp.grasp_posture.joint_names = ["right_rh_p12_rn", "right_rh_r2", "right_rh_l1", "right_rh_l2"]
+    grasp.grasp_posture.points = [trajectory_msgs.msg.JointTrajectoryPoint()]
+    ang = 0.8
+    grasp.grasp_posture.points[0].positions = [ang, ang/1.1, ang, ang/1.1]
+    grasp.grasp_posture.points[0].time_from_start = rospy.Duration(0.5)
+
     # grasp pose
     grasp.grasp_pose.header.frame_id = "world"
     grasp.grasp_pose.pose.position.x = 0.5 # 0.5
-    grasp.grasp_pose.pose.position.y = 0.4 # -0.4
-    grasp.grasp_pose.pose.position.z = 0.15 # 0.19
+    grasp.grasp_pose.pose.position.y = -0.4 # -0.4
+    grasp.grasp_pose.pose.position.z = 0.19 # 0.19
     tmp = tf.transformations.quaternion_from_euler(math.pi, math.pi/2, 0)
     grasp.grasp_pose.pose.orientation.x = tmp[0]
     grasp.grasp_pose.pose.orientation.y = tmp[1]
@@ -755,13 +773,25 @@ class MoveGroupPythonIntefaceTutorial(object):
     grasp.pre_grasp_approach.direction.header.frame_id = "world"
     grasp.pre_grasp_approach.direction.vector.z = 1.0
     grasp.pre_grasp_approach.desired_distance = 0.1
-    grasp.pre_grasp_approach.min_distance = 0.1 # error???
+    grasp.pre_grasp_approach.min_distance = 0.095 # error???
     # post grasp retreat
     grasp.post_grasp_retreat.direction.header.frame_id = "world"
     grasp.post_grasp_retreat.direction.vector.z = -1.0
     grasp.post_grasp_retreat.desired_distance = 0.1
-    grasp.post_grasp_retreat.min_distance = 0.1
-  
+    grasp.post_grasp_retreat.min_distance = 0.095
+
+    # move group
+    group_name = "right_arm" 
+    group = moveit_commander.MoveGroupCommander(group_name)
+    object_name = "flash_body"
+    group.pick(object_name, grasp, plan_only=False)
+    
+
+  def place(self):
+
+    # moveit place
+    place_location = moveit_msgs.msg.PlaceLocation()
+
 
 def main():
 
@@ -791,32 +821,36 @@ def main():
 
 
     ### Add mesh
+    import pdb
+    pdb.set_trace()
     # flash body
-    fb_ee_link = 'right_ee_link'
+    fb_ee_link = 'world' #'right_ee_link'
     fb_pose = geometry_msgs.msg.PoseStamped()
     fb_pose.header.frame_id = fb_ee_link
-    fb_pose.pose.orientation.x = 0.0
-    fb_pose.pose.orientation.y = 0.0
-    fb_pose.pose.orientation.z = 0.0
-    fb_pose.pose.orientation.w = 1.0
-    fb_pose.pose.position.x = 0.07
-    fb_pose.pose.position.y = 0.0
-    fb_pose.pose.position.z = 0.0
+    fb_pose_tmp = tf.transformations.quaternion_from_euler(0, math.pi/2, 0)
+    fb_pose.pose.orientation.x = fb_pose_tmp[0] #0.0
+    fb_pose.pose.orientation.y = fb_pose_tmp[1] #0.0
+    fb_pose.pose.orientation.z = fb_pose_tmp[2] #0.0
+    fb_pose.pose.orientation.w = fb_pose_tmp[3] #1.0
+    fb_pose.pose.position.x = 0.5 #0.07
+    fb_pose.pose.position.y = -0.4 #0.0
+    fb_pose.pose.position.z = 0.1 #0.0
     fb_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_body_final.STL"
     fb_mesh_name = "flash_body"
     fb_size = [0.001, 0.001, 0.001]
     tutorial.scene.add_mesh(fb_mesh_name, fb_pose, fb_file_path, fb_size)
     # flash hat
-    fh_ee_link = 'left_ee_link'
+    fh_ee_link = 'world' #'left_ee_link'
     fh_pose = geometry_msgs.msg.PoseStamped()
     fh_pose.header.frame_id = fh_ee_link
-    fh_pose.pose.orientation.x = 0.0
-    fh_pose.pose.orientation.y = 0.0
-    fh_pose.pose.orientation.z = 0.0
-    fh_pose.pose.orientation.w = 1.0
-    fh_pose.pose.position.x = 0.07
-    fh_pose.pose.position.y = 0.0
-    fh_pose.pose.position.z = 0.0
+    fh_pose_tmp = tf.transformations.quaternion_from_euler(0, math.pi/2, 0)
+    fh_pose.pose.orientation.x = fh_pose_tmp[0] #0.0
+    fh_pose.pose.orientation.y = fh_pose_tmp[1] #0.0
+    fh_pose.pose.orientation.z = fh_pose_tmp[2] #0.0
+    fh_pose.pose.orientation.w = fh_pose_tmp[3] #1.0
+    fh_pose.pose.position.x = 0.5 #0.07
+    fh_pose.pose.position.y = 0.4 #0.0
+    fh_pose.pose.position.z = 0.04 #0.0
     fh_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_hat_final.STL"
     fh_mesh_name = "flash_hat"
     fh_size = [0.001, 0.001, 0.001]
@@ -824,14 +858,16 @@ def main():
 
 
     ### Attach mesh   
+    '''
     # flash body
     fb_grasping_group = 'right_gripper'
     touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
     tutorial.scene.attach_mesh(fb_ee_link, fb_mesh_name, fb_pose, touch_links=touch_links)
+    # flash hat
     fh_grasping_group = 'left_gripper'
     touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
     tutorial.scene.attach_mesh(fh_ee_link, fh_mesh_name, fh_pose, touch_links=touch_links)
-
+    '''
 
     ### Planning of two ur5 arms: go to pose goal
     '''
