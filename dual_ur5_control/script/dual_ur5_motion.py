@@ -862,7 +862,7 @@ def main():
     # flash body
     fb_grasping_group = 'right_gripper'
     touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
-    tutorial.scene.attach_mesh(fb_ee_link, fb_mesh_name, fb_pose, touch_links=touch_links)
+    tutorial.scene.attach_mesh("right_ee_link", fb_mesh_name, fb_pose, touch_links=touch_links)
     # flash hat
     fh_grasping_group = 'left_gripper'
     touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
