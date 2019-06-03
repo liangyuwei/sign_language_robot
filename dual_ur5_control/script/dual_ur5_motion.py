@@ -313,11 +313,12 @@ class MoveGroupPythonIntefaceTutorial(object):
 
     ## END_SUB_TUTORIAL
 
-  def execute_plan(self, plan):
+  #def execute_plan(self, plan):
     # Copy class variables to local variables to make the web tutorials more clear.
     # In practice, you should use the class variables directly unless you have a good
     # reason not to.
-    group = self.group
+    
+    #group = self.group
 
     ## BEGIN_SUB_TUTORIAL execute_plan
     ##
@@ -325,7 +326,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     ## ^^^^^^^^^^^^^^^^
     ## Use execute if you would like the robot to follow
     ## the plan that has already been computed:
-    group.execute(plan, wait=True)
+    #group.execute(plan, wait=True)
 
     ## **Note:** The robot's current joint state must be within some tolerance of the
     ## first waypoint in the `RobotTrajectory`_ or ``execute()`` will fail
@@ -698,7 +699,7 @@ class MoveGroupPythonIntefaceTutorial(object):
 
     ### Execute the plan
     print "== Execute the plan =="
-    self.execute_plan(plan)
+    group.execute(plan, wait=True)
 
 
     return plan 
