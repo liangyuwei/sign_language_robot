@@ -23,22 +23,23 @@ controller_list:
       - right_wrist_3_joint
 
   - name: dual_ur5_arm/left_gripper_controller
-    action_ns: follow_joint_trajectory # gripper_cmd #
-    type: FollowJointTrajectory # GripperCommand #FollowJointTrajectory
+    action_ns: follow_joint_trajectory #gripper_cmd #  gripper_cmd #follow_joint_trajectory # 
+    type: FollowJointTrajectory #GripperCommand #GripperCommand # FollowJointTrajectory # FollowJointTrajectory
     joints:
-      - left_rh_p12_rn
-      - left_rh_r2
       - left_rh_l1
       - left_rh_l2
+      - left_rh_p12_rn
+      - left_rh_r2
     
   - name: dual_ur5_arm/right_gripper_controller
-    action_ns: follow_joint_trajectory # gripper_cmd #
-    type: FollowJointTrajectory # GripperCommand #FollowJointTrajectory
+    action_ns: follow_joint_trajectory #gripper_cmd #  gripper_cmd #follow_joint_trajectory # 
+    type: FollowJointTrajectory #GripperCommand #GripperCommand # FollowJointTrajectory # FollowJointTrajectory
     joints:
-      - right_rh_p12_rn
-      - right_rh_r2
       - right_rh_l1
       - right_rh_l2
+      - right_rh_p12_rn
+      - right_rh_r2
+
 
 
 

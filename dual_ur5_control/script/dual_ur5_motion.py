@@ -641,7 +641,7 @@ class MoveGroupPythonIntefaceTutorial(object):
       left_pose_target.pose.orientation.z = w_start[2]
       left_pose_target.pose.orientation.w = w_start[3]
       group.set_pose_target(left_pose_target, 'left_ee_link')
-      group.allow_replanning(True)
+      #group.allow_replanning(True)
     else:
       group = moveit_commander.MoveGroupCommander("right_arm")
       right_pose_target = group.get_current_pose('right_ee_link')
@@ -653,7 +653,7 @@ class MoveGroupPythonIntefaceTutorial(object):
       right_pose_target.pose.orientation.z = w_start[2]
       right_pose_target.pose.orientation.w = w_start[3]
       group.set_pose_target(right_pose_target, 'right_ee_link')
-      group.allow_replanning(True)
+      #group.allow_replanning(True)
 
     # set planning time
     group.set_planning_time(planning_time)
@@ -717,9 +717,6 @@ class MoveGroupPythonIntefaceTutorial(object):
 
     # get current joint values for later use
     joint_goal = group.get_current_joint_values()
-
-    import pdb
-    pdb.set_trace()
 
     # set angle
     if (open_or_close): # open
@@ -822,6 +819,7 @@ def main():
 
 
     ### Add mesh
+    print "============ Adding flash models into the scene..."
     import pdb
     pdb.set_trace()
     # flash body
@@ -857,23 +855,6 @@ def main():
     fh_size = [0.001, 0.001, 0.001]
     tutorial.scene.add_mesh(fh_mesh_name, fh_pose, fh_file_path, fh_size)
 
-
-    ### Attach mesh   
-    '''
-    import pdb
-    pdb.set_trace()
-    # flash body
-    fb_pose.pose.position.x = 0.5 #0.07
-    fb_pose.pose.position.y = -0.4 #0.0
-    fb_pose.pose.position.z = 0.1 #0.0
-    fb_grasping_group = 'right_gripper'
-    touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
-    tutorial.scene.attach_mesh("right_ee_link", fb_mesh_name, fb_pose, touch_links=touch_links)
-    # flash hat
-    fh_grasping_group = 'left_gripper'
-    touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
-    tutorial.scene.attach_mesh("left_ee_link", fh_mesh_name, fh_pose, touch_links=touch_links)
-    '''
 
     ### Planning of two ur5 arms: go to pose goal
     '''
@@ -914,6 +895,7 @@ def main():
     '''
 
     ### Go to grasp position
+    print "============ Go to grasp position..."
 #    import pdb
 #    pdb.set_trace()
     # get pose target for dual_arms
@@ -949,20 +931,57 @@ def main():
     # clear targets
     tutorial.group.clear_pose_targets()
 
+
+    ### Attach mesh(so that grasp action won't cause collision checking)
+    ''
+    print "============ Attach flash models to eef links..."
+    import pdb
+    pdb.set_trace()
+    # flash body
+    fb_pose.pose.orientation.x = 0.0
+    fb_pose.pose.orientation.y = 0.0
+    fb_pose.pose.orientation.z = 0.0
+    fb_pose.pose.orientation.w = 1.0
+    fb_pose.pose.position.x = 0.09
+    fb_pose.pose.position.y = 0.0
+    fb_pose.pose.position.z = 0.0
+    fb_grasping_group = 'right_gripper'
+    touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
+    tutorial.scene.attach_mesh("right_ee_link", fb_mesh_name, fb_pose, touch_links=touch_links)
+    # flash hat
+    fh_pose.pose.orientation.x = 0.0
+    fh_pose.pose.orientation.y = 0.0
+    fh_pose.pose.orientation.z = 0.0
+    fh_pose.pose.orientation.w = 1.0
+    fh_pose.pose.position.x = 0.11
+    fh_pose.pose.position.y = 0.0
+    fh_pose.pose.position.z = 0.0
+    fh_grasping_group = 'left_gripper'
+    touch_links = tutorial.robot.get_link_names(group=fh_grasping_group)
+    tutorial.scene.attach_mesh("left_ee_link", fh_mesh_name, fh_pose, touch_links=touch_links)
+    ''
+
+
     ### Execute grasping
-  #  open_or_close = True
-  #  left_or_right = True
-  #  tutorial.gripper_control(open_or_close, left_or_right)
+    print "============ Execute grasp action for Gazebo..."
+    import pdb
+    pdb.set_trace()
+    #open_or_close = True
+    #left_or_right = True
+    # left gripper grasps flash hat 
+    tutorial.gripper_control(False, True)
+    # right gripper grasps flash body
+    tutorial.gripper_control(False, False)
 
     
     ### Planning of two ur5 arms: plan a cartesian path
+    print "============ Plan and display an assembly action(cartesian path) ..."
     import pdb
     pdb.set_trace()
-    print "============ Plan and display a Cartesian path ..."
     # left arm
-    l_x_start = [0.5, 0.3, 0.35]
-    l_x_mid = [0.55, 0.25, 0.25] # from mid to final, only y changes and differs
-    l_x_final = [0.55, 0.16, 0.25]
+    l_x_start = [0.6, 0.3, 0.35]
+    l_x_mid = [0.5, 0.25, 0.3] # from mid to final, only y changes and differs
+    l_x_final = [0.5, 0.16, 0.3]
 
     l_w_start = [0, 0, -0.707, 0.707]
     l_w_mid = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
@@ -974,13 +993,10 @@ def main():
 
     plan_l = tutorial.plan_motion(l_x_start, l_w_start, l_x_mid, l_w_mid, l_x_final, l_w_final, planning_time, left_or_right_eef)
 
-    #import pdb
-    #pdb.set_trace()
-
     # right arm
-    r_x_start = [0.5, -0.3, 0.35]
-    r_x_mid = [0.55, -0.26, 0.25]
-    r_x_final = [0.55, -0.15, 0.25]
+    r_x_start = [0.6, -0.3, 0.35]
+    r_x_mid = [0.5, -0.25, 0.3]
+    r_x_final = [0.5, -0.16, 0.3]
 
     r_w_start = [0, 0, 0.707, 0.707]
     r_w_mid = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
@@ -1009,14 +1025,15 @@ def main():
 
 
     ### Use h5py to store the generated motion plan
-    ''
+    '''
+    print "============ Store the results using h5py ..."
     import pdb
     pdb.set_trace()
     import h5py
     import numpy as np
     # process the data using numpy 
     cartesian_plan = plan_l
-    index = "25"
+    index = "1"
     imi_path_name = "traj_pair_l_" + index # traj_pair_r_1
     for j in range(2):
       len_sample = len(cartesian_plan.joint_trajectory.points)
@@ -1044,18 +1061,29 @@ def main():
       cartesian_plan = plan_r
       imi_path_name = "traj_pair_r_" + index
 
-    ''
+    '''
+
+    ### Open grippers
+    print "============ Open grippers for Gazebo..."
+    import pdb
+    pdb.set_trace()
+    tutorial.gripper_control(True, True)
+    tutorial.gripper_control(True, False)
 
     ### Detach mesh
     ''
+    print "============ Detach flash models..."
     import pdb
     pdb.set_trace()
-    tutorial.scene.remove_attached_object(fb_ee_link, fb_mesh_name)
-    tutorial.scene.remove_attached_object(fh_ee_link, fh_mesh_name)
+    tutorial.scene.remove_attached_object("right_ee_link", fb_mesh_name)
+    tutorial.scene.remove_attached_object("left_ee_link", fh_mesh_name)
     ''
 
     ### Remove mesh
     ''
+    print "============ Remove flash models from the scene ..."
+    import pdb
+    pdb.set_trace()
     tutorial.remove_object(fb_mesh_name, timeout=4)
     tutorial.remove_object(fh_mesh_name, timeout=4)
     ''

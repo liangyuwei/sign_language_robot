@@ -5,6 +5,44 @@
 <!-- =================================================================================== -->
 <robot name="ur5" xmlns:xacro="http://wiki.ros.org/xacro">
 
+  <!-- Add mimic joint plugin for the gripper -->
+  <!--gazebo>
+    <!- - left gripper's mimic joints- ->
+    <plugin name="MimicJointPlugin_left_rh_r2" filename="libroboticsgroup_gazebo_mimic_joint_plugin.so">
+      <joint>left_rh_p12_rn</joint>
+      <mimicJoint>left_rh_r2</mimicJoint>
+      <multiplier>0.9090909</multiplier>
+    </plugin>
+    <plugin name="MimicJointPlugin_left_rh_l1" filename="libroboticsgroup_gazebo_mimic_joint_plugin.so">
+      <joint>left_rh_p12_rn</joint>
+      <mimicJoint>left_rh_l1</mimicJoint>
+      <multiplier>1.0</multiplier>
+    </plugin>
+    <plugin name="MimicJointPlugin_left_rh_l2" filename="libroboticsgroup_gazebo_mimic_joint_plugin.so">
+      <joint>left_rh_p12_rn</joint>
+      <mimicJoint>left_rh_l2</mimicJoint>
+      <multiplier>0.9090909</multiplier>
+    </plugin>        
+        
+    <!- - right gripper's mimic joints- ->
+    <plugin name="MimicJointPlugin_right_rh_r2" filename="libroboticsgroup_gazebo_mimic_joint_plugin.so">
+      <joint>right_rh_p12_rn</joint>
+      <mimicJoint>right_rh_r2</mimicJoint>
+      <multiplier>0.9090909</multiplier>
+    </plugin>
+    <plugin name="MimicJointPlugin_right_rh_l1" filename="libroboticsgroup_gazebo_mimic_joint_plugin.so">
+      <joint>right_rh_p12_rn</joint>
+      <mimicJoint>right_rh_l1</mimicJoint>
+      <multiplier>1.0</multiplier>
+    </plugin>
+    <plugin name="MimicJointPlugin_right_rh_l2" filename="libroboticsgroup_gazebo_mimic_joint_plugin.so">
+      <joint>right_rh_p12_rn</joint>
+      <mimicJoint>right_rh_l2</mimicJoint>
+      <multiplier>0.9090909</multiplier>
+    </plugin>      
+  </gazebo-->
+
+
   <gazebo>
     <plugin name="gazebo_grasp_fix" filename="libgazebo_grasp_fix.so">
       <arm>
@@ -823,7 +861,7 @@
     <axis xyz="-1 0 0"/>
     <limit effort="1000" lower="0.0" upper="1.0" velocity="6.5"/>
     <dynamics damping="0.7"/>
-    <mimic joint="left_rh_p12_rn" multiplier="0.9090909"/>
+    <!--mimic joint="left_rh_p12_rn" multiplier="0.9090909"/-->
   </joint>
   <transmission name="left_tran_r2">
     <type>transmission_interface/SimpleTransmission</type>
@@ -865,7 +903,7 @@
     <axis xyz="-1 0 0"/>
     <limit effort="1000" lower="0.0" upper="1.1" velocity="6.5"/>
     <dynamics damping="0.7"/>
-    <mimic joint="left_rh_p12_rn" multiplier="1.0"/>
+    <!--mimic joint="left_rh_p12_rn" multiplier="1.0"/-->
   </joint>
   <transmission name="left_tran_l1">
     <type>transmission_interface/SimpleTransmission</type>
@@ -907,7 +945,7 @@
     <axis xyz="1 0 0"/>
     <limit effort="1000" lower="0.0" upper="1.0" velocity="6.5"/>
     <dynamics damping="0.7"/>
-    <mimic joint="left_rh_p12_rn" multiplier="0.9090909"/>
+    <!--mimic joint="left_rh_p12_rn" multiplier="0.9090909"/-->
   </joint>
   <transmission name="left_tran_l2">
     <type>transmission_interface/SimpleTransmission</type>
@@ -1023,7 +1061,7 @@
     <axis xyz="-1 0 0"/>
     <limit effort="1000" lower="0.0" upper="1.0" velocity="6.5"/>
     <dynamics damping="0.7"/>
-    <mimic joint="right_rh_p12_rn" multiplier="0.9090909"/>
+    <!--mimic joint="right_rh_p12_rn" multiplier="0.9090909"/-->
   </joint>
   <transmission name="right_tran_r2">
     <type>transmission_interface/SimpleTransmission</type>
@@ -1065,7 +1103,7 @@
     <axis xyz="-1 0 0"/>
     <limit effort="1000" lower="0.0" upper="1.1" velocity="6.5"/>
     <dynamics damping="0.7"/>
-    <mimic joint="right_rh_p12_rn" multiplier="1.0"/>
+    <!--mimic joint="right_rh_p12_rn" multiplier="1.0"/-->
   </joint>
   <transmission name="right_tran_l1">
     <type>transmission_interface/SimpleTransmission</type>
@@ -1107,7 +1145,7 @@
     <axis xyz="1 0 0"/>
     <limit effort="1000" lower="0.0" upper="1.0" velocity="6.5"/>
     <dynamics damping="0.7"/>
-    <mimic joint="right_rh_p12_rn" multiplier="0.9090909"/>
+    <!--mimic joint="right_rh_p12_rn" multiplier="0.9090909"/-->
   </joint>
   <transmission name="right_tran_l2">
     <type>transmission_interface/SimpleTransmission</type>

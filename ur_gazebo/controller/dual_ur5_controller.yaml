@@ -71,10 +71,10 @@ dual_ur5_arm:
   left_gripper_controller:
     type: effort_controllers/JointTrajectoryController
     joints:
-      - left_rh_p12_rn
-      - left_rh_r2
       - left_rh_l1
       - left_rh_l2
+      - left_rh_p12_rn
+      - left_rh_r2
     constraints:
       goal_time: 0.6
       stopped_velocity_tolerance: 0.05
@@ -92,10 +92,10 @@ dual_ur5_arm:
   right_gripper_controller:
     type: effort_controllers/JointTrajectoryController
     joints:
-      - right_rh_p12_rn
-      - right_rh_r2
       - right_rh_l1
       - right_rh_l2
+      - right_rh_p12_rn
+      - right_rh_r2
     constraints:
       goal_time: 0.6
       stopped_velocity_tolerance: 0.05
