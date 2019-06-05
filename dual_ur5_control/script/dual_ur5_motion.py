@@ -725,7 +725,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     if (open_or_close): # open
       ang = 0.2
     else: # close
-      ang = 0.7  # max is 1.1
+      ang = 0.8  # max is 1.1
     joint_goal[0] = ang
     joint_goal[1] = ang * 1.0 / 1.1
     joint_goal[2] = ang
@@ -860,14 +860,19 @@ def main():
 
     ### Attach mesh   
     '''
+    import pdb
+    pdb.set_trace()
     # flash body
+    fb_pose.pose.position.x = 0.5 #0.07
+    fb_pose.pose.position.y = -0.4 #0.0
+    fb_pose.pose.position.z = 0.1 #0.0
     fb_grasping_group = 'right_gripper'
     touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
     tutorial.scene.attach_mesh("right_ee_link", fb_mesh_name, fb_pose, touch_links=touch_links)
     # flash hat
     fh_grasping_group = 'left_gripper'
     touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
-    tutorial.scene.attach_mesh(fh_ee_link, fh_mesh_name, fh_pose, touch_links=touch_links)
+    tutorial.scene.attach_mesh("left_ee_link", fh_mesh_name, fh_pose, touch_links=touch_links)
     '''
 
     ### Planning of two ur5 arms: go to pose goal
@@ -963,7 +968,7 @@ def main():
     l_w_mid = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
     l_w_final = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
 
-    planning_time = 3
+    planning_time = 5
 
     left_or_right_eef = True
 
@@ -981,7 +986,7 @@ def main():
     r_w_mid = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
     r_w_final = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
 
-    planning_time = 3
+    planning_time = 5
 
     left_or_right_eef = False
 
@@ -1026,7 +1031,7 @@ def main():
         time_from_start[i] = cartesian_plan.joint_trajectory.points[i].time_from_start.to_sec()
 
       # store the results using h5py
-      f = h5py.File("dual_ur5_joint_trajectory_same_start_diff_goal.h5", "a")
+      f = h5py.File("dual_ur5_joint_trajectory_diff_start_same_goal.h5", "a")
 
       path_group =  f.create_group(imi_path_name)
       path_group.create_dataset("pos", data=pos, dtype=float)

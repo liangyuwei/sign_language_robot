@@ -27,7 +27,7 @@ if __name__ == '__main__':
     gripper_trajectory = JointTrajectory()
     gripper_trajectory.joint_names = gripper_joints
     gripper_trajectory.points.append(JointTrajectoryPoint())
-    ang = 0.8 # upper is 1.1 # offset from ground is 0.142 when ang=0.72
+    ang = 0.2 # upper is 1.1 # offset from ground is 0.142 when ang=0.72
     gripper_trajectory.points[0].positions =  [ang, ang/1.1, ang, ang/1.1]   
     gripper_trajectory.points[0].velocities = [0.0 for i in gripper_joints]
     gripper_trajectory.points[0].accelerations = [0.0 for i in gripper_joints]
