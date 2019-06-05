@@ -6,14 +6,9 @@ Panels:
       Expanded:
         - /MotionPlanning1
         - /MotionPlanning1/Scene Robot1
-        - /MotionPlanning1/Scene Robot1/Links1
-        - /MotionPlanning1/Scene Robot1/Links1/left_ee_link1
-        - /MotionPlanning1/Scene Robot1/Links1/left_ee_link1/Position1
-        - /MotionPlanning1/Scene Robot1/Links1/right_ee_link1
-        - /MotionPlanning1/Scene Robot1/Links1/right_ee_link1/Position1
         - /MotionPlanning1/Planned Path1
       Splitter Ratio: 0.742560029
-    Tree Height: 405
+    Tree Height: 353
   - Class: rviz/Help
     Name: Help
   - Class: rviz/Views
@@ -453,7 +448,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 1.27559996
+      Distance: 2.24804282
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
