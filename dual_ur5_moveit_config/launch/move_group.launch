@@ -60,7 +60,7 @@
   <node name="move_group" launch-prefix="$(arg launch_prefix)" pkg="moveit_ros_move_group" type="move_group" respawn="false" output="screen" args="$(arg command_args)">
 
     <!-- Added by LYW, 09:24 am 2019/06/03, Successful!!! -->
-    <remap from="joint_states" to="dual_ur5_arm/joint_states"/>
+    <!--remap from="joint_states" to="dual_ur5_arm/joint_states"/-->
 
     <!-- Set the display variable, in case OpenGL code is used internally -->
     <env name="DISPLAY" value="$(optenv DISPLAY :0)" />

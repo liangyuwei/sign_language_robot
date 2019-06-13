@@ -6,9 +6,13 @@ Panels:
       Expanded:
         - /MotionPlanning1
         - /MotionPlanning1/Scene Robot1
+        - /MotionPlanning1/Scene Robot1/Links1
+        - /MotionPlanning1/Scene Robot1/Links1/left_ee_link1
+        - /MotionPlanning1/Scene Robot1/Links1/right_ee_link1
+        - /MotionPlanning1/Scene Robot1/Links1/world1
         - /MotionPlanning1/Planned Path1
       Splitter Ratio: 0.742560029
-    Tree Height: 353
+    Tree Height: 405
   - Class: rviz/Help
     Name: Help
   - Class: rviz/Views
@@ -288,7 +292,7 @@ Visualization Manager:
             Value: true
           left_ee_link:
             Alpha: 1
-            Show Axes: false
+            Show Axes: true
             Show Trail: false
             Value: true
           left_forearm_link:
@@ -361,7 +365,7 @@ Visualization Manager:
             Value: true
           right_ee_link:
             Alpha: 1
-            Show Axes: false
+            Show Axes: true
             Show Trail: false
             Value: true
           right_forearm_link:
@@ -425,7 +429,7 @@ Visualization Manager:
             Value: true
           world:
             Alpha: 1
-            Show Axes: false
+            Show Axes: true
             Show Trail: false
         Robot Alpha: 0.5
         Show Robot Collision: false
@@ -448,25 +452,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 2.24804282
+      Distance: 1.91133058
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.173758745
-        Y: 0.0143994875
+        X: -0.079351902
+        Y: -0.00182708353
         Z: 2.23518001e-07
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.334797144
+      Pitch: 0.364797086
       Target Frame: world
       Value: XYOrbit (rviz)
-      Yaw: 6.25495291
+      Yaw: 0.0267724879
     Saved: ~
 Window Geometry:
   Displays:
@@ -484,5 +488,5 @@ Window Geometry:
   Views:
     collapsed: false
   Width: 928
-  X: 65
+  X: 992
   Y: 24

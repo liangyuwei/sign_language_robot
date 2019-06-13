@@ -693,7 +693,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     print "== Compute a cartesian path =="
     (plan, fraction) = group.compute_cartesian_path(
                                        waypoints,   # waypoints to follow
-                                       0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                       0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                        0.0,     # jump_threshold
                                        avoid_collisions=False)         
 
@@ -789,6 +789,19 @@ class MoveGroupPythonIntefaceTutorial(object):
 
     # moveit place
     place_location = moveit_msgs.msg.PlaceLocation()
+
+  def offset_from_origin_along_x_axis(self, origin, rotm, offset):
+
+    # compute offset vector along x axis, in local frame
+    v_offset = [offset, 0, 0]
+    
+    # transform offset vector to world frame
+    v_offset_world = np.dot(rotm, v_offset)
+  
+    # compute new point after shifting along local x axis
+    new_point = origin + v_offset_world
+  
+    return new_point    
 
 
 def main():
@@ -930,39 +943,69 @@ def main():
     print "============ Plan and display an assembly action(cartesian path) ..."
     import pdb
     pdb.set_trace()
+
+    x_contact_origin = [0.5, 0.1, 0.4]
+    l_pre_grasp_offset = -0.2
+    r_pre_grasp_offset = -0.1
+    
     # left arm
-    l_x_start = [0.52, 0.35, 0.3]
-    l_x_mid = [0.5, 0.3, 0.3] # from mid to final, only y changes and differs
-    l_x_final = [0.5, 0.16, 0.3]
+#    l_x_start = [0.6, 0.38, 0.4]
+#    l_x_mid = [0.5, 0.3, 0.35] #[0.6, 0.26, 0.3] # from mid to final, only y changes and differs
+#    l_x_final = [0.5, 0.25, 0.35] #[0.6, 0.16, 0.3]
 
     l_w_start = [0, 0, -0.707, 0.707]
-    l_w_mid = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
-    l_w_final = [0, 0, -0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
+    l_w_mid = tf.transformations.quaternion_from_euler(0.5*math.pi, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
+    l_w_final = tf.transformations.quaternion_from_euler(0.5*math.pi, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
 
-    planning_time = 2
+    l_x_start = [0.6, 0.38, 0.4]
+    left_rotm = tf.transformations.quaternion_matrix(l_w_final)
+    left_rotm = left_rotm[:3, :3]
+    l_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, left_rotm, -left_pre_grasp_pos[2] + 0.03)
+    l_x_mid = tutorial.offset_from_origin_along_x_axis(l_x_final, left_rotm, -0.2)
+
+
+    planning_time = 3
 
     left_or_right_eef = True
 
     plan_l = tutorial.plan_motion(l_x_start, l_w_start, l_x_mid, l_w_mid, l_x_final, l_w_final, planning_time, left_or_right_eef)
 
     # right arm
-    r_x_start = [0.5, -0.35, 0.35]
-    r_x_mid = [0.5, -0.26, 0.3]
-    r_x_final = [0.5, -0.16, 0.3]
+#    r_x_start = [0.55, -0.35, 0.32]
+#    r_x_mid = [0.4, -0.2, 0.3] #[0.5, -0.26, 0.3]
+#    r_x_final = [0.4, -0.1, 0.3] #[0.5, -0.16, 0.3]
 
     r_w_start = [0, 0, 0.707, 0.707]
-    r_w_mid = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
-    r_w_final = [0, 0, 0.707, 0.707]#tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
+    relative_quat = tf.transformations.quaternion_from_euler(0, 0, math.pi) #(math.pi, 0, math.pi) # - two ways of inserting flash body into flash hat
+    r_w_mid = tf.transformations.quaternion_multiply(l_w_mid, relative_quat) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, 0.75*math.pi) #tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
+    r_w_final = tf.transformations.quaternion_multiply(l_w_final, relative_quat) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, 0.75*math.pi) #tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
 
-    planning_time = 2
+    r_x_start = [0.55, -0.35, 0.32]
+    right_rotm = tf.transformations.quaternion_matrix(r_w_final)
+    right_rotm = right_rotm[:3, :3]
+    r_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, right_rotm, -right_pre_grasp_pos[2])
+    r_x_mid = tutorial.offset_from_origin_along_x_axis(r_x_final, right_rotm, r_pre_grasp_offset)
+
+
+    planning_time = 3
 
     left_or_right_eef = False
 
     plan_r = tutorial.plan_motion(r_x_start, r_w_start, r_x_mid, r_w_mid, r_x_final, r_w_final, planning_time, left_or_right_eef)
 
 
+    # set contact origin of flash body and flash hat
+    # set up params
+   
+    # set up final points and via points
+
+
+
+    
+
+
     ### Use h5py to store the generated motion plan
-    ''
+    '''
     print "============ Store the results using h5py ..."
     import pdb
     pdb.set_trace()
@@ -970,7 +1013,7 @@ def main():
     import numpy as np
     # process the data using numpy 
     cartesian_plan = plan_l
-    index = "8"
+    index = "2"
     imi_path_name = "traj_pair_l_" + index # traj_pair_r_1
     for j in range(2):
       len_sample = len(cartesian_plan.joint_trajectory.points)
@@ -985,7 +1028,7 @@ def main():
         time_from_start[i] = cartesian_plan.joint_trajectory.points[i].time_from_start.to_sec()
 
       # store the results using h5py
-      f = h5py.File("dual_ur5_joint_trajectory_diff_start_same_goal.h5", "a")
+      f = h5py.File("dual_ur5_joint_trajectory_diff_start_same_goal_new.h5", "a")
 
       path_group =  f.create_group(imi_path_name)
       path_group.create_dataset("pos", data=pos, dtype=float)
@@ -998,7 +1041,7 @@ def main():
       cartesian_plan = plan_r
       imi_path_name = "traj_pair_r_" + index
 
-    ''
+    '''
 
     ### Open grippers
     print "============ Open grippers for Gazebo..."
