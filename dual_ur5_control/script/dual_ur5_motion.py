@@ -956,14 +956,14 @@ def main():
 #    l_x_final = [0.5, 0.25, 0.35] #[0.6, 0.16, 0.3]
 
     l_w_start = tf.transformations.quaternion_from_euler(0, 0, -0.75*math.pi) # [0, 0, -0.707, 0.707] #
-    l_w_mid = tf.transformations.quaternion_from_euler(0, 0, -0.5*math.pi) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
-    l_w_final = tf.transformations.quaternion_from_euler(0, 0, -0.5*math.pi) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
+    l_w_mid = tf.transformations.quaternion_from_euler(0, 0, -0.45*math.pi) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
+    l_w_final = l_w_mid #tf.transformations.quaternion_from_euler(0, 0, -0.5*math.pi) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
 
-    l_x_start = [0.55, 0.35, 0.4]
+    l_x_start = [0.55, 0.33, 0.35]
     left_rotm = tf.transformations.quaternion_matrix(l_w_final)
     left_rotm = left_rotm[:3, :3]
-    l_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, left_rotm, -left_pre_grasp_pos[2] + 0.03)
-    l_x_mid = tutorial.offset_from_origin_along_x_axis(l_x_final, left_rotm, -0.2)
+    l_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, left_rotm, -left_pre_grasp_pos[2] + 0.03) #[0.5, 0.1, 0.35]#
+    l_x_mid = tutorial.offset_from_origin_along_x_axis(l_x_final, left_rotm, l_pre_grasp_offset)
 
 
     planning_time = 3
@@ -977,15 +977,15 @@ def main():
 #    r_x_mid = [0.4, -0.2, 0.3] #[0.5, -0.26, 0.3]
 #    r_x_final = [0.4, -0.1, 0.3] #[0.5, -0.16, 0.3]
 
-    r_w_start = tf.transformations.quaternion_from_euler(0.1*math.pi, -0.12*math.pi, 0.48*math.pi)  #[0, 0, 0.707, 0.707]
+    r_w_start = tf.transformations.quaternion_from_euler(0, 0, 0.45*math.pi)  #[0, 0, 0.707, 0.707]
     relative_quat = tf.transformations.quaternion_from_euler(0, 0, math.pi) #(math.pi, 0, math.pi) # - two ways of inserting flash body into flash hat
     r_w_mid = tf.transformations.quaternion_multiply(l_w_mid, relative_quat) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, 0.75*math.pi) #tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
-    r_w_final = tf.transformations.quaternion_multiply(l_w_final, relative_quat) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, 0.75*math.pi) #tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
+    r_w_final = r_w_mid #tf.transformations.quaternion_multiply(l_w_final, relative_quat) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, 0.75*math.pi) #tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
 
-    r_x_start = [0.48, -0.34, 0.27]
+    r_x_start = [0.45, -0.34, 0.35]
     right_rotm = tf.transformations.quaternion_matrix(r_w_final)
     right_rotm = right_rotm[:3, :3]
-    r_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, right_rotm, -right_pre_grasp_pos[2])
+    r_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, right_rotm, -right_pre_grasp_pos[2]) #[0.5, -0.1, 0.35] #
     r_x_mid = tutorial.offset_from_origin_along_x_axis(r_x_final, right_rotm, r_pre_grasp_offset)
 
 
