@@ -815,13 +815,14 @@ def main():
 
 
     ### Go to the given joint state
-    ''
+    '''
     print "============ Go to joint state ..."
-    tutorial.go_to_joint_state()
-    ''
+    tutorial.go_to_joint_state() # not supported by trac_ik...
+    '''
 
 
     ### Add mesh
+    '''
     print "============ Adding flash models into the scene..."
     import pdb
     pdb.set_trace()
@@ -857,6 +858,7 @@ def main():
     fh_mesh_name = "flash_hat"
     fh_size = [0.001, 0.001, 0.001]
     tutorial.scene.add_mesh(fh_mesh_name, fh_pose, fh_file_path, fh_size)
+    '''
 
 
     ### Go to grasp position
@@ -898,7 +900,7 @@ def main():
 
 
     ### Attach mesh(so that grasp action won't cause collision checking)
-    ''
+    '''
     print "============ Attach flash models to eef links..."
     import pdb
     pdb.set_trace()
@@ -924,7 +926,7 @@ def main():
     fh_grasping_group = 'left_gripper'
     touch_links = tutorial.robot.get_link_names(group=fh_grasping_group)
     tutorial.scene.attach_mesh("left_ee_link", fh_mesh_name, fh_pose, touch_links=touch_links)
-    ''
+    '''
 
 
     ### Execute grasping
@@ -995,6 +997,34 @@ def main():
 
     plan_r = tutorial.plan_motion(r_x_start, r_w_start, r_x_mid, r_w_mid, r_x_final, r_w_final, planning_time, left_or_right_eef)
     
+
+    ### Plot the generated joint trajectories to check whether they're within bounds
+    ''
+    import pdb
+    pdb.set_trace()
+    import matplotlib.pyplot as plt
+    fig, axes = plt.subplots(nrows=2, ncols=6) # create a figure object
+    for ir in range(2):
+      # get plan
+      if ir == 0: # left arm
+        tmp_plan = plan_l
+      else: # right arm
+        tmp_plan = plan_r
+
+      # obtain trajectory points
+      tmp_points = np.ndarray((len(tmp_plan.joint_trajectory.points), 6), dtype=float)
+      for n in range(len(tmp_plan.joint_trajectory.points)):
+        tmp_points[n, :] = tmp_plan.joint_trajectory.points[n].positions
+
+      # plot the acquired data
+      for ic in range(6):
+        # set title
+        axes[ir, ic].set(title=tmp_plan.joint_trajectory.joint_names[ic])
+        # plot data
+        axes[ir, ic].plot(np.linspace(0, 10, len(tmp_plan.joint_trajectory.points)), tmp_points[:, ic])
+    # display
+    plt.show()
+    ''
 
 
     ### Use h5py to store the generated motion plan

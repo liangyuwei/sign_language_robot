@@ -1,104 +1,164 @@
 # joint_limits.yaml allows the dynamics properties specified in the URDF to be overwritten or augmented as needed
 # Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
 # Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits]
+
 joint_limits:
-  left_elbow_joint:
+
+##  processing: ** angle set in program is x, then actual joint angle is x + offset, physically **
+## should get actual range [-A-offset, A-offset]
+
+  left_elbow_joint: # offset: +90deg
+    has_position_limits: true
+    min_position: -7.854 # *** The actual range is +/- 360 deg, but +/- 180 deg is good for planning ***
+    max_position: 4.712 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.15
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  left_rh_l1:
+
+  left_rh_l1: # finger joints are not mentioned, so ignored, 2019/07/07
     has_velocity_limits: true
     max_velocity: 6.5
     has_acceleration_limits: false
     max_acceleration: 0
+
   left_rh_l2:
     has_velocity_limits: true
     max_velocity: 6.5
     has_acceleration_limits: false
     max_acceleration: 0
+
   left_rh_p12_rn:
     has_velocity_limits: true
     max_velocity: 6.5
     has_acceleration_limits: false
     max_acceleration: 0
+
   left_rh_r2:
     has_velocity_limits: true
     max_velocity: 6.5
     has_acceleration_limits: false
     max_acceleration: 0
-  left_shoulder_lift_joint:
+
+  left_shoulder_lift_joint: # offset: -45deg
+    has_position_limits: true
+    min_position: -5.498
+    max_position: 7.069 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.15
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  left_shoulder_pan_joint:
+
+  left_shoulder_pan_joint: # offset: 0deg
+    has_position_limits: true
+    min_position: -6.28
+    max_position: 6.28 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.15
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  left_wrist_1_joint:
+
+  left_wrist_1_joint: # offset: 0deg
+    has_position_limits: true
+    min_position: -6.28
+    max_position: 6.28 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.2
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  left_wrist_2_joint:
+
+  left_wrist_2_joint: # offset: +90deg
+    has_position_limits: true
+    min_position: -7.854
+    max_position: 4.712 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.2
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  left_wrist_3_joint:
+
+  left_wrist_3_joint: # offset: 0deg
+    has_position_limits: true
+    min_position: -6.28
+    max_position: 6.28 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.2
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  right_elbow_joint:
+
+  right_elbow_joint: # offset: -90deg
+    has_position_limits: true
+    min_position: -4.712
+    max_position:  7.854 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.15
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
+
   right_rh_l1:
     has_velocity_limits: true
     max_velocity: 6.5
     has_acceleration_limits: false
     max_acceleration: 0
+
   right_rh_l2:
     has_velocity_limits: true
     max_velocity: 6.5
     has_acceleration_limits: false
     max_acceleration: 0
+
   right_rh_p12_rn:
     has_velocity_limits: true
     max_velocity: 6.5
     has_acceleration_limits: false
     max_acceleration: 0
+
   right_rh_r2:
     has_velocity_limits: true
     max_velocity: 6.5
     has_acceleration_limits: false
     max_acceleration: 0
-  right_shoulder_lift_joint:
+
+  right_shoulder_lift_joint: # offset: -135deg
+    has_position_limits: true
+    min_position: -3.927
+    max_position: 8.639 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.15
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  right_shoulder_pan_joint:
+
+  right_shoulder_pan_joint: # offset: +180deg
+    has_position_limits: true
+    min_position: -9.425
+    max_position: 3.142 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.15
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  right_wrist_1_joint:
+
+  right_wrist_1_joint: # offset: -180deg
+    has_position_limits: true
+    min_position: -3.141
+    max_position: 9.425 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.2
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  right_wrist_2_joint:
+
+  right_wrist_2_joint: # offset: -90deg
+    has_position_limits: true
+    min_position: -4.712
+    max_position: 7.854 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.2
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
-  right_wrist_3_joint:
+
+  right_wrist_3_joint: # offset: 0deg
+    has_position_limits: true
+    min_position: -6.28
+    max_position: 6.28 # newly added, checked with user manual by LYW, 2019/07/07
     has_velocity_limits: true
-    max_velocity: 3.2
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
     has_acceleration_limits: false
     max_acceleration: 0
