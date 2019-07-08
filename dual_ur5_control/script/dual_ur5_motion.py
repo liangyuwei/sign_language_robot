@@ -822,7 +822,7 @@ def main():
 
 
     ### Add mesh
-    '''
+    ''
     print "============ Adding flash models into the scene..."
     import pdb
     pdb.set_trace()
@@ -858,7 +858,7 @@ def main():
     fh_mesh_name = "flash_hat"
     fh_size = [0.001, 0.001, 0.001]
     tutorial.scene.add_mesh(fh_mesh_name, fh_pose, fh_file_path, fh_size)
-    '''
+    ''
 
 
     ### Go to grasp position
@@ -900,7 +900,7 @@ def main():
 
 
     ### Attach mesh(so that grasp action won't cause collision checking)
-    '''
+    ''
     print "============ Attach flash models to eef links..."
     import pdb
     pdb.set_trace()
@@ -926,7 +926,7 @@ def main():
     fh_grasping_group = 'left_gripper'
     touch_links = tutorial.robot.get_link_names(group=fh_grasping_group)
     tutorial.scene.attach_mesh("left_ee_link", fh_mesh_name, fh_pose, touch_links=touch_links)
-    '''
+    ''
 
 
     ### Execute grasping
@@ -1013,15 +1013,19 @@ def main():
 
       # obtain trajectory points
       tmp_points = np.ndarray((len(tmp_plan.joint_trajectory.points), 6), dtype=float)
+      tmp_time = np.ndarray(len(tmp_plan.joint_trajectory.points))
       for n in range(len(tmp_plan.joint_trajectory.points)):
         tmp_points[n, :] = tmp_plan.joint_trajectory.points[n].positions
+        tmp_time[n] = tmp_plan.joint_trajectory.points[n].time_from_start.to_sec()
 
       # plot the acquired data
       for ic in range(6):
         # set title
         axes[ir, ic].set(title=tmp_plan.joint_trajectory.joint_names[ic])
         # plot data
-        axes[ir, ic].plot(np.linspace(0, 10, len(tmp_plan.joint_trajectory.points)), tmp_points[:, ic])
+        #axes[ir, ic].plot(np.linspace(0, 10, len(tmp_plan.joint_trajectory.points)), tmp_points[:, ic])
+        axes[ir, ic].plot(tmp_time, tmp_points[:, ic])
+
     # display
     plt.show()
     ''
