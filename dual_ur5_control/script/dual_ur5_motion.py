@@ -892,6 +892,7 @@ def main():
     tutorial.group.set_pose_target(left_pose_target, 'left_ee_link')
     tutorial.group.set_pose_target(right_pose_target, 'right_ee_link')
     # plan
+    tutorial.group.allow_replanning(True) # added by LYW, 2019/07/09, for the dual-arm to go to grasp position
     plan = tutorial.group.go(wait=True)
     # stop
     tutorial.group.stop()
@@ -968,7 +969,7 @@ def main():
     l_x_mid = tutorial.offset_from_origin_along_x_axis(l_x_final, left_rotm, l_pre_grasp_offset)
 
 
-    planning_time = 3
+    planning_time = 1 # time used for motion planning!!! Not total time of the trajectory!!
 
     left_or_right_eef = True
 
@@ -991,7 +992,7 @@ def main():
     r_x_mid = tutorial.offset_from_origin_along_x_axis(r_x_final, right_rotm, r_pre_grasp_offset)
 
 
-    planning_time = 3
+    planning_time = 1 # time used for motion planning!!! Not total time of the trajectory!!
 
     left_or_right_eef = False
 
@@ -1003,6 +1004,7 @@ def main():
     import pdb
     pdb.set_trace()
     import matplotlib.pyplot as plt
+    import numpy as np
     fig, axes = plt.subplots(nrows=2, ncols=6) # create a figure object
     for ir in range(2):
       # get plan
@@ -1028,11 +1030,12 @@ def main():
 
     # display
     plt.show()
+
     ''
 
 
     ### Use h5py to store the generated motion plan
-    '''
+    ''
     print "============ Store the results using h5py ..."
     import pdb
     pdb.set_trace()
@@ -1040,7 +1043,13 @@ def main():
     import numpy as np
     # process the data using numpy 
     cartesian_plan = plan_l
-    index = "8"
+    index = "9" 
+    # 1 for TP, 2 for spline, 3 for TOTG, 4 for TOTG(Add TP first, ORDER matters), 5 for no TP
+    # 6 for TOTG with nonzero(limited) acc(0.0 means unlimited) -- acc 2.0
+    # 7 for TP -- acc 2.0
+    # 8 for TOTG -- acc 10.0
+    # 9 for TP -- acc 10.0
+    
     imi_path_name = "traj_pair_l_" + index # traj_pair_r_1
     for j in range(2):
       len_sample = len(cartesian_plan.joint_trajectory.points)
@@ -1055,7 +1064,7 @@ def main():
         time_from_start[i] = cartesian_plan.joint_trajectory.points[i].time_from_start.to_sec()
 
       # store the results using h5py
-      f = h5py.File("dual_ur5_joint_trajectory_diff_start_pose_same_goal_pose.h5", "a") 
+      f = h5py.File("dual_ur5_joint_trajectory_DIFF_TIME_PARAMETERIZATION.h5", "a") 
 
       path_group =  f.create_group(imi_path_name)
       path_group.create_dataset("pos", data=pos, dtype=float)
@@ -1069,7 +1078,7 @@ def main():
       cartesian_plan = plan_r  
       imi_path_name = "traj_pair_r_" + index
 
-    '''
+    ''
 
     ### Open grippers
     '''

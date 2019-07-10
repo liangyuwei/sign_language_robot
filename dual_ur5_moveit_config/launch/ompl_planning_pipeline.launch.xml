@@ -10,10 +10,11 @@
 				       default_planner_request_adapters/FixStartStateBounds
 				       default_planner_request_adapters/FixStartStateCollision
 				       default_planner_request_adapters/FixStartStatePathConstraints
-				       default_planner_request_adapters/AddTimeOptimalParameterization " />
+                       default_planner_request_adapters/AddTimeParameterization" />
   <!-- default_planner_request_adapters/AddTimeParameterization
        default_planner_request_adapters/AddIterativeSplineParameterization 
-       default_planner_request_adapters/AddIterativeSSplineParameterization - prompts error -->
+       default_planner_request_adapters/AddIterativeSSplineParameterization - prompts error
+       default_planner_request_adapters/AddTimeOptimalParameterization -->
 
 
   <arg name="start_state_max_bounds_error" value="0.1" />
