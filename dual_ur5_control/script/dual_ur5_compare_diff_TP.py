@@ -48,6 +48,8 @@ import copy
 import rospy
 import math
 import tf
+import pdb # for debug
+import copy # for deepcopy!!!
 import numpy as np
 import moveit_commander
 import moveit_msgs.msg
@@ -816,6 +818,38 @@ def add_time_optimal_parameterization_client(points):
   except rospy.ServiceException, e:
     print "Service call failed: %s"%e
 
+def plot_dual_arm_plan(plan_l, plan_r, img_name=None):
+
+  import matplotlib.pyplot as plt
+
+  fig, axes = plt.subplots(nrows=2, ncols=6) # create a figure object
+  for ir in range(2):
+    # get plan
+    if ir == 0: # left arm
+      tmp_plan = plan_l
+    else: # right arm
+      tmp_plan = plan_r
+
+    # obtain trajectory points
+    tmp_points = np.ndarray((len(tmp_plan.joint_trajectory.points), 6), dtype=float)
+    tmp_time = np.ndarray(len(tmp_plan.joint_trajectory.points))
+    for n in range(len(tmp_plan.joint_trajectory.points)):
+      tmp_points[n, :] = tmp_plan.joint_trajectory.points[n].positions
+      tmp_time[n] = tmp_plan.joint_trajectory.points[n].time_from_start.to_sec()
+
+    # plot the acquired data
+    for ic in range(6):
+      # set title
+      axes[ir, ic].set(title=tmp_plan.joint_trajectory.joint_names[ic])
+      # plot data
+      #axes[ir, ic].plot(np.linspace(0, 10, len(tmp_plan.joint_trajectory.points)), tmp_points[:, ic])
+      axes[ir, ic].plot(tmp_time, tmp_points[:, ic])
+
+  # display
+  plt.show()
+
+
+
 def main():
 
 
@@ -997,8 +1031,8 @@ def main():
     import pdb
     pdb.set_trace()
     # borrow the original plan's structure
-    new_plan_l = plan_l
-    new_plan_r = plan_r
+    new_plan_l = copy.deepcopy(plan_l)
+    new_plan_r = copy.deepcopy(plan_r)
     # replace with the original computed plan
     new_plan_l.joint_trajectory.points = add_time_optimal_parameterization_client(plan_l.joint_trajectory.points)
     new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(plan_r.joint_trajectory.points)
@@ -1008,36 +1042,35 @@ def main():
     ''
     import pdb
     pdb.set_trace()
-    import matplotlib.pyplot as plt
-    import numpy as np
-    fig, axes = plt.subplots(nrows=2, ncols=6) # create a figure object
-    for ir in range(2):
-      # get plan
-      if ir == 0: # left arm
-        tmp_plan = plan_l
-      else: # right arm
-        tmp_plan = plan_r
-
-      # obtain trajectory points
-      tmp_points = np.ndarray((len(tmp_plan.joint_trajectory.points), 6), dtype=float)
-      tmp_time = np.ndarray(len(tmp_plan.joint_trajectory.points))
-      for n in range(len(tmp_plan.joint_trajectory.points)):
-        tmp_points[n, :] = tmp_plan.joint_trajectory.points[n].positions
-        tmp_time[n] = tmp_plan.joint_trajectory.points[n].time_from_start.to_sec()
-
-      # plot the acquired data
-      for ic in range(6):
-        # set title
-        axes[ir, ic].set(title=tmp_plan.joint_trajectory.joint_names[ic])
-        # plot data
-        #axes[ir, ic].plot(np.linspace(0, 10, len(tmp_plan.joint_trajectory.points)), tmp_points[:, ic])
-        axes[ir, ic].plot(tmp_time, tmp_points[:, ic])
-
-    # display
-    plt.show()
-
+    
+    plot_dual_arm_plan(plan_l, plan_r)
+    plot_dual_arm_plan(new_plan_l, new_plan_r)
     ''
 
+
+    ### Execute the original plan loaded from h5 file and the plan processed through raw_TOTG
+    print "========= Executing the original plan..."
+    pdb.set_trace()
+    group_l = moveit_commander.MoveGroupCommander('left_arm')
+    group_r = moveit_commander.MoveGroupCommander('right_arm')
+
+    group_l.go(plan_l.joint_trajectory.points[0].positions, wait=True)
+    group_l.stop()
+    group_l.execute(plan_l, wait=True)
+
+    group_r.go(plan_r.joint_trajectory.points[0].positions, wait=True)
+    group_r.stop()
+    group_r.execute(plan_r, wait=True)
+
+    print "========= Executing the plan processed by TOTG..."
+    pdb.set_trace()
+    group_l.go(new_plan_l.joint_trajectory.points[0].positions, wait=True)
+    group_l.stop()
+    group_l.execute(new_plan_l, wait=True)
+
+    group_r.go(new_plan_r.joint_trajectory.points[0].positions, wait=True)
+    group_r.stop()
+    group_r.execute(new_plan_r, wait=True)
 
 
     ### Open grippers
@@ -1061,7 +1094,6 @@ def main():
     ### Remove mesh
     ''
     print "============ Remove flash models from the scene ..."
-    import pdb
     pdb.set_trace()
     tutorial.remove_object(fb_mesh_name, timeout=4)
     tutorial.remove_object(fh_mesh_name, timeout=4)
