@@ -956,69 +956,53 @@ def main():
     '''
 
     
-    ### Planning of two ur5 arms: plan a cartesian path
-    print "============ Plan and display an assembly action(cartesian path) ..."
+    ### Load a trajectory from h5 file
+    print "========== Load joint trajectory from h5 file "
     import pdb
     pdb.set_trace()
-
-    x_contact_origin = [0.5, 0.0, 0.35]
-    l_pre_grasp_offset = -0.1
-    r_pre_grasp_offset = -0.1
-    
-    # left arm
-#    l_x_start = [0.6, 0.38, 0.4]
-#    l_x_mid = [0.5, 0.3, 0.35] #[0.6, 0.26, 0.3] # from mid to final, only y changes and differs
-#    l_x_final = [0.5, 0.25, 0.35] #[0.6, 0.16, 0.3]
-
-    l_w_start = tf.transformations.quaternion_from_euler(0, 0, -0.75*math.pi) # [0, 0, -0.707, 0.707] #
-    l_w_mid = tf.transformations.quaternion_from_euler(0, 0, -0.45*math.pi) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
-    l_w_final = l_w_mid #tf.transformations.quaternion_from_euler(0, 0, -0.5*math.pi) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
-
-    l_x_start = [0.55, 0.33, 0.35]
-    left_rotm = tf.transformations.quaternion_matrix(l_w_final)
-    left_rotm = left_rotm[:3, :3]
-    l_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, left_rotm, -left_pre_grasp_pos[2] + 0.03) #[0.5, 0.1, 0.35]#
-    l_x_mid = tutorial.offset_from_origin_along_x_axis(l_x_final, left_rotm, l_pre_grasp_offset)
-
-
-    planning_time = 1 # time used for motion planning!!! Not total time of the trajectory!!
-
-    left_or_right_eef = True
-
-    plan_l = tutorial.plan_motion(l_x_start, l_w_start, l_x_mid, l_w_mid, l_x_final, l_w_final, planning_time, left_or_right_eef)
-
-    # right arm
-#    r_x_start = [0.55, -0.35, 0.32]
-#    r_x_mid = [0.4, -0.2, 0.3] #[0.5, -0.26, 0.3]
-#    r_x_final = [0.4, -0.1, 0.3] #[0.5, -0.16, 0.3]
-
-    r_w_start = tf.transformations.quaternion_from_euler(0, 0, 0.45*math.pi)  #[0, 0, 0.707, 0.707]
-    relative_quat = tf.transformations.quaternion_from_euler(0, 0, math.pi) #(math.pi, 0, math.pi) # - two ways of inserting flash body into flash hat
-    r_w_mid = tf.transformations.quaternion_multiply(l_w_mid, relative_quat) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, 0.75*math.pi) #tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
-    r_w_final = r_w_mid #tf.transformations.quaternion_multiply(l_w_final, relative_quat) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, 0.75*math.pi) #tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
-
-    r_x_start = [0.45, -0.34, 0.35]
-    right_rotm = tf.transformations.quaternion_matrix(r_w_final)
-    right_rotm = right_rotm[:3, :3]
-    r_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, right_rotm, -right_pre_grasp_pos[2]) #[0.5, -0.1, 0.35] #
-    r_x_mid = tutorial.offset_from_origin_along_x_axis(r_x_final, right_rotm, r_pre_grasp_offset)
-
-
-    planning_time = 1 # time used for motion planning!!! Not total time of the trajectory!!
-
-    left_or_right_eef = False
-
-    plan_r = tutorial.plan_motion(r_x_start, r_w_start, r_x_mid, r_w_mid, r_x_final, r_w_final, planning_time, left_or_right_eef)
-    
+    import h5py
+    import numpy as np
+    # initialize two plan
+    plan_l = moveit_msgs.msg.RobotTrajectory()
+    plan_l.joint_trajectory.header.frame_id = '/world'
+    plan_l.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint']
+    plan_r = moveit_msgs.msg.RobotTrajectory()
+    plan_r.joint_trajectory.header.frame_id = '/world'
+    plan_r.joint_trajectory.joint_names = ['right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
+    # load a h5 file, get data
+    f = h5py.File("dual_ur5_joint_trajectory_DIFF_TIME_PARAMETERIZATION.h5", "r")
+    index = '9'
+    traj_name = 'traj_pair_l_' + index
+    for i in range(2):
+      pos = f[traj_name]['pos'].value
+      vel = f[traj_name]['vel'].value
+      acc = f[traj_name]['acc'].value
+      time = f[traj_name]['time_from_start'].value
+      for j in range(len(time)):
+        traj_point = trajectory_msgs.msg.JointTrajectoryPoint()
+        traj_point.positions = pos[j, :]
+        traj_point.velocities = vel[j, :]
+        traj_point.accelerations = acc[j, :]
+        traj_point.time_from_start = rospy.Duration(time[j])
+        if i == 0: # left
+          plan_l.joint_trajectory.points.append(traj_point)
+        else:
+          plan_r.joint_trajectory.points.append(traj_point)
+      # finish with a whole trajectory, switch
+      traj_name = 'traj_pair_r_' + index
+      
 
     ### Add TimeOptimalParameterization to the path generated by computeCartesianPath
+    print "========== Add Time Optimal Parameterization "
     import pdb
     pdb.set_trace()
-    new_points_l = add_time_optimal_parameterization_client(plan_l.joint_trajectory.points)
-    new_points_r = add_time_optimal_parameterization_client(plan_r.joint_trajectory.points)
+    # borrow the original plan's structure
+    new_plan_l = plan_l
+    new_plan_r = plan_r
     # replace with the original computed plan
-    plan_l.joint_trajectory.points = new_points_l
-    plan_r.joint_trajectory.points = new_points_r
+    new_plan_l.joint_trajectory.points = add_time_optimal_parameterization_client(plan_l.joint_trajectory.points)
+    new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(plan_r.joint_trajectory.points)
+
 
     ### Plot the generated joint trajectories to check whether they're within bounds
     ''
@@ -1055,51 +1039,6 @@ def main():
     ''
 
 
-    ### Use h5py to store the generated motion plan
-    ''
-    print "============ Store the results using h5py ..."
-    import pdb
-    pdb.set_trace()
-    import h5py
-    import numpy as np
-    # process the data using numpy 
-    cartesian_plan = plan_l
-    index = "9" 
-    # 1 for TP, 2 for spline, 3 for TOTG, 4 for TOTG(Add TP first, ORDER matters), 5 for no TP
-    # 6 for TOTG with nonzero(limited) acc(0.0 means unlimited) -- acc 2.0
-    # 7 for TP -- acc 2.0
-    # 8 for TOTG -- acc 10.0
-    # 9 for TP -- acc 10.0
-    
-    imi_path_name = "traj_pair_l_" + index # traj_pair_r_1
-    for j in range(2):
-      len_sample = len(cartesian_plan.joint_trajectory.points)
-      pos = np.zeros((len_sample, 6), dtype=float)
-      vel = np.zeros((len_sample, 6), dtype=float)
-      acc = np.zeros((len_sample, 6), dtype=float)
-      time_from_start = np.zeros((len_sample,), dtype=float)
-      for i in range(len_sample):
-        pos[i] = np.array(cartesian_plan.joint_trajectory.points[i].positions)
-        vel[i] = np.array(cartesian_plan.joint_trajectory.points[i].velocities)
-        acc[i] = np.array(cartesian_plan.joint_trajectory.points[i].accelerations) 
-        time_from_start[i] = cartesian_plan.joint_trajectory.points[i].time_from_start.to_sec()
-
-      # store the results using h5py
-      f = h5py.File("dual_ur5_joint_trajectory_DIFF_TIME_PARAMETERIZATION.h5", "a") 
-
-      path_group =  f.create_group(imi_path_name)
-      path_group.create_dataset("pos", data=pos, dtype=float)
-      path_group.create_dataset("vel", data=vel, dtype=float)
-      path_group.create_dataset("acc", data=acc, dtype=float)    
-      path_group.create_dataset("time_from_start", data=time_from_start, dtype=float)
-      f.close()
-    
-
-      # set to plan_r for the next iteration
-      cartesian_plan = plan_r  
-      imi_path_name = "traj_pair_r_" + index
-
-    ''
 
     ### Open grippers
     '''

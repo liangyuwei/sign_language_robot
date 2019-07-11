@@ -3,16 +3,19 @@
 <launch>
 
   <!-- Launch Gazebo -->
-  <include file="$(find ur_gazebo)/launch/dual_ur5_arm_world.launch" />
+  <!--include file="$(find ur_gazebo)/launch/dual_ur5_arm_world.launch" /-->
 
   <!-- Load flash model -->
-  <include file="$(find ur_description)/launch/load_flash.launch" />
+  <!--include file="$(find ur_description)/launch/load_flash.launch" /-->
 
   <!-- Launch RViz with MoveIt -->
   <include file="$(find dual_ur5_moveit_config)/launch/demo.launch" />
 
+  <!-- Start a service to add Time Parameterization -->
+  <node name="start_TOTG_service" pkg="raw_totg" type="add_time_optimal_parameterization_server" />
+
   <!-- Load moveit controller manager -->
-  <include file="$(find dual_ur5_moveit_config)/launch/dual_ur5_moveit_controller_manager.launch" />
+  <!--include file="$(find dual_ur5_moveit_config)/launch/dual_ur5_moveit_controller_manager.launch" /-->
 
 
 </launch>
