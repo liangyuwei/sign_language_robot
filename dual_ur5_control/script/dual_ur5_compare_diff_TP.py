@@ -1056,20 +1056,22 @@ def main():
 
     group_l.go(plan_l.joint_trajectory.points[0].positions, wait=True)
     group_l.stop()
-    group_l.execute(plan_l, wait=True)
-
     group_r.go(plan_r.joint_trajectory.points[0].positions, wait=True)
     group_r.stop()
+
+    pdb.set_trace()
+    group_l.execute(plan_l, wait=True)
     group_r.execute(plan_r, wait=True)
 
     print "========= Executing the plan processed by TOTG..."
     pdb.set_trace()
     group_l.go(new_plan_l.joint_trajectory.points[0].positions, wait=True)
     group_l.stop()
-    group_l.execute(new_plan_l, wait=True)
-
     group_r.go(new_plan_r.joint_trajectory.points[0].positions, wait=True)
     group_r.stop()
+    
+    pdb.set_trace()
+    group_l.execute(new_plan_l, wait=True)
     group_r.execute(new_plan_r, wait=True)
 
 
