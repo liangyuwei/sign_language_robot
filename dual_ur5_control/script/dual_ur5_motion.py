@@ -812,7 +812,7 @@ def add_time_optimal_parameterization_client(points):
   try:
     path_to_traj = rospy.ServiceProxy('add_time_optimal_parameterization_server', PathToTraj)
     res = path_to_traj(points)
-    return res.points
+    return res.traj
   except rospy.ServiceException, e:
     print "Service call failed: %s"%e
 
