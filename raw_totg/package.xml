@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>raw_totg</name>
+  <version>0.0.0</version>
+  <description>The raw_totg package</description>
+
+  
+  <maintainer email="liangyuwei@yahoo.com">liangyuwei</maintainer>
+
+  <license>BSD</license>
+
+  <build_depend>message_generation</build_depend>
+
+  <exec_depend>message_runtime</exec_depend>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+
+</package>

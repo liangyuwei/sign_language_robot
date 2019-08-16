@@ -1,0 +1,5 @@
+trajectory_msgs/JointTrajectoryPoint[] path
+
+---
+
+trajectory_msgs/JointTrajectoryPoint[] traj
