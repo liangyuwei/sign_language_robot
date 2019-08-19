@@ -15,9 +15,11 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 {
 
 	// Obtain the request
+	ROS_INFO("Obtain the request");
 	vector<trajectory_msgs::JointTrajectoryPoint> path = req.path;
 
 	// assign the path points
+	ROS_INFO("Assigning path points...");
 	list<VectorXd> waypoints;
 	VectorXd waypoint(6);
 	vector<double> tmp;
@@ -25,23 +27,29 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 	{
 		tmp = it->positions;
 		//Map<VectorXd> waypoint(tmp.data(), tmp.size());
-		waypoint = Map<VectorXd>(tmp.data(), tmp.size()); //<< it->positions[0], it->positions[1], it->positions[2], it->positions[3], it->positions[4], it->positions[5];
+		waypoint << it->positions[0], it->positions[1], it->positions[2], it->positions[3], it->positions[4], it->positions[5]; // = Map<VectorXd>(tmp.data(), tmp.size()); //
 		waypoints.push_back(waypoint);
 	}
 
 
 	// Set velocity and acceleration limits
+	ROS_INFO("Set velocity and acceleration limits...");
 	VectorXd maxAcceleration(6);
 	maxAcceleration << 10.0, 10.0, 10.0, 10.0, 10.0, 10.0;
 	VectorXd maxVelocity(6);
 	maxVelocity << 3.15, 3.15, 3.15, 3.15, 3.15, 3.15;
 
 	// Add time parameterization
+	ROS_INFO("Get prepared to add TP...");
 	double timestep = 0.001;
 	Trajectory trajectory(Path(waypoints, 0.1), maxVelocity, maxAcceleration);
+	ROS_INFO("Output phase plane trajectory..");
 	trajectory.outputPhasePlaneTrajectory();
+	ROS_INFO("Check if trajectory is valid");
 	if(trajectory.isValid()) {
+		ROS_INFO("Adding TP...");
 		double duration = trajectory.getDuration();
+		/*
 		cout << "Trajectory duration: " << duration << " s" << endl << endl;
 		cout << "Time      Position                  Velocity                  Acceleration" << endl;
 		for(double t = 0.0; t < duration; t += timestep) { //0.1) {
@@ -55,6 +63,7 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 			trajectory.getPosition(duration)[0], trajectory.getPosition(duration)[1], trajectory.getPosition(duration)[2], trajectory.getPosition(duration)[3], trajectory.getPosition(duration)[4], trajectory.getPosition(duration)[5],
 			trajectory.getVelocity(duration)[0], trajectory.getVelocity(duration)[1], trajectory.getVelocity(duration)[2], trajectory.getVelocity(duration)[3], trajectory.getVelocity(duration)[4], trajectory.getVelocity(duration)[5],
 			trajectory.getAcceleration(duration)[0], trajectory.getAcceleration(duration)[1], trajectory.getAcceleration(duration)[2], trajectory.getAcceleration(duration)[3], trajectory.getAcceleration(duration)[4], trajectory.getAcceleration(duration)[5]);
+		*/
 
 		// Assign to the response
 		trajectory_msgs::JointTrajectoryPoint traj_point;
@@ -77,7 +86,7 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 	}
 	else 
 	{
-		cout << "Trajectory generation failed." << endl;
+		ROS_ERROR("Trajectory generation failed.");
 		return false;
 	}
 

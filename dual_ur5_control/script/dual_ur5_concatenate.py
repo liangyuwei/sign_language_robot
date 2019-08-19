@@ -49,12 +49,14 @@ import rospy
 import math
 import tf
 import numpy as np
+import h5py
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
 from math import pi
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
+from raw_totg.srv import *
 ## END_SUB_TUTORIAL
 
 def all_close(goal, actual, tolerance):
@@ -700,6 +702,17 @@ class MoveGroupPythonIntefaceTutorial(object):
     return plan 
 
 
+def add_time_optimal_parameterization_client(points):
+  # wait for service to come online
+  rospy.wait_for_service('add_time_optimal_parameterization_server')
+
+  try:
+    path_to_traj = rospy.ServiceProxy('add_time_optimal_parameterization_server', PathToTraj)
+    res = path_to_traj(points)
+    return res.traj
+  except rospy.ServiceException, e:
+    print "Service call failed: %s" % e
+
 
 def main():
 
@@ -763,43 +776,81 @@ def main():
 
     ### Load a Cartesian path from h5 file
     print "========== Load a Cartesian path from h5 file "
-    import h5py
-    import numpy as np
-    f = h5py.File("", "r")
+    f = h5py.File("tmp_new_paths_from_primitives.h5", "r")
     n_cols = 2
     n_actions = 2
     n_rows = n_actions
-    motion_paths = [[0 for i in range(n_cols)] for j in range(n_rows)]
-    coord_sign = [[0 for i in range(n_cols)] for j in range(n_rows)]
-    coord_sign[1, 0] = 1
-    coord_sign[1, 1] = 1 # set coordinated motion to 1
+    cartesian_paths_lib = [[0 for i in range(n_cols)] for j in range(n_rows)]
+    coord_sign = [[0, 0], [1, 1]] # set coordinated motion to 1
+    cartesian_paths_lib[0][0] = f['l_approach_2_tmp'][:]
+    cartesian_paths_lib[1][0] = f['l_insert_2_tmp'][:]
+    cartesian_paths_lib[0][1] = f['r_approach_2_tmp'][:]
+    cartesian_paths_lib[1][1] = f['r_insert_2_tmp'][:]
     print "========== Convert Carteisna path to joint path through IK... "
-#    waypoints = []
-#    for n in ...
-#      wpose.position.x = x_final[0]
-#      wpose.position.y = x_final[1]
-#      wpose.position.z = x_final[2]
-#      wpose.orientation.x = w_final[0]
-#      wpose.orientation.y = w_final[1]
-#      wpose.orientation.z = w_final[2]
-#      wpose.orientation.w = w_final[3]
-#      waypoints.append(copy.deepcopy(wpose))
-#    (plan, fraction) = group.compute_cartesian_path(
-#                                       waypoints,   # waypoints to follow
-#                                       0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
-#                                       0.0,     # jump_threshold
-#                                       avoid_collisions=False)         
-#   plans_joint_path = [[0 for i in range(n_cols)] for j in range(n_rows)]
+    joint_path_plans_lib = [[0 for i in range(n_cols)] for j in range(n_rows)]
+    for r in range(n_rows):
+      for c in range(n_cols):
+        print "== Processing actions " + str(r+1) + "/" + str(n_rows) + " of arms " + str(c+1) + "/" + str(n_cols) + "..."
+        # set group
+        if c == 0: # left arm
+          group = moveit_commander.MoveGroupCommander("left_arm")
+        else:
+          group = moveit_commander.MoveGroupCommander("right_arm")
+        # set Pose trajectories
+        waypoints = []
+        wpose = geometry_msgs.msg.Pose()
+        for l in range(cartesian_paths_lib[r][c].shape[0]):
+          wpose.position.x = cartesian_paths_lib[r][c][l, 0]
+          wpose.position.y = cartesian_paths_lib[r][c][l, 1]
+          wpose.position.z = cartesian_paths_lib[r][c][l, 2]
+          quat = tf.transformations.quaternion_from_euler(cartesian_paths_lib[r][c][l, 5], cartesian_paths_lib[r][c][l, 4], cartesian_paths_lib[r][c][l, 3])
+          wpose.orientation.x = quat[0]
+          wpose.orientation.y = quat[1]
+          wpose.orientation.z = quat[2]
+          wpose.orientation.w = quat[3]
+          waypoints.append(copy.deepcopy(wpose))
+        # compute plan to convert cartesian path to joint plan
+        (plan, fraction) = group.compute_cartesian_path(
+                                        waypoints,   # waypoints to follow
+                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                        0.0,     # jump_threshold
+                                        avoid_collisions=False)         
+        # store the generated joint plans
+        joint_path_plans_lib[r][c] = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
 
     
     ### Add Time Parameterization(joint path -> joint trajectory)
+    import pdb
+    pdb.set_trace()
     print "========== Apply TOTG to generate time optimal joint trajectory... "
-    plans_joint_traj = [[0 for i in range(n_cols)] for j in range(n_rows)] # should store in trajectory_msgs/JointTrajectoryPoint
-    new_plan_l = copy.deepcopy(plan_l)
-    new_plan_r = copy.deepcopy(plan_r)
-    new_plan_l.joint_trajectory.points = add_time_optimal_parameterization_client(plan_l.joint_trajectory.points)
-    new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(plan_r.joint_trajectory.points)
- 
+    joint_traj_plans_lib = [[0 for i in range(n_cols)] for j in range(n_rows)] # stored as moveit_msgs/RobotTrajectory 
+    for r in range(n_rows):
+      for c in range(n_cols):
+        print "== Adding TP for actions " + str(r+1) + "/" + str(n_rows) + " of arms " + str(c+1) + "/" + str(n_cols) + "..."
+        tmp_plan = copy.deepcopy(joint_path_plans_lib[r][c])
+        new_plan = copy.deepcopy(tmp_plan)
+        new_plan.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan.joint_trajectory.points)
+        joint_traj_plans_lib[r][c] = copy.deepcopy(new_plan) # stored as moveit_msgs/RobotTrajectory
+
+
+    # convert plan structure to array structure
+    import pdb
+    pdb.set_trace()
+    print "== Convert plan structure to array type..."
+    joint_traj_lib = [[0 for i in range(n_cols)] for j in range(n_rows)]
+    for r in range(n_rows):
+      for c in range(n_cols):
+        print "== -- for actions " + str(r+1) + "/" + str(n_rows) + " of arms " + str(c+1) + "/" + str(n_cols) + "..."
+        tmp = []
+        for l in range(len(joint_traj_plans_lib[r][c].joint_trajectory.points)):
+          # only positions information are copied now
+          if l == 0:
+            tmp = np.array([joint_traj_plans_lib[r][c].joint_trajectory.points[l].positions])
+          else:
+            tmp = np.concatenate((tmp, np.array([joint_traj_plans_lib[r][c].joint_trajectory.points[l].positions]) ), axis=0 )
+        # store the result
+        joint_traj_lib[r][c] = tmp # stored as ndarray
+
    
     ### Concatenate plans with the help of coord_sign
     import pdb
@@ -810,8 +861,11 @@ def main():
     plan_whole_traj.joint_trajectory.header.frame_id = '/world'
     plan_whole_traj.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint', 'right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
 
+    
     id_start_l = 0
     id_start_r = 0
+    whole_traj_l = []
+    whole_traj_r = []
     done = False
     while not done:
       # find the next coordination point
@@ -825,14 +879,14 @@ def main():
           break
 
       # concatenate everything in-between
-      for id_l in range(id_start_l, id_coord_l):
-              
+     # for id_l in range(id_start_l, id_coord_l):
+      #  whole_traj_l = np.concatenate((whole_traj_l, ))
 
-      for id_r in range(id_start_r, id_coord_r):
+      #for id_r in range(id_start_r, id_coord_r):
       
 
 
-    index = 0
+   # index = 0
     plan_whole_traj_l = []
     plan_whole_traj_r = []
     id_l = 0
