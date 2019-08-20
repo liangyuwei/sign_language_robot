@@ -15,7 +15,7 @@
   <node name="start_TOTG_service" pkg="raw_totg" type="add_time_optimal_parameterization_server" />
 
   <!-- Load moveit controller manager -->
-  <!--include file="$(find dual_ur5_moveit_config)/launch/dual_ur5_moveit_controller_manager.launch" /-->
+  <include file="$(find dual_ur5_moveit_config)/launch/dual_ur5_moveit_controller_manager.launch" />
 
 
 </launch>

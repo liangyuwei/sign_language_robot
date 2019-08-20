@@ -54,6 +54,7 @@ import h5py
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
+import trajectory_msgs.msg
 from math import pi
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
@@ -804,7 +805,7 @@ def main():
           wpose.position.x = cartesian_paths_lib[r][c][l, 0]
           wpose.position.y = cartesian_paths_lib[r][c][l, 1]
           wpose.position.z = cartesian_paths_lib[r][c][l, 2]
-          quat = tf.transformations.quaternion_from_euler(cartesian_paths_lib[r][c][l, 5], cartesian_paths_lib[r][c][l, 4], cartesian_paths_lib[r][c][l, 3])
+          quat = tf.transformations.quaternion_from_euler(cartesian_paths_lib[r][c][l, 3], cartesian_paths_lib[r][c][l, 4], cartesian_paths_lib[r][c][l, 5]) # same order ???
           wpose.orientation.x = quat[0]
           wpose.orientation.y = quat[1]
           wpose.orientation.z = quat[2]
@@ -816,6 +817,8 @@ def main():
                                         0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
                                         avoid_collisions=False)         
+        # display the result
+        group.execute(plan, wait=True)
         # store the generated joint plans
         joint_path_plans_lib[r][c] = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
 
@@ -852,15 +855,13 @@ def main():
         for n in range(num_points):
           tmp_timestamp[n] = joint_traj_plans_lib[r][c].joint_trajectory.points[n].time_from_start.to_sec()
           tmp_pos[n, :] = np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].positions)
-          tmp_vel[n, :] = tmp_pos#np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].velocities)
-          tmp_acc[n, :] = tmp_pos#np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].accelerations)
+          tmp_vel[n, :] = np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].velocities)
+          tmp_acc[n, :] = np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].accelerations)
         # store the result
         joint_traj_lib[r][c] = np.concatenate((tmp_pos, tmp_vel, tmp_acc, tmp_timestamp), axis=1) # stored as ndarray, deep copy!!!
 
    
     ### Concatenate plans with the help of coord_sign
-    import pdb
-    pdb.set_trace()
     print "============= Concatenate plans with the help of coordination signs"
     t_spent_already_l = 0
     t_spent_already_r = 0 # should check if they are equal
@@ -872,64 +873,86 @@ def main():
     id_coord_r, = np.where(coord_sign[1:, 1]==1) # ignore the first
     id_coord_r = id_coord_r + 1
     num_coord_actions = len(id_coord_l) # the same as id_coord_r
-    whole_traj_l = []
-    whole_traj_r = []
-    whole_timestamp_l = []
-    whole_timestamp_r = []
-    done = False
+
     # initialization
-    whole_traj_l = joint_traj_lib[0][0][:, :-1] # copy just pos, vel and acc
-    whole_timestamp_l = joint_traj_lib[0][0][:, -1] # copy the last column
-    t_spent_already_l = whole_time_stamp_l[-1] # set new start
+    whole_traj_l = joint_traj_lib[0][0][:, :-1].copy() # copy just pos, vel and acc
+    whole_timestamp_l = joint_traj_lib[0][0][:, -1].copy() # copy the last column
+    t_spent_already_l = whole_timestamp_l[-1] # set new start
 
-    whole_traj_r = joint_traj_lib[0][1][:, :-1] 
-    whole_timestamp_r = joint_traj_lib[0][1][:, -1] # copy the last column
-    t_spent_already_r = whole_time_stamp_r[-1] # set new start
+    whole_traj_r = joint_traj_lib[0][1][:, :-1].copy() 
+    whole_timestamp_r = joint_traj_lib[0][1][:, -1].copy() # copy the last column
+    t_spent_already_r = whole_timestamp_r[-1] # set new start
 
-    # start concatenation
+    # start concatenation, note that after the last coordinated actions, there could be more actions behind
     for n in range(num_coord_actions):
       print "== Processing coordinated action " + str(n+1) + "/" + str(num_coord_actions) 
 
       ## left arm, concatenate uncoordinated actions in-between
       print "== -- Left arm: uncoordinated actions..."
+      import pdb
+      pdb.set_trace()
       for m in range(id_start_l, id_coord_l[n]): # if two coordinated actions are adjacent, range() would return empty and the for-loop would not be run
         # until coordinated actions(not concatenated yet)
         whole_traj_l = np.concatenate((whole_traj_l, joint_traj_lib[m][0][:, :-1]))
         whole_timestamp_l = np.concatenate((whole_timestamp_l, joint_traj_lib[m][0][:, -1] + t_spent_already_l))
-        t_spent_already_l = whole_time_stamp_l[-1] # set new start
+        t_spent_already_l = whole_timestamp_l[-1] # set new start
         
       ## right arm, concatenate uncoordinated actions in-between
       print "== -- Right arm: uncoordinated actions..."
+      import pdb
+      pdb.set_trace()
       for m in range(id_start_r, id_coord_r[n]):
         # until coordinated actions(not concatenated yet)
-        whole_traj_r = np.concatenate((whole_traj_l, joint_traj_lib[m][1][:, :-1]))
+        whole_traj_r = np.concatenate((whole_traj_r, joint_traj_lib[m][1][:, :-1]))
         whole_timestamp_r = np.concatenate((whole_timestamp_r, joint_traj_lib[m][1][:, -1] + t_spent_already_r))
-        t_spent_already_r = whole_time_stamp_r[-1] # set new start
+        t_spent_already_r = whole_timestamp_r[-1] # set new start
 
       ## append extra lines to make the lengths equal
       print "== -- Align the lengths..."
+      import pdb
+      pdb.set_trace()
       len_l = len(whole_timestamp_l)
       len_r = len(whole_timestamp_r)
       if len_l > len_r:
         whole_timestamp_r = np.concatenate((whole_timestamp_r, whole_timestamp_l[len_r:len_l]))
         whole_traj_r = np.concatenate( (whole_traj_r, np.matlib.repmat(whole_traj_l[-1, :], len_l-len_r, 1)) )
+        t_spent_already_r = whole_timestamp_r[-1] # set new start
       elif len_l < len_r:
         whole_timestamp_l = np.concatenate((whole_timestamp_l, whole_timestamp_r[len_l:len_r]))
         whole_traj_l = np.concatenate( (whole_traj_l, np.matlib.repmat(whole_traj_r[-1, :], len_r-len_l, 1)) )
+        t_spent_already_l = whole_timestamp_l[-1] # set new start
       
       ## concatenate coordinated actions(Note that coordinated actions should have the same length!!!)
       print "== -- Both arms: coordinated actions..."
+      import pdb
+      pdb.set_trace()
       whole_traj_l = np.concatenate((whole_traj_l, joint_traj_lib[id_coord_l[n]][0][:, :-1]))
-      whole_timestamp_l = joint_traj_lib[id_coord_l[n]][0][:, -1] # copy the last column
-      t_spent_already_l = whole_time_stamp_l[-1] # set new start
+      whole_timestamp_l = np.concatenate((whole_timestamp_l, joint_traj_lib[id_coord_l[n]][0][:, -1] + t_spent_already_l)) # copy and concatenate the last column
+      t_spent_already_l = whole_timestamp_l[-1] # set new start
       id_start_l = id_coord_l[n] + 1  # set the next action after the current coordinated one
 
       whole_traj_r = np.concatenate((whole_traj_r, joint_traj_lib[id_coord_r[n]][1][:, :-1]))
-      whole_timestamp_r = joint_traj_lib[id_coord_r[n]][1][:, -1] # copy the last column
-      t_spent_already_r = whole_time_stamp_r[-1] # set new start
+      whole_timestamp_r = np.concatenate((whole_timestamp_r, joint_traj_lib[id_coord_r[n]][1][:, -1] + t_spent_already_r))
+ # copy the last column
+      t_spent_already_r = whole_timestamp_r[-1] # set new start
       id_start_r = id_coord_r[n] + 1  # set the next action after the current coordinated one  
 
+    ### Process uncoordinated actions after the last coordinated actions (if any)
+    if id_coord_l[-1] + 1 is not n_actions:
+      for m in range(id_coord_l[-1] + 1, n_actions): 
+        # until the end
+        whole_traj_l = np.concatenate((whole_traj_l, joint_traj_lib[m][0][:, :-1]))
+        whole_timestamp_l = np.concatenate((whole_timestamp_l, joint_traj_lib[m][0][:, -1] + t_spent_already_l))
+        t_spent_already_l = whole_timestamp_l[-1] # set new start
+
+    if id_coord_r[-1] + 1 is not n_actions:
+      for m in range(id_coord_r[-1] + 1, n_actions): 
+        # until the end
+        whole_traj_r = np.concatenate((whole_traj_r, joint_traj_lib[m][1][:, :-1]))
+        whole_timestamp_r = np.concatenate((whole_timestamp_r, joint_traj_lib[m][1][:, -1] + t_spent_already_r))
+        t_spent_already_r = whole_timestamp_r[-1] # set new start
       
+
     ### Convert the result into a plan
     print "=========== Convert the resultant trajectories into a plan"
     import pdb
@@ -937,8 +960,27 @@ def main():
     plan_whole_traj = moveit_msgs.msg.RobotTrajectory()
     plan_whole_traj.joint_trajectory.header.frame_id = '/world'
     plan_whole_traj.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint', 'right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
-
+    traj_point = trajectory_msgs.msg.JointTrajectoryPoint()
+    for n in range(whole_traj_l.shape[0]):
+      traj_point.positions = np.concatenate((whole_traj_l[n, 0:6], whole_traj_r[n, 0:6])).tolist()
+      traj_point.velocities = np.concatenate((whole_traj_l[n, 6:12], whole_traj_r[n, 6:12])).tolist()
+      traj_point.accelerations = np.concatenate((whole_traj_l[n, 12:18], whole_traj_r[n, 12:18])).tolist()
+      traj_point.time_from_start = rospy.Duration(whole_timestamp_l[n]) # left and right timestamp sequence are close to each other...
+      plan_whole_traj.joint_trajectory.points.append(traj_point)
     
+
+    ### Execute dual arm plan
+    print "============ Execute the processed dual arm plan..."
+    import pdb
+    pdb.set_trace()
+    group = moveit_commander.MoveGroupCommander("dual_arms")
+    # go to start position first
+    joint_goal = plan_whole_traj.joint_trajectory.points[0].positions
+    group.go(joint_goal, wait=True)
+    group.stop()
+    # execute the plan now
+    group.execute(plan_whole_traj, wait=True)
+
 
     ### Detach mesh
     ''
