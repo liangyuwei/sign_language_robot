@@ -49,6 +49,7 @@ import rospy
 import math
 import tf
 import numpy as np
+import numpy.matlib
 import h5py
 import moveit_commander
 import moveit_msgs.msg
@@ -849,11 +850,10 @@ def main():
         tmp_acc = np.zeros((num_points, 6), dtype=np.float64) 
         tmp_timestamp = np.zeros((num_points, 1), dtype=np.float64)
         for n in range(num_points):
-          # only positions information are copied now
           tmp_timestamp[n] = joint_traj_plans_lib[r][c].joint_trajectory.points[n].time_from_start.to_sec()
           tmp_pos[n, :] = np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].positions)
-          tmp_vel[n, :] = np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].velocities)
-          tmp_acc[n, :] = np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].accelerations)
+          tmp_vel[n, :] = tmp_pos#np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].velocities)
+          tmp_acc[n, :] = tmp_pos#np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].accelerations)
         # store the result
         joint_traj_lib[r][c] = np.concatenate((tmp_pos, tmp_vel, tmp_acc, tmp_timestamp), axis=1) # stored as ndarray, deep copy!!!
 
@@ -861,85 +861,84 @@ def main():
     ### Concatenate plans with the help of coord_sign
     import pdb
     pdb.set_trace()
+    print "============= Concatenate plans with the help of coordination signs"
     t_spent_already_l = 0
     t_spent_already_r = 0 # should check if they are equal
 
-    id_start_l = 0
-    id_start_r = 0
-    id_coord_l, = np.where(coord_sign[:, 0]==1) # the indices of the coordinated actions
-    id_coord_r, = np.where(coord_sign[:, 1]==1) 
+    id_start_l = 1
+    id_start_r = 1
+    id_coord_l, = np.where(coord_sign[1:, 0]==1) # the indices of the coordinated actions
+    id_coord_l = id_coord_l + 1 # since the search starts from 1 instead of 0
+    id_coord_r, = np.where(coord_sign[1:, 1]==1) # ignore the first
+    id_coord_r = id_coord_r + 1
     num_coord_actions = len(id_coord_l) # the same as id_coord_r
     whole_traj_l = []
     whole_traj_r = []
     whole_timestamp_l = []
     whole_timestamp_r = []
     done = False
+    # initialization
+    whole_traj_l = joint_traj_lib[0][0][:, :-1] # copy just pos, vel and acc
+    whole_timestamp_l = joint_traj_lib[0][0][:, -1] # copy the last column
+    t_spent_already_l = whole_time_stamp_l[-1] # set new start
+
+    whole_traj_r = joint_traj_lib[0][1][:, :-1] 
+    whole_timestamp_r = joint_traj_lib[0][1][:, -1] # copy the last column
+    t_spent_already_r = whole_time_stamp_r[-1] # set new start
+
+    # start concatenation
     for n in range(num_coord_actions):
-      ## concatenate everything in-between
-      # left arm
-      for m in range(id_start_l, id_coord_l[n]):
+      print "== Processing coordinated action " + str(n+1) + "/" + str(num_coord_actions) 
+
+      ## left arm, concatenate uncoordinated actions in-between
+      print "== -- Left arm: uncoordinated actions..."
+      for m in range(id_start_l, id_coord_l[n]): # if two coordinated actions are adjacent, range() would return empty and the for-loop would not be run
         # until coordinated actions(not concatenated yet)
-        if not whole_traj_l: # first time
-          whole_traj_l = joint_traj_lib[m][0][:, :-1] # copy just pos, vel and acc
-          whole_timestamp_l = joint_traj_lib[m][0][:, -1] # copy the last column
-        else:
-          whole_traj_l = np.concatenate((whole_traj_l, joint_traj_lib[m][0][:, :-1]))
-          whole_timestamp_l = np.concatenate((whole_timestamp_l, joint_traj_lib[m][0][:, -1] + t_spent_already_l))
+        whole_traj_l = np.concatenate((whole_traj_l, joint_traj_lib[m][0][:, :-1]))
+        whole_timestamp_l = np.concatenate((whole_timestamp_l, joint_traj_lib[m][0][:, -1] + t_spent_already_l))
         t_spent_already_l = whole_time_stamp_l[-1] # set new start
         
-      # right arm
+      ## right arm, concatenate uncoordinated actions in-between
+      print "== -- Right arm: uncoordinated actions..."
       for m in range(id_start_r, id_coord_r[n]):
         # until coordinated actions(not concatenated yet)
-        if not whole_traj_r: # first time
-          whole_traj_r = joint_traj_lib[m][1][:, :-1] 
-          whole_timestamp_r = joint_traj_lib[m][1][:, -1] # copy the last column
-        else:
-          whole_traj_r = np.concatenate((whole_traj_l, joint_traj_lib[m][1][:, :-1]))
-          whole_timestamp_r = np.concatenate((whole_timestamp_r, joint_traj_lib[m][1][:, -1] + t_spent_already_r))
+        whole_traj_r = np.concatenate((whole_traj_l, joint_traj_lib[m][1][:, :-1]))
+        whole_timestamp_r = np.concatenate((whole_timestamp_r, joint_traj_lib[m][1][:, -1] + t_spent_already_r))
         t_spent_already_r = whole_time_stamp_r[-1] # set new start
 
-      # after connecting all the uncoordinated actions, time to append coordinated actions
-
-
-
-      # find the next coordination point
-      for id_l in range(id_start_l, n_actions): # from id_start_l to n_actions-1
-        if coord_sign[id_l][0] == 1: # find coordinated action
-          id_coord_l = id_l
-          break
-      for id_r in range(id_start_r, n_actions): # from id_start_l to n_actions-1
-        if coord_sign[id_r][1] == 1: # find coordinated action
-          id_coord_r = id_r
-          break
-
-      # concatenate everything in-between
-     # for id_l in range(id_start_l, id_coord_l):
-      #  whole_traj_l = np.concatenate((whole_traj_l, ))
-
-      #for id_r in range(id_start_r, id_coord_r):
+      ## append extra lines to make the lengths equal
+      print "== -- Align the lengths..."
+      len_l = len(whole_timestamp_l)
+      len_r = len(whole_timestamp_r)
+      if len_l > len_r:
+        whole_timestamp_r = np.concatenate((whole_timestamp_r, whole_timestamp_l[len_r:len_l]))
+        whole_traj_r = np.concatenate( (whole_traj_r, np.matlib.repmat(whole_traj_l[-1, :], len_l-len_r, 1)) )
+      elif len_l < len_r:
+        whole_timestamp_l = np.concatenate((whole_timestamp_l, whole_timestamp_r[len_l:len_r]))
+        whole_traj_l = np.concatenate( (whole_traj_l, np.matlib.repmat(whole_traj_r[-1, :], len_r-len_l, 1)) )
       
+      ## concatenate coordinated actions(Note that coordinated actions should have the same length!!!)
+      print "== -- Both arms: coordinated actions..."
+      whole_traj_l = np.concatenate((whole_traj_l, joint_traj_lib[id_coord_l[n]][0][:, :-1]))
+      whole_timestamp_l = joint_traj_lib[id_coord_l[n]][0][:, -1] # copy the last column
+      t_spent_already_l = whole_time_stamp_l[-1] # set new start
+      id_start_l = id_coord_l[n] + 1  # set the next action after the current coordinated one
 
+      whole_traj_r = np.concatenate((whole_traj_r, joint_traj_lib[id_coord_r[n]][1][:, :-1]))
+      whole_timestamp_r = joint_traj_lib[id_coord_r[n]][1][:, -1] # copy the last column
+      t_spent_already_r = whole_time_stamp_r[-1] # set new start
+      id_start_r = id_coord_r[n] + 1  # set the next action after the current coordinated one  
 
-   # index = 0
-    plan_whole_traj_l = []
-    plan_whole_traj_r = []
-    id_l = 0
-    id_r = 0
-    while id_l < n_actions or id_r < n_actions:
-      if coord_sign[id_l][0] == 0: # the current action is not coordinated
-        plan_whole_traj_l = np.concatenate((plan_whole_traj_l, plans_joint_traj[id_l][0]))
-        t_spent_last_l = t_spent_last_l + plans_joint_traj[id_l][0][-1].time_from_start
-        id_l = id_l + 1
       
     ### Convert the result into a plan
+    print "=========== Convert the resultant trajectories into a plan"
+    import pdb
+    pdb.set_trace()
     plan_whole_traj = moveit_msgs.msg.RobotTrajectory()
     plan_whole_traj.joint_trajectory.header.frame_id = '/world'
     plan_whole_traj.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint', 'right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
 
     
-
-
-
 
     ### Detach mesh
     ''
