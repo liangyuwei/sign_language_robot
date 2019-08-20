@@ -68,17 +68,25 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 		// Assign to the response
 		trajectory_msgs::JointTrajectoryPoint traj_point;
 		vector<trajectory_msgs::JointTrajectoryPoint> traj;
-		VectorXd tmpPosition;
+		VectorXd tmpPosition, tmpVelocity, tmpAcceleration;
 		for(double t = 0.0; t < duration; t += timestep)
 		{		
 			// from VectorXd to vector<double>
 			tmpPosition = trajectory.getPosition(t);
+			tmpVelocity = trajectory.getVelocity(t);
+			tmpAcceleration = trajectory.getAcceleration(t);
 			traj_point.positions = { tmpPosition[0], tmpPosition[1], tmpPosition[2], tmpPosition[3],  tmpPosition[4], tmpPosition[5] };
+			traj_point.velocities = { tmpVelocity[0], tmpVelocity[1], tmpVelocity[2], tmpVelocity[3],  tmpVelocity[4], tmpVelocity[5] };
+			traj_point.accelerations = { tmpAcceleration[0], tmpAcceleration[1], tmpAcceleration[2], tmpAcceleration[3],  tmpAcceleration[4], tmpAcceleration[5] };
 			traj_point.time_from_start = ros::Duration(t);
 			traj.push_back(traj_point);
 		}
 		tmpPosition = trajectory.getPosition(duration);
+		tmpVelocity = trajectory.getVelocity(duration);
+		tmpAcceleration = trajectory.getAcceleration(duration);
 		traj_point.positions = { tmpPosition[0], tmpPosition[1], tmpPosition[2], tmpPosition[3],  tmpPosition[4], tmpPosition[5] };
+		traj_point.velocities = { tmpVelocity[0], tmpVelocity[1], tmpVelocity[2], tmpVelocity[3],  tmpVelocity[4], tmpVelocity[5] };
+		traj_point.accelerations = { tmpAcceleration[0], tmpAcceleration[1], tmpAcceleration[2], tmpAcceleration[3],  tmpAcceleration[4], tmpAcceleration[5] };
 		traj_point.time_from_start = ros::Duration(duration);
 		traj.push_back(traj_point);
 		res.traj = traj;
