@@ -49,11 +49,9 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+#  add_message_files(
+#    FILES
+#  )
 
 ## Generate services in the 'srv' folder
 add_service_files(
@@ -142,7 +140,6 @@ target_link_libraries(add_time_optimal_parameterization_server ${catkin_LIBRARIE
 target_link_libraries(add_time_optimal_parameterization_server libPath)
 target_link_libraries(add_time_optimal_parameterization_server libTrajectory)
 add_dependencies(add_time_optimal_parameterization_server raw_totg_gencpp)
-
 
 
 ## Rename C++ executable without prefix

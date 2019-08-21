@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdio>
+#include <string>
 #include <vector>
 #include <Eigen/Core>
 #include "Trajectory.h"
@@ -17,76 +18,81 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 	// Obtain the request
 	ROS_INFO("Obtain the request");
 	vector<trajectory_msgs::JointTrajectoryPoint> path = req.path;
+	vector<double> vel_limits = req.vel_limits;
+	vector<double> acc_limits = req.acc_limits;
+	double timestep = req.timestep; // 0.001;
 
-	// assign the path points
-	ROS_INFO("Assigning path points...");
+	// get the pos information
+	ROS_INFO("Get the pos information...");
 	list<VectorXd> waypoints;
-	VectorXd waypoint(6);
+	VectorXd waypoint;
 	vector<double> tmp;
 	for (auto it = path.cbegin(); it != path.cend(); ++it)
 	{
 		tmp = it->positions;
 		//Map<VectorXd> waypoint(tmp.data(), tmp.size());
-		waypoint << it->positions[0], it->positions[1], it->positions[2], it->positions[3], it->positions[4], it->positions[5]; // = Map<VectorXd>(tmp.data(), tmp.size()); //
+		waypoint = Map<VectorXd>(tmp.data(), tmp.size()); // << it->positions[0], it->positions[1], it->positions[2], it->positions[3], it->positions[4], it->positions[5]; //
 		waypoints.push_back(waypoint);
 	}
 
 
 	// Set velocity and acceleration limits
 	ROS_INFO("Set velocity and acceleration limits...");
-	VectorXd maxAcceleration(6);
-	maxAcceleration << 10.0, 10.0, 10.0, 10.0, 10.0, 10.0;
-	VectorXd maxVelocity(6);
-	maxVelocity << 3.15, 3.15, 3.15, 3.15, 3.15, 3.15;
+	VectorXd maxAcceleration;
+	maxAcceleration = Map<VectorXd>(acc_limits.data(), acc_limits.size()); //<< 10.0, 10.0, 10.0, 10.0, 10.0, 10.0;
+	VectorXd maxVelocity;
+	maxVelocity = Map<VectorXd>(vel_limits.data(), vel_limits.size()); //<< 3.15, 3.15, 3.15, 3.15, 3.15, 3.15;
 
 	// Add time parameterization
+	
 	ROS_INFO("Get prepared to add TP...");
-	double timestep = 0.001;
 	Trajectory trajectory(Path(waypoints, 0.1), maxVelocity, maxAcceleration);
 	ROS_INFO("Output phase plane trajectory..");
 	trajectory.outputPhasePlaneTrajectory();
 	ROS_INFO("Check if trajectory is valid");
 	if(trajectory.isValid()) {
-		ROS_INFO("Adding TP...");
+		ROS_INFO("Trajectory is valid. Adding TP now...");
+
 		double duration = trajectory.getDuration();
-		/*
-		cout << "Trajectory duration: " << duration << " s" << endl << endl;
-		cout << "Time      Position                  Velocity                  Acceleration" << endl;
-		for(double t = 0.0; t < duration; t += timestep) { //0.1) {
-			printf("%6.4f   %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f   %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f   %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n", t, 
-				trajectory.getPosition(t)[0], trajectory.getPosition(t)[1], trajectory.getPosition(t)[2], trajectory.getPosition(t)[3], trajectory.getPosition(t)[4], trajectory.getPosition(t)[5],
-				trajectory.getVelocity(t)[0], trajectory.getVelocity(t)[1], trajectory.getVelocity(t)[2], trajectory.getVelocity(t)[3], trajectory.getVelocity(t)[4], trajectory.getVelocity(t)[5],
-				trajectory.getAcceleration(t)[0], trajectory.getAcceleration(t)[1], trajectory.getAcceleration(t)[2], trajectory.getAcceleration(t)[3], trajectory.getAcceleration(t)[4], trajectory.getAcceleration(t)[5]);
-		}
-		// print the last
-		printf("%6.4f   %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f   %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f   %7.4f %7.4f %7.4f %7.4f %7.4f %7.4f\n", duration, 
-			trajectory.getPosition(duration)[0], trajectory.getPosition(duration)[1], trajectory.getPosition(duration)[2], trajectory.getPosition(duration)[3], trajectory.getPosition(duration)[4], trajectory.getPosition(duration)[5],
-			trajectory.getVelocity(duration)[0], trajectory.getVelocity(duration)[1], trajectory.getVelocity(duration)[2], trajectory.getVelocity(duration)[3], trajectory.getVelocity(duration)[4], trajectory.getVelocity(duration)[5],
-			trajectory.getAcceleration(duration)[0], trajectory.getAcceleration(duration)[1], trajectory.getAcceleration(duration)[2], trajectory.getAcceleration(duration)[3], trajectory.getAcceleration(duration)[4], trajectory.getAcceleration(duration)[5]);
-		*/
+
+		ROS_INFO("Got duration: %f", duration);
 
 		// Assign to the response
 		trajectory_msgs::JointTrajectoryPoint traj_point;
 		vector<trajectory_msgs::JointTrajectoryPoint> traj;
-		VectorXd tmpPosition, tmpVelocity, tmpAcceleration;
+		int dim = vel_limits.size(); // get the dimension
+		VectorXd tmpPosition(dim), tmpVelocity(dim), tmpAcceleration(dim);
+
 		for(double t = 0.0; t < duration; t += timestep)
 		{		
-			// from VectorXd to vector<double>
+			// get pos, vel and acc
+			ROS_INFO("Generating trajectory point at time t = %f / %f", t, duration);
 			tmpPosition = trajectory.getPosition(t);
 			tmpVelocity = trajectory.getVelocity(t);
 			tmpAcceleration = trajectory.getAcceleration(t);
-			traj_point.positions = { tmpPosition[0], tmpPosition[1], tmpPosition[2], tmpPosition[3],  tmpPosition[4], tmpPosition[5] };
-			traj_point.velocities = { tmpVelocity[0], tmpVelocity[1], tmpVelocity[2], tmpVelocity[3],  tmpVelocity[4], tmpVelocity[5] };
-			traj_point.accelerations = { tmpAcceleration[0], tmpAcceleration[1], tmpAcceleration[2], tmpAcceleration[3],  tmpAcceleration[4], tmpAcceleration[5] };
+
+			vector<double> vecPosition(tmpPosition.data(), tmpPosition.data() + tmpPosition.cols());
+			vector<double> vecVelocity(tmpVelocity.data(), tmpVelocity.data() + tmpVelocity.cols());
+			vector<double> vecAcceleration(tmpAcceleration.data(), tmpAcceleration.data() + tmpAcceleration.cols());
+			// store the info, from VectorXd to vector<double>
+			traj_point.positions = vecPosition; //{ tmpPosition[0], tmpPosition[1], tmpPosition[2]}; //= 
+			traj_point.velocities = vecVelocity; //{ tmpVelocity[0], tmpVelocity[1], tmpVelocity[2]}; //
+			traj_point.accelerations = vecAcceleration; //{ tmpAcceleration[0], tmpAcceleration[1], tmpAcceleration[2] }; //
 			traj_point.time_from_start = ros::Duration(t);
 			traj.push_back(traj_point);
 		}
+		ROS_INFO("Generating trajectory point at time t = %f / %f", duration, duration);
+		// for the last point
 		tmpPosition = trajectory.getPosition(duration);
 		tmpVelocity = trajectory.getVelocity(duration);
 		tmpAcceleration = trajectory.getAcceleration(duration);
-		traj_point.positions = { tmpPosition[0], tmpPosition[1], tmpPosition[2], tmpPosition[3],  tmpPosition[4], tmpPosition[5] };
-		traj_point.velocities = { tmpVelocity[0], tmpVelocity[1], tmpVelocity[2], tmpVelocity[3],  tmpVelocity[4], tmpVelocity[5] };
-		traj_point.accelerations = { tmpAcceleration[0], tmpAcceleration[1], tmpAcceleration[2], tmpAcceleration[3],  tmpAcceleration[4], tmpAcceleration[5] };
+		vector<double> vecPosition(tmpPosition.data(), tmpPosition.data() + tmpPosition.rows() * tmpPosition.cols());
+		vector<double> vecVelocity(tmpVelocity.data(), tmpVelocity.data() + tmpVelocity.rows() * tmpVelocity.cols());
+		vector<double> vecAcceleration(tmpAcceleration.data(), tmpAcceleration.data() + tmpAcceleration.rows() * tmpAcceleration.cols());
+		// store the info, from VectorXd to vector<double>
+		traj_point.positions = vecPosition; //= { tmpPosition[0], tmpPosition[1], tmpPosition[2], tmpPosition[3],  tmpPosition[4], tmpPosition[5] };
+		traj_point.velocities = vecVelocity; //{ tmpVelocity[0], tmpVelocity[1], tmpVelocity[2], tmpVelocity[3],  tmpVelocity[4], tmpVelocity[5] };
+		traj_point.accelerations = vecAcceleration; //{ tmpAcceleration[0], tmpAcceleration[1], tmpAcceleration[2], tmpAcceleration[3],  tmpAcceleration[4], tmpAcceleration[5] };
 		traj_point.time_from_start = ros::Duration(duration);
 		traj.push_back(traj_point);
 		res.traj = traj;
@@ -97,7 +103,9 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 		ROS_ERROR("Trajectory generation failed.");
 		return false;
 	}
+	
 
+	
 
 	return true;
 
