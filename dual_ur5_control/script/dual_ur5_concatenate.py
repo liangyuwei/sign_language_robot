@@ -704,16 +704,57 @@ class MoveGroupPythonIntefaceTutorial(object):
     return plan 
 
 
-def add_time_optimal_parameterization_client(points):
+def add_time_optimal_parameterization_client(path, vel_limits, acc_limits, timestep=0.001):
   # wait for service to come online
   rospy.wait_for_service('add_time_optimal_parameterization_server')
 
   try:
     path_to_traj = rospy.ServiceProxy('add_time_optimal_parameterization_server', PathToTraj)
-    res = path_to_traj(points)
+    res = path_to_traj(path, vel_limits, acc_limits, timestep)
     return res.traj
   except rospy.ServiceException, e:
     print "Service call failed: %s" % e
+
+
+def merge_two_plans(points_l, points_r):
+  ### points_l and points_r should be trajectory_msgs/JointTrajectoryPoint[]
+
+  # initialization
+  if len(points_l) > len(points_r):
+    points_dual = copy.deepcopy(points_r)
+  else:
+    points_dual = copy.deepcopy(points_l)    
+
+  # appoint
+  for i in range(len(points_dual)):
+    # only pos info is needed for TOTG
+    points_dual[i].positions = points_l[i].positions + points_r[i].positions
+    #points_dual[i].velocities = points_l[i].velocities + points_r[i].velocities
+    #points_dual[i].accelerations = points_l[i].accelerations + points_r[i].accelerations
+
+  return copy.deepcopy(points_dual)
+
+
+def split_dual_plan(points_dual):
+  ### points_dual should be trajectory_msgs/JointTrajectoryPoint[]
+
+  # initialization
+  points_l = copy.deepcopy(points_dual)
+  points_r = copy.deepcopy(points_dual)
+
+  # split
+  for i in range(len(points_dual)):
+    # for left arm
+    points_l[i].positions = points_dual[i].positions[0:6]
+    points_l[i].velocities = points_dual[i].velocities[0:6]
+    points_l[i].accelerations = points_dual[i].accelerations[0:6]
+
+    # for right arm
+    points_r[i].positions = points_dual[i].positions[6:12]    
+    points_r[i].velocities = points_dual[i].velocities[6:12]    
+    points_r[i].accelerations = points_dual[i].accelerations[6:12]    
+
+  return copy.deepcopy(points_l), copy.deepcopy(points_r)
 
 
 def main():
@@ -782,6 +823,7 @@ def main():
     n_cols = 2
     n_actions = 2
     n_rows = n_actions
+    # temporary: what if actions are not in pair!!! should split the left and right arms' actions in the first place!!!!
     cartesian_paths_lib = [[0 for i in range(n_cols)] for j in range(n_rows)]
     coord_sign = np.array([[0, 0], [1, 1]]) # set coordinated motion to 1; use ndarray, easy for finding the coordinated actions
     cartesian_paths_lib[0][0] = f['l_approach_2_tmp'][:]
@@ -816,7 +858,9 @@ def main():
                                         waypoints,   # waypoints to follow
                                         0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
-                                        avoid_collisions=False)         
+                                        avoid_collisions=False)    
+        # temporary: using compute_cartesian_path is actually not good for dual-arm coordinated actions since the number of the resultant points is not in consistent with the number of cartesian points!!!
+
         # display the result
         group.execute(plan, wait=True)
         # store the generated joint plans
@@ -828,14 +872,37 @@ def main():
     pdb.set_trace()
     print "========== Apply TOTG to generate time optimal joint trajectory... "
     joint_traj_plans_lib = [[0 for i in range(n_cols)] for j in range(n_rows)] # stored as moveit_msgs/RobotTrajectory 
-    for r in range(n_rows):
-      for c in range(n_cols):
-        print "== Adding TP for actions " + str(r+1) + "/" + str(n_rows) + " of arms " + str(c+1) + "/" + str(n_cols) + "..."
-        tmp_plan = copy.deepcopy(joint_path_plans_lib[r][c])
-        new_plan = copy.deepcopy(tmp_plan)
-        new_plan.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan.joint_trajectory.points)
-        joint_traj_plans_lib[r][c] = copy.deepcopy(new_plan) # stored as moveit_msgs/RobotTrajectory
+    vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
+    acc_limits = [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
 
+    ## ----- temporary: should split the left and right arms' actions in the first place, not presumed as in pair
+    for c in range(n_cols): # uncoordinated actions, add TP separately
+      tmp_plan = copy.deepcopy(joint_path_plans_lib[0][c])
+      new_plan = moveit_msgs.msg.RobotTrajectory() 
+      new_plan.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits, 0.001)
+      joint_traj_plans_lib[0][c] = copy.deepcopy(new_plan)
+
+    tmp_plan_l = copy.deepcopy(joint_path_plans_lib[1][0])
+    tmp_plan_r = copy.deepcopy(joint_path_plans_lib[1][1])
+    tmp_plan_dual = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(tmp_plan_l) # initialization
+    tmp_plan_dual.joint_trajectory.points = merge_two_plans(tmp_plan_l.joint_trajectory.points, tmp_plan_r.joint_trajectory.points)
+
+
+    new_plan_dual = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(tmp_plan_dual)  # initialization
+
+    pdb.set_trace()
+    new_plan_dual.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_dual.joint_trajectory.points, vel_limits+vel_limits, acc_limits+acc_limits, 0.001) # get the result with TP
+
+    pdb.set_trace()
+    new_plan_l = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(new_plan_dual)
+    new_plan_r = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(new_plan_dual)
+    new_plan_l.joint_trajectory.points, new_plan_r.joint_trajectory.points = split_dual_plan(new_plan_dual.joint_trajectory.points) # split the dual plan
+
+    pdb.set_trace()
+    joint_traj_plans_lib[1][0] = copy.deepcopy(new_plan_l)
+    joint_traj_plans_lib[1][1] = copy.deepcopy(new_plan_r)
+    ## ----- end of temporary
+              
 
     # convert plan structure to array structure
     import pdb
@@ -980,6 +1047,17 @@ def main():
     group.stop()
     # execute the plan now
     group.execute(plan_whole_traj, wait=True)
+
+
+    ### Store the result for display in MATLAB
+    f = h5py.File("dual_ur5_whole_traj_concat_2.h5", "a")
+    joint_traj_name = "traj_pair_approach2_insert2_tmp"
+    joint_traj_group =  f.create_group(joint_traj_name)
+    joint_traj_group.create_dataset("joint_traj_l", data=whole_traj_l, dtype=float)
+    joint_traj_group.create_dataset("joint_traj_r", data=whole_traj_r, dtype=float)
+    joint_traj_group.create_dataset("joint_timestamp_l", data=whole_timestamp_l, dtype=float)    
+    joint_traj_group.create_dataset("joint_timestamp_r", data=whole_timestamp_r, dtype=float)
+    f.close()
 
 
     ### Detach mesh

@@ -71,9 +71,9 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 			tmpVelocity = trajectory.getVelocity(t);
 			tmpAcceleration = trajectory.getAcceleration(t);
 
-			vector<double> vecPosition(tmpPosition.data(), tmpPosition.data() + tmpPosition.cols());
-			vector<double> vecVelocity(tmpVelocity.data(), tmpVelocity.data() + tmpVelocity.cols());
-			vector<double> vecAcceleration(tmpAcceleration.data(), tmpAcceleration.data() + tmpAcceleration.cols());
+			vector<double> vecPosition(tmpPosition.data(), tmpPosition.data() + tmpPosition.rows() * tmpPosition.cols());
+			vector<double> vecVelocity(tmpVelocity.data(), tmpVelocity.data() + tmpVelocity.rows() * tmpVelocity.cols());
+			vector<double> vecAcceleration(tmpAcceleration.data(), tmpAcceleration.data() + tmpPosition.rows() * tmpAcceleration.cols());
 			// store the info, from VectorXd to vector<double>
 			traj_point.positions = vecPosition; //{ tmpPosition[0], tmpPosition[1], tmpPosition[2]}; //= 
 			traj_point.velocities = vecVelocity; //{ tmpVelocity[0], tmpVelocity[1], tmpVelocity[2]}; //
