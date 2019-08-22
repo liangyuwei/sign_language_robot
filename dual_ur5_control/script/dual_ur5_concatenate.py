@@ -835,15 +835,37 @@ def main():
     for r in range(n_rows):
       for c in range(n_cols):
         print "== Processing actions " + str(r+1) + "/" + str(n_rows) + " of arms " + str(c+1) + "/" + str(n_cols) + "..."
-        # set group
+
+        # set group and pose target, go to the start pose before planning!!!
+        import pdb
+        pdb.set_trace()
         if c == 0: # left arm
-          group = moveit_commander.MoveGroupCommander("left_arm")
+          l_or_r = "left"
         else:
-          group = moveit_commander.MoveGroupCommander("right_arm")
-        # set Pose trajectories
+          l_or_r = "right"
+        group = moveit_commander.MoveGroupCommander(l_or_r + "_arm")
+        print "-- Go to start pose before planning..."
+        pose_target = group.get_current_pose(l_or_r + "_ee_link") # get current eef's pose
+        pose_target.pose.position.x = cartesian_paths_lib[r][c][0, 0]
+        pose_target.pose.position.y = cartesian_paths_lib[r][c][0, 1]
+        pose_target.pose.position.z = cartesian_paths_lib[r][c][0, 2]
+        quat = tf.transformations.quaternion_from_euler(cartesian_paths_lib[r][c][0, 3], cartesian_paths_lib[r][c][0, 4], cartesian_paths_lib[r][c][0, 5]) # same order
+        pose_target.pose.orientation.x = quat[0]
+        pose_target.pose.orientation.y = quat[1]
+        pose_target.pose.orientation.z = quat[2]
+        pose_target.pose.orientation.w = quat[3] # set the start pose
+        group.set_pose_target(pose_target, l_or_r + '_ee_link') # set pose target
+        group.allow_replanning(True)
+        group.set_planning_time(1.0)
+        group.go(wait=True) # plan and go
+        group.stop() # stop
+        group.clear_pose_targets() # clear targets
+
+
+        # set Pose trajectories(should go to first pose before planning!!!)
         waypoints = []
         wpose = geometry_msgs.msg.Pose()
-        for l in range(cartesian_paths_lib[r][c].shape[0]):
+        for l in range(1, cartesian_paths_lib[r][c].shape[0]):
           wpose.position.x = cartesian_paths_lib[r][c][l, 0]
           wpose.position.y = cartesian_paths_lib[r][c][l, 1]
           wpose.position.z = cartesian_paths_lib[r][c][l, 2]
@@ -854,6 +876,9 @@ def main():
           wpose.orientation.w = quat[3]
           waypoints.append(copy.deepcopy(wpose))
         # compute plan to convert cartesian path to joint plan
+        print "-- Start planning now..."
+        import pdb
+        pdb.set_trace()
         (plan, fraction) = group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
                                         0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
