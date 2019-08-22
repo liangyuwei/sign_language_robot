@@ -668,6 +668,8 @@ class MoveGroupPythonIntefaceTutorial(object):
     group.clear_pose_targets()
 
     ### Set via point
+    waypoints = [] # temporary: for generating trajectory segments
+    wpose = group.get_current_pose().pose # temporary: for generating trajectory segments
     '''
     print "== Set via point =="
     waypoints = []
@@ -911,7 +913,7 @@ def main():
     left_pose_target = tutorial.group.get_current_pose('left_ee_link')
     right_pose_target = tutorial.group.get_current_pose('right_ee_link')
     # set new targets
-    left_pre_grasp_pos = [0.5, 0.4, 0.15] # 0.04 + 0.07
+    left_pre_grasp_pos = [0.5, 0.4, 0.15] # flash hat height + dist_from_eef = 0.04 + 0.11
     left_pose_target.pose.position.x = left_pre_grasp_pos[0]
     left_pose_target.pose.position.y = left_pre_grasp_pos[1]
     left_pose_target.pose.position.z = left_pre_grasp_pos[2]
@@ -921,7 +923,7 @@ def main():
     left_pose_target.pose.orientation.z = left_pre_grasp_pose[2]
     left_pose_target.pose.orientation.w = left_pre_grasp_pose[3]
 
-    right_pre_grasp_pos = [0.5, -0.4, 0.19] # 0.1 + 0.07
+    right_pre_grasp_pos = [0.5, -0.4, 0.19] # flash body height + dist_from_eef = 0.1 + 0.09
     right_pose_target.pose.position.x = right_pre_grasp_pos[0]
     right_pose_target.pose.position.y = right_pre_grasp_pos[1]
     right_pose_target.pose.position.z = right_pre_grasp_pos[2]

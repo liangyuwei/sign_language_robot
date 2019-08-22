@@ -902,6 +902,7 @@ def main():
 
     ## ----- temporary: should split the left and right arms' actions in the first place, not presumed as in pair
     for c in range(n_cols): # uncoordinated actions, add TP separately
+      print "== -- for actions " + str(c+1) + "/4..."
       tmp_plan = copy.deepcopy(joint_path_plans_lib[0][c])
       new_plan = moveit_msgs.msg.RobotTrajectory() 
       new_plan.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits, 0.001)
@@ -916,6 +917,8 @@ def main():
     new_plan_dual = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(tmp_plan_dual)  # initialization
 
     pdb.set_trace()
+    print "== -- for actions 3/4..."
+    print "== -- for actions 4/4..."
     new_plan_dual.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_dual.joint_trajectory.points, vel_limits+vel_limits, acc_limits+acc_limits, 0.001) # get the result with TP
 
     pdb.set_trace()
@@ -1007,11 +1010,11 @@ def main():
       len_r = len(whole_timestamp_r)
       if len_l > len_r:
         whole_timestamp_r = np.concatenate((whole_timestamp_r, whole_timestamp_l[len_r:len_l]))
-        whole_traj_r = np.concatenate( (whole_traj_r, np.matlib.repmat(whole_traj_l[-1, :], len_l-len_r, 1)) )
+        whole_traj_r = np.concatenate( (whole_traj_r, np.matlib.repmat(whole_traj_r[-1, :], len_l-len_r, 1)) )
         t_spent_already_r = whole_timestamp_r[-1] # set new start
       elif len_l < len_r:
         whole_timestamp_l = np.concatenate((whole_timestamp_l, whole_timestamp_r[len_l:len_r]))
-        whole_traj_l = np.concatenate( (whole_traj_l, np.matlib.repmat(whole_traj_r[-1, :], len_r-len_l, 1)) )
+        whole_traj_l = np.concatenate( (whole_traj_l, np.matlib.repmat(whole_traj_l[-1, :], len_r-len_l, 1)) )
         t_spent_already_l = whole_timestamp_l[-1] # set new start
       
       ## concatenate coordinated actions(Note that coordinated actions should have the same length!!!)
@@ -1058,7 +1061,7 @@ def main():
       traj_point.velocities = np.concatenate((whole_traj_l[n, 6:12], whole_traj_r[n, 6:12])).tolist()
       traj_point.accelerations = np.concatenate((whole_traj_l[n, 12:18], whole_traj_r[n, 12:18])).tolist()
       traj_point.time_from_start = rospy.Duration(whole_timestamp_l[n]) # left and right timestamp sequence are close to each other...
-      plan_whole_traj.joint_trajectory.points.append(traj_point)
+      plan_whole_traj.joint_trajectory.points.append(copy.deepcopy(traj_point))
     
 
     ### Execute dual arm plan
