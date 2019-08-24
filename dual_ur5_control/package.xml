@@ -50,10 +50,13 @@
   <!--   <doc_depend>doxygen</doc_depend> -->
   <buildtool_depend>catkin</buildtool_depend>
 
+  <build_depend>eigen</build_depend>
+  <build_depend>message_generation</build_depend>
 
-  <!-- The export tag contains other, unspecified, tags -->
-  <export>
-    <!-- Other tools can request additional information be placed here -->
+  <exec_depend>message_runtime</exec_depend>
 
-  </export>
+
+
+
+
 </package>

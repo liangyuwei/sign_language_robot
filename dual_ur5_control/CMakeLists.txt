@@ -2,12 +2,26 @@ cmake_minimum_required(VERSION 2.8.3)
 project(dual_ur5_control)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED)
+find_package(Eigen3 REQUIRED)
+if(NOT EIGEN3_INCLUDE_DIRS)
+  set(EIGEN3_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIR})
+endif()
+
+
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  moveit_ros_planning
+  rospy
+  std_msgs
+  trajectory_msgs
+  geometry_msgs
+  message_generation
+)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -42,6 +56,9 @@ find_package(catkin REQUIRED)
 ##   * uncomment the generate_messages entry below
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
+
+
+
 ## Generate messages in the 'msg' folder
 # add_message_files(
 #   FILES
@@ -50,11 +67,10 @@ find_package(catkin REQUIRED)
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+  FILES
+  JntToCart.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -64,10 +80,14 @@ find_package(catkin REQUIRED)
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   std_msgs  # Or other packages containing msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs  # Or other packages containing msgs
+  trajectory_msgs
+  geometry_msgs
+)
+
+catkin_package()
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -86,7 +106,7 @@ find_package(catkin REQUIRED)
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
 # generate_dynamic_reconfigure_options(
 #   cfg/DynReconf1.cfg
-#   cfg/DynReconf2.cfg
+#   cfg/DynReconf2.cfga
 # )
 
 ###################################
@@ -98,12 +118,7 @@ find_package(catkin REQUIRED)
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES dual_ur5_control
-#  CATKIN_DEPENDS other_catkin_pkg
-#  DEPENDS system_lib
-)
+
 
 ###########
 ## Build ##
@@ -111,10 +126,8 @@ catkin_package(
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(
-# include
-# ${catkin_INCLUDE_DIRS}
-)
+include_directories(${catkin_INCLUDE_DIRS})
+include_directories("/usr/include/eigen3")
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
@@ -129,7 +142,12 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/dual_ur5_control_node.cpp)
+add_executable(fk src/fk.cpp)
+target_link_libraries(fk ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
+add_executable(apply_fk_server src/apply_fk_server.cpp)
+target_link_libraries(apply_fk_server ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+add_dependencies(apply_fk_server dual_ur5_control_gencpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

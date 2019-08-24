@@ -59,6 +59,7 @@ from math import pi
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
 from raw_totg.srv import *
+from dual_ur5_control.srv import *
 ## END_SUB_TUTORIAL
 
 def all_close(goal, actual, tolerance):
@@ -757,6 +758,32 @@ def split_dual_plan(points_dual):
   return copy.deepcopy(points_l), copy.deepcopy(points_r)
 
 
+def apply_fk_client(joint_trajectory, left_or_right):
+
+  if type(joint_trajectory) is list:
+    if type(joint_trajectory[0]) is not trajectory_msgs.msg.JointTrajectoryPoint:
+      print "Wrong data type for joint_trajectory!"
+      return False
+  else:
+    if type(joint_trajectory) is not trajectory_msgs.msg.JointTrajectoryPoint:
+      print "Wrong data type for joint_trajectory!"
+      return False
+
+  if type(left_or_right) is not bool:
+    print "Wrong data type for left_or_right selection variable!"
+    return False
+
+  # wait for service to come online
+  rospy.wait_for_service('apply_fk_server')
+
+  try:
+    joint_to_cart = rospy.ServiceProxy('apply_fk_server', JntToCart)
+    res = joint_to_cart(left_or_right, joint_trajectory)
+    return res.cart_trajectory
+  except rospy.ServiceException, e:
+    print "Service call failed: %s" % e
+
+
 def main():
 
 
@@ -916,17 +943,14 @@ def main():
 
     new_plan_dual = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(tmp_plan_dual)  # initialization
 
-    pdb.set_trace()
     print "== -- for actions 3/4..."
     print "== -- for actions 4/4..."
     new_plan_dual.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_dual.joint_trajectory.points, vel_limits+vel_limits, acc_limits+acc_limits, 0.001) # get the result with TP
 
-    pdb.set_trace()
     new_plan_l = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(new_plan_dual)
     new_plan_r = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(new_plan_dual)
     new_plan_l.joint_trajectory.points, new_plan_r.joint_trajectory.points = split_dual_plan(new_plan_dual.joint_trajectory.points) # split the dual plan
 
-    pdb.set_trace()
     joint_traj_plans_lib[1][0] = copy.deepcopy(new_plan_l)
     joint_traj_plans_lib[1][1] = copy.deepcopy(new_plan_r)
     ## ----- end of temporary
@@ -1075,9 +1099,10 @@ def main():
     group.stop()
     # execute the plan now
     group.execute(plan_whole_traj, wait=True)
-
+    rospy.sleep(3.0)
 
     ### Store the result for display in MATLAB
+    '''
     f = h5py.File("dual_ur5_whole_traj_concat_2.h5", "a")
     joint_traj_name = "traj_pair_approach2_insert2_tmp"
     joint_traj_group =  f.create_group(joint_traj_name)
@@ -1086,6 +1111,82 @@ def main():
     joint_traj_group.create_dataset("joint_timestamp_l", data=whole_timestamp_l, dtype=float)    
     joint_traj_group.create_dataset("joint_timestamp_r", data=whole_timestamp_r, dtype=float)
     f.close()
+    '''
+
+
+    ### Convert joint trajectories to end-effector trajectory --- Too slow!!!
+    '''
+    import pdb
+    pdb.set_trace()
+    group = moveit_commander.MoveGroupCommander("left_arm")
+    whole_cart_traj_l = np.zeros((whole_traj_l.shape[0], 6))
+    for m in range(whole_traj_l.shape[0]):
+      joint_goal = whole_traj_l[m, 0:6]
+      group.go(joint_goal, wait=True)
+      group.stop()
+      wpose = group.get_current_pose().pose
+      pos = np.array([wpose.position.x, wpose.position.y, wpose.position.z])
+      quat = np.array([wpose.orientation.x, wpose.orientation.y, wpose.orientation.z, wpose.orientation.w])
+      eul = np.array(tf.transformations.euler_from_quaternion(quat))
+      whole_cart_traj_l[m, :] = np.concatenate((pos, eul))
+    
+    rospy.sleep(3.0)
+
+    group = moveit_commander.MoveGroupCommander("right_arm")
+    whole_cart_traj_r = np.zeros((whole_traj_r.shape[0], 6))
+    for m in range(whole_traj_r.shape[0]):
+      joint_goal = whole_traj_r[m, 0:6]
+      group.go(joint_goal, wait=True)
+      group.stop()
+      wpose = group.get_current_pose().pose
+      pos = np.array([wpose.position.x, wpose.position.y, wpose.position.z])
+      quat = np.array([wpose.orientation.x, wpose.orientation.y, wpose.orientation.z, wpose.orientation.w])
+      eul = np.array(tf.transformations.euler_from_quaternion(quat))
+      whole_cart_traj_r[m, :] = np.concatenate((pos, eul))
+    '''
+  
+    ### Convert joint trajectories to Cartesian trajectories using RobotState!!!
+    # get individual plan first
+    traj_point = trajectory_msgs.msg.JointTrajectoryPoint()
+    joint_trajectory_l = []
+    joint_trajectory_r = []
+    for n in range(whole_traj_l.shape[0]):
+      # left
+      traj_point.positions = whole_traj_l[n, 0:6].tolist()
+      joint_trajectory_l.append(copy.deepcopy(traj_point))
+      # right
+      traj_point.positions = whole_traj_r[n, 0:6].tolist()
+      joint_trajectory_r.append(copy.deepcopy(traj_point))
+    # call the service
+    pdb.set_trace()
+    cart_traj_l = apply_fk_client(joint_trajectory_l, True)
+    cart_traj_r = apply_fk_client(joint_trajectory_r, False)
+    pdb.set_trace()
+    # convert to 6 dim = pos + eul structure
+    whole_cart_traj_l = np.zeros((len(cart_traj_l), 6))
+    whole_cart_traj_r = np.zeros((len(cart_traj_r), 6))
+    for m in range(whole_cart_traj_l.shape[0]):
+      # left
+      pos = np.array([cart_traj_l[m].position.x, cart_traj_l[m].position.y, cart_traj_l[m].position.z])
+      quat = np.array([cart_traj_l[m].orientation.x, cart_traj_l[m].orientation.y, cart_traj_l[m].orientation.z, cart_traj_l[m].orientation.w])
+      eul = np.array(tf.transformations.euler_from_quaternion(quat))
+      whole_cart_traj_l[m, :] = np.concatenate((pos, eul))
+      # right
+      pos = np.array([cart_traj_r[m].position.x, cart_traj_r[m].position.y, cart_traj_r[m].position.z])
+      quat = np.array([cart_traj_r[m].orientation.x, cart_traj_r[m].orientation.y, cart_traj_r[m].orientation.z, cart_traj_r[m].orientation.w])
+      eul = np.array(tf.transformations.euler_from_quaternion(quat))
+      whole_cart_traj_r[m, :] = np.concatenate((pos, eul))      
+    
+
+    ### Display and store the resultant trajectory
+    import pdb
+    pdb.set_trace()
+    f = h5py.File("dual_ur5_whole_cart_traj_concat_2.h5", "a")
+    cart_traj_name = "traj_pair_approach2_insert2_tmp"
+    cart_traj_group =  f.create_group(cart_traj_name)
+    cart_traj_group.create_dataset("cart_traj_l", data=whole_cart_traj_l, dtype=float)
+    cart_traj_group.create_dataset("cart_traj_r", data=whole_cart_traj_r, dtype=float)
+    f.close()    
 
 
     ### Detach mesh
