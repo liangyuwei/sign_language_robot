@@ -5,6 +5,7 @@ import copy
 import rospy
 import math
 import tf
+import time
 import numpy as np
 import numpy.matlib
 import h5py
@@ -18,8 +19,8 @@ from moveit_commander.conversions import pose_to_list
 from raw_totg.srv import *
 from dual_ur5_control.srv import *
 
-# Import PySwarms
-import pyswarms as ps
+# Import simple_PSO code(copied from online, did a little modification)
+import simple_PSO
 
 
 def all_close(goal, actual, tolerance):
@@ -756,133 +757,155 @@ def apply_fk_client(joint_trajectory, left_or_right):
     print("Service call failed: %s" % e)
 
 
-def pso_cost_func(left_goal, left_start, right_start):
+class PSOCostFunc():
 
-  ### Input a target pose for left arm, generate a corresponding right arm's goal.
-  # (left_start and right_start as arguments)
-  # new goals --> [DMP] --> new cartesian paths --> [IK] --> new joint paths --> [TOTG] --> duration(and new joint trajs) --> Cost function for PSO
-  
-  ## 1 - set right arm's goal
-  import pdb
-  pdb.set_trace()
-  print("========== Set right arm's goal")
-  # get right arm's pose
-  l_w_final = tf.transformations.quaternion_from_euler(left_goal[3], left_goal[4], left_goal[5])
-  relative_quat = tf.transformations.quaternion_from_euler(0, 0, math.pi)
-  r_w_final = tf.transformations.quaternion_multiply(l_w_final, relative_quat)
-  right_rotm = tf.transformations.quaternion_matrix(r_w_final)
-  # compute offset vector along x axis
-  offset = -0.32
-  v_offset = [offset, 0, 0] 
-  v_offset_world = np.dot(right_rotm, v_offset)
-  r_x_final = left_goal[0:3] + v_offset_world
-  # construct right arm's goal
-  right_goal = np.concatenate((r_x_final, tf.transformations.euler_from_quaternion(r_w_final)))
-  
+  def __init__(self):
 
-  ## 2 - DMP, new cartesian paths
-  # temporary, generate cartesian paths using DMP
-  l_cartesian_path = np.linspace(left_start, left_goal, num=200, endpoint=True)
-  r_cartesian_path = np.linspace(right_start, right_goal, num=200, endpoint=True)
+    self.l_group = moveit_commander.MoveGroupCommander("left_arm")
+    self.r_group = moveit_commander.MoveGroupCommander("right_arm")
+    self.largest_cost = -1
+
+  def f(self, left_goal):
+
+    ### Input a target pose for left arm, generate a corresponding right arm's goal.
+    # (left_start and right_start as arguments)
+    # new goals --> [DMP] --> new cartesian paths --> [IK] --> new joint paths --> [TOTG] --> duration(and new joint trajs) --> Cost function for PSO
+
+    ## -- temporary: should be able to pass arguments
+    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
+    right_start = np.array([0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi])
+    ## -- end of temporary  
+
+    ## 1 - set right arm's goal
+    #import pdb
+    #pdb.set_trace()
+    print("========== Set right arm's goal")
+    # get right arm's pose
+    l_w_final = tf.transformations.quaternion_from_euler(left_goal[3], left_goal[4], left_goal[5])
+    relative_quat = tf.transformations.quaternion_from_euler(0, 0, math.pi)
+    r_w_final = tf.transformations.quaternion_multiply(l_w_final, relative_quat)
+    right_rotm = tf.transformations.quaternion_matrix(r_w_final)
+    right_rotm = right_rotm[:3, :3] # get the rotation part
+    # compute offset vector along x axis
+    offset = -0.32
+    v_offset = [offset, 0, 0] 
+    v_offset_world = np.dot(right_rotm, v_offset)
+    r_x_final = left_goal[0:3] + v_offset_world
+    # construct right arm's goal
+    right_goal = np.concatenate((r_x_final, tf.transformations.euler_from_quaternion(r_w_final)))
+    # check constraint on right goal ~~~
+    bounds = [(0.3, 0.6), (-0.3, 0.3), (0.3, 0.6), (-math.pi, math.pi), (-math.pi, math.pi), (-math.pi, math.pi)]
+    for l in range(len(bounds)):
+      if right_goal[l] <= bounds[l][0] or right_goal[l] >= bounds[l][1]:
+        # right_goal is out of bounds, abort this iteration
+        if self.largest_cost > 0:
+          return self.largest_cost
+        else:
+          return 10
+
+    ## 2 - DMP, new cartesian paths
+    # -- temporary, generate cartesian paths using DMP
+    ndata = 200
+    l_cartesian_path = np.zeros((6, ndata), dtype=float)
+    r_cartesian_path = np.zeros((6, ndata), dtype=float)
+    for i in range(6):
+      l_cartesian_path[i, :] = np.linspace(left_start[i], left_goal[i], num=ndata, endpoint=True)
+      r_cartesian_path[i, :] = np.linspace(right_start[i], right_goal[i], num=ndata, endpoint=True)
+    # -- end of temporary
 
 
-  ## 3 - IK
-  import pdb
-  pdb.set_trace()
-  # LEFT ARM
-  print("========== Perform IK for left arm's path...")
-  # set Pose trajectories(should go to first pose before planning!!!)
-  print("-- Plan for left arm...")
-  waypoints = []
-  wpose = geometry_msgs.msg.Pose()
-  for n in range(1, l_cartesian_path.shape[1]):
-    wpose.position.x = l_cartesian_path[0, n]
-    wpose.position.y = l_cartesian_path[1, n]
-    wpose.position.z = l_cartesian_path[2, n]
-    quat = tf.transformations.quaternion_from_euler(l_cartesian_path[3, n], l_cartesian_path[4, n], l_cartesian_path[5, n]) # same order ???
-    wpose.orientation.x = quat[0]
-    wpose.orientation.y = quat[1]
-    wpose.orientation.z = quat[2]
-    wpose.orientation.w = quat[3]
-    waypoints.append(copy.deepcopy(wpose))
-  (plan, fraction) = l_group.compute_cartesian_path(
+
+    ## 3 - IK
+    #import pdb
+    #pdb.set_trace()
+    # LEFT ARM
+    print("========== Perform IK for left arm's path...")
+    # set Pose trajectories(should go to first pose before planning!!!)
+    print("-- Plan for left arm...")
+    waypoints = []
+    wpose = geometry_msgs.msg.Pose()
+    for n in range(1, l_cartesian_path.shape[1]):
+      wpose.position.x = l_cartesian_path[0, n]
+      wpose.position.y = l_cartesian_path[1, n]
+      wpose.position.z = l_cartesian_path[2, n]
+      quat = tf.transformations.quaternion_from_euler(l_cartesian_path[3, n], l_cartesian_path[4, n], l_cartesian_path[5, n]) # same order ???
+      wpose.orientation.x = quat[0]
+      wpose.orientation.y = quat[1]
+      wpose.orientation.z = quat[2]
+      wpose.orientation.w = quat[3]
+      waypoints.append(copy.deepcopy(wpose))
+    (plan, fraction) = self.l_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
                                         0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
                                         avoid_collisions=False)    
-  # display the result
-  #l_group.execute(plan, wait=True) # do not execute!!! current state should always be set to the start.
-  # store the generated joint plans
-  l_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+    # display the result
+    #l_group.execute(plan, wait=True) # do not execute!!! current state should always be set to the  start.
+    # store the generated joint plans
+    l_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
 
-  # RIGHT ARM
-  # go to initial position
-  print("========== Perform IK for right arm's path...")
-  r_group = moveit_commander.MoveGroupCommander("right_arm")
-  print("-- Go to start pose before planning...")
-  pose_target = group.get_current_pose("right_ee_link") # get current eef's pose
-  pose_target.pose.position.x = r_cartesian_path[0, 0]
-  pose_target.pose.position.y = r_cartesian_path[1, 0]
-  pose_target.pose.position.z = r_cartesian_path[2, 0]
-  quat = tf.transformations.quaternion_from_euler(r_cartesian_path[3, 0], r_cartesian_path[4, 0], r_cartesian_path[5, 0]) # same order
-  pose_target.pose.orientation.x = quat[0]
-  pose_target.pose.orientation.y = quat[1] 
-  pose_target.pose.orientation.z = quat[2]
-  pose_target.pose.orientation.w = quat[3] # set the start pos
-  r_group.set_pose_target(pose_target, 'right_ee_link') # set pose target
-  r_group.allow_replanning(True)
-  r_group.set_planning_time(1.0)
-  r_group.go(wait=True) # plan and go
-  r_group.stop() # stop
-  r_group.clear_pose_targets() # clear targets
-  # set Pose trajectories(should go to first pose before planning!!!)
-  print("-- Plan for right arm...")
-  waypoints = []
-  wpose = geometry_msgs.msg.Pose()
-  for n in range(1, r_cartesian_path.shape[1]):
-    wpose.position.x = r_cartesian_path[0, n]
-    wpose.position.y = r_cartesian_path[1, n]
-    wpose.position.z = r_cartesian_path[2, n]
-    quat = tf.transformations.quaternion_from_euler(r_cartesian_path[3, n], r_cartesian_path[4, n], r_cartesian_path[5, n]) # same order ???
-    wpose.orientation.x = quat[0]
-    wpose.orientation.y = quat[1]
-    wpose.orientation.z = quat[2]
-    wpose.orientation.w = quat[3]
-    waypoints.append(copy.deepcopy(wpose))
-  (plan, fraction) = r_group.compute_cartesian_path(
+    # RIGHT ARM
+    # set Pose trajectories(should go to first pose before planning!!!)
+    print("-- Plan for right arm...")
+    waypoints = []
+    wpose = geometry_msgs.msg.Pose()
+    for n in range(1, r_cartesian_path.shape[1]):
+      wpose.position.x = r_cartesian_path[0, n]
+      wpose.position.y = r_cartesian_path[1, n]
+      wpose.position.z = r_cartesian_path[2, n]
+      quat = tf.transformations.quaternion_from_euler(r_cartesian_path[3, n], r_cartesian_path[4, n], r_cartesian_path[5, n]) # same order ???
+      wpose.orientation.x = quat[0]
+      wpose.orientation.y = quat[1]
+      wpose.orientation.z = quat[2]
+      wpose.orientation.w = quat[3]
+      waypoints.append(copy.deepcopy(wpose))
+    (plan, fraction) = self.r_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
                                         0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
                                         avoid_collisions=False)    
-  # display the result
-  #r_group.execute(plan, wait=True)
-  # store the generated joint plans
-  r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+    # display the result
+    #r_group.execute(plan, wait=True)
+    # store the generated joint plans
+    r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
 
   
-  # 4 - TOTG
-  import pdb
-  pdb.set_trace()
-  print("========== Apply TOTG to get minimum time... ")
-  # set up joint kinematic constraints
-  vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
-  acc_limits = [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
-  # get minimum time for left arm's motion using TOTG
-  print("-- for left arm...")   
-  tmp_plan = copy.deepcopy(l_joint_path_plan)
-  r_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
-  # get minimum time for right arm's motion using TOTG
-  print("-- for right arm...")   
-  tmp_plan = copy.deepcopy(r_joint_path_plan)
-  l_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
-    
+    # 4 - TOTG
+    #import pdb
+    #pdb.set_trace()
+    print("========== Apply TOTG to get minimum time... ")
+    # set up joint kinematic constraints
+    vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
+    acc_limits = [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+    # get minimum time for left arm's motion using TOTG
+    print("-- for left arm...")   
+    tmp_plan = copy.deepcopy(l_joint_path_plan)
+    r_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
+    if r_min_time is None: # in case that trajectory generation fails
+      if self.largest_cost > 0:
+        return self.largest_cost
+      else:
+        return 10
 
-  # 5 - the costs
-  import pdb
-  pdb.set_trace()
-  pso_cost_val = r_min_time + l_min_time #+ (r_min_time - l_min_time) ** 2
+    # get minimum time for right arm's motion using TOTG
+    print("-- for right arm...")   
+    tmp_plan = copy.deepcopy(r_joint_path_plan)
+    l_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
+    if l_min_time is None: # in case that trajectory generation fails
+      if self.largest_cost > 0:
+        return self.largest_cost
+      else:
+        return 10    
 
-  return pso_cost_val
+    # 5 - the costs
+    #import pdb
+    #pdb.set_trace()
+    pso_cost_val = r_min_time + l_min_time #+ (r_min_time - l_min_time) ** 2
+
+    if pso_cost_val > self.largest_cost:
+      self.largest_cost = pso_cost_val # recordd for constraint
+
+    return pso_cost_val
   
 
 
@@ -985,45 +1008,187 @@ def main():
     group.clear_pose_targets() # clear targets
 
 
-    ### Test the pso_cost_func
-    left_goal = np.array([0.663, 0.163, 0.4, 0.0, 0.0, -0.75*math.pi])
-    cost = pso_cost_func(left_goal, left_start, right_start)
-
-
     ### Perform PSO
     import pdb
     pdb.set_trace()
+    t = time.time() # record time used
     # Set-up hyperparameters as dict
     options = {'c1': 0.5, 'c2': 0.3, 'w':0.9}
     # set bounds
-    g_max = np.array([0.6, 0.6, 0.6, math.pi, math.pi, math.pi])
-    g_min = np.array([-0.6, 0.3, 0.25, -math.pi, -math.pi, -math.pi])
-    bounds = (g_min, g_max)
+    bounds = [(0.3, 0.6), (-0.3, 0.3), (0.3, 0.6), (-math.pi, math.pi), (-math.pi, math.pi), (-math.pi, math.pi)]
     # Create an instance of PSO optimizer
-    optimizer = ps.single.GlobalBestPSO(n_particles=10, dimensions=6, options=options) # global best PSO
-    # Perform optimization: call the optimize() and store the optimal cost as well as positions
-    cost, pos = optimizer.optimize(pso_cost_func, iters=1000, left_start=left_start, right_start=right_start)
+    initials = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    pso_cost_func = PSOCostFunc()
+    PSO_instance = simple_PSO.PSO(pso_cost_func.f, initials, bounds, num_particles=5, maxiter=20, verbose=True, options=options)
+    cost, pos = PSO_instance.result()
+    elapsed = time.time() - t # time used
+    print('time used for PSO : ' + str(elapsed) + ' s')
+    
  
-
-
 
 
     import pdb
     pdb.set_trace()    
 
+  
+    left_goal = pos
+    l_group = moveit_commander.MoveGroupCommander("left_arm")
+    r_group = moveit_commander.MoveGroupCommander("right_arm")
 
-    ### Execute dual arm plan
-    print("============ Execute the processed dual arm plan...")
+    ### Compute trajs for the optimized left_goal
+    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
+    right_start = np.array([0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi])
+    ## 1 - set right arm's goal
+    print("========== Set right arm's goal")
+    # get right arm's pose
+    l_w_final = tf.transformations.quaternion_from_euler(left_goal[3], left_goal[4], left_goal[5])
+    relative_quat = tf.transformations.quaternion_from_euler(0, 0, math.pi)
+    r_w_final = tf.transformations.quaternion_multiply(l_w_final, relative_quat)
+    right_rotm = tf.transformations.quaternion_matrix(r_w_final)
+    right_rotm = right_rotm[:3, :3] # get the rotation part
+    # compute offset vector along x axis
+    offset = -0.32
+    v_offset = [offset, 0, 0] 
+    v_offset_world = np.dot(right_rotm, v_offset)
+    r_x_final = left_goal[0:3] + v_offset_world
+    # construct right arm's goal
+    right_goal = np.concatenate((r_x_final, tf.transformations.euler_from_quaternion(r_w_final)))
+    ## 2 - DMP, new cartesian paths
+    ndata = 200
+    l_cartesian_path = np.zeros((6, ndata), dtype=float)
+    r_cartesian_path = np.zeros((6, ndata), dtype=float)
+    for i in range(6):
+      l_cartesian_path[i, :] = np.linspace(left_start[i], left_goal[i], num=ndata, endpoint=True)
+      r_cartesian_path[i, :] = np.linspace(right_start[i], right_goal[i], num=ndata, endpoint=True)
+    ## 3 - IK
+    # LEFT ARM
+    print("========== Perform IK for left arm's path...")
+    # set Pose trajectories(should go to first pose before planning!!!)
+    print("-- Plan for left arm...")
+    waypoints = []
+    wpose = geometry_msgs.msg.Pose()
+    for n in range(1, l_cartesian_path.shape[1]):
+      wpose.position.x = l_cartesian_path[0, n]
+      wpose.position.y = l_cartesian_path[1, n]
+      wpose.position.z = l_cartesian_path[2, n]
+      quat = tf.transformations.quaternion_from_euler(l_cartesian_path[3, n], l_cartesian_path[4, n], l_cartesian_path[5, n]) # same order ???
+      wpose.orientation.x = quat[0]
+      wpose.orientation.y = quat[1]
+      wpose.orientation.z = quat[2]
+      wpose.orientation.w = quat[3]
+      waypoints.append(copy.deepcopy(wpose))
+    (plan, fraction) = l_group.compute_cartesian_path(
+                                        waypoints,   # waypoints to follow
+                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                        0.0,     # jump_threshold
+                                        avoid_collisions=False)    
+    
+    # store the generated joint plans
+    l_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+    # RIGHT ARM
+    # set Pose trajectories(should go to first pose before planning!!!)
+    print("-- Plan for right arm...")
+    waypoints = []
+    wpose = geometry_msgs.msg.Pose()
+    for n in range(1, r_cartesian_path.shape[1]):
+      wpose.position.x = r_cartesian_path[0, n]
+      wpose.position.y = r_cartesian_path[1, n]
+      wpose.position.z = r_cartesian_path[2, n]
+      quat = tf.transformations.quaternion_from_euler(r_cartesian_path[3, n], r_cartesian_path[4, n], r_cartesian_path[5, n]) # same order ???
+      wpose.orientation.x = quat[0]
+      wpose.orientation.y = quat[1]
+      wpose.orientation.z = quat[2]
+      wpose.orientation.w = quat[3]
+      waypoints.append(copy.deepcopy(wpose))
+    (plan, fraction) = r_group.compute_cartesian_path(
+                                        waypoints,   # waypoints to follow
+                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                        0.0,     # jump_threshold
+                                        avoid_collisions=False)    
+    # store the generated joint plans
+    r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+
+
+    # display the result
+    #import pdb
+    #pdb.set_trace()
+    #l_group.execute(l_joint_path_plan, wait=True) 
+    #r_group.execute(r_joint_path_plan, wait=True)
+
+
+    # 4 - TOTG
+    print("========== Apply TOTG to get minimum time... ")
+    # set up joint kinematic constraints
+    vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
+    acc_limits = [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+    # get minimum time for left arm's motion using TOTG
+    print("-- for left arm...")   
+    tmp_plan = copy.deepcopy(l_joint_path_plan)
+    r_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
+
+    # get minimum time for right arm's motion using TOTG
+    print("-- for right arm...")   
+    tmp_plan = copy.deepcopy(r_joint_path_plan)
+    l_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
+
+
+    # 5 - get optimal plans and merge two plans into one dual-arm motion plan
+    print("========= Merge into two plans...")
+    tmp_plan_l = copy.deepcopy(l_joint_path_plan)
+    new_plan_l = moveit_msgs.msg.RobotTrajectory() 
+    new_plan_l.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_l.joint_trajectory.points, vel_limits, acc_limits, 0.01)
+    tmp_plan_r = copy.deepcopy(r_joint_path_plan)
+    new_plan_r = moveit_msgs.msg.RobotTrajectory() 
+    new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_r.joint_trajectory.points, vel_limits, acc_limits, 0.01)
+    # timesteps are the same, so it should be ok to append directly
+    len_l = len(new_plan_l.joint_trajectory.points) 
+    len_r = len(new_plan_r.joint_trajectory.points)
+    max_len = max(len_l, len_r)
+    min_len = min(len_l, len_r)
+    # assign
+    new_plan_dual = moveit_msgs.msg.RobotTrajectory()
+    new_plan_dual.joint_trajectory.header.frame_id = '/world'
+    new_plan_dual.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint', 'right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
+    traj_point = trajectory_msgs.msg.JointTrajectoryPoint()
+    for m in range(min_len):
+      traj_point.positions = new_plan_l.joint_trajectory.points[m].positions + new_plan_r.joint_trajectory.points[m].positions
+      traj_point.velocities = new_plan_l.joint_trajectory.points[m].velocities + new_plan_r.joint_trajectory.points[m].velocities
+      traj_point.accelerations = new_plan_l.joint_trajectory.points[m].accelerations + new_plan_r.joint_trajectory.points[m].accelerations
+      traj_point.time_from_start = new_plan_l.joint_trajectory.points[m].time_from_start
+      new_plan_dual.joint_trajectory.points.append(copy.deepcopy(traj_point))
+    # append the end
+    for n in range(min_len, max_len):
+      if len_l > len_r:
+        traj_point.positions = new_plan_l.joint_trajectory.points[n].positions + new_plan_r.joint_trajectory.points[-1].positions
+        traj_point.velocities = new_plan_l.joint_trajectory.points[n].velocities + new_plan_r.joint_trajectory.points[-1].velocities
+        traj_point.accelerations = new_plan_l.joint_trajectory.points[n].accelerations + new_plan_r.joint_trajectory.points[-1].accelerations
+        traj_point.time_from_start = new_plan_l.joint_trajectory.points[n].time_from_start
+        new_plan_dual.joint_trajectory.points.append(copy.deepcopy(traj_point))
+      else:
+        traj_point.positions = new_plan_l.joint_trajectory.points[-1].positions + new_plan_r.joint_trajectory.points[n].positions
+        traj_point.velocities = new_plan_l.joint_trajectory.points[-1].velocities + new_plan_r.joint_trajectory.points[n].velocities
+        traj_point.accelerations = new_plan_l.joint_trajectory.points[-1].accelerations + new_plan_r.joint_trajectory.points[n].accelerations
+        traj_point.time_from_start = new_plan_r.joint_trajectory.points[-1].time_from_start
+        new_plan_dual.joint_trajectory.points.append(copy.deepcopy(traj_point))    
+
+
     import pdb
     pdb.set_trace()
+
+    print("======== Execute the dual plan..")
     group = moveit_commander.MoveGroupCommander("dual_arms")
     # go to start position first
-    joint_goal = plan_whole_traj.joint_trajectory.points[0].positions
+    joint_goal = new_plan_dual.joint_trajectory.points[0].positions
     group.go(joint_goal, wait=True)
     group.stop()
     # execute the plan now
-    group.execute(plan_whole_traj, wait=True)
+    group.execute(new_plan_dual, wait=True)
     rospy.sleep(3.0)
+
+
+    import pdb
+    pdb.set_trace()
+
 
     ### Store the result for display in MATLAB
     '''
@@ -1036,8 +1201,6 @@ def main():
     joint_traj_group.create_dataset("joint_timestamp_r", data=whole_timestamp_r, dtype=float)
     f.close()
     '''
-
-
   
   
     ### Detach mesh
