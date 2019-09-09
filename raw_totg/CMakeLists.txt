@@ -57,6 +57,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(
   FILES
   PathToTraj.srv
+  GetMinTime.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -140,6 +141,13 @@ target_link_libraries(add_time_optimal_parameterization_server ${catkin_LIBRARIE
 target_link_libraries(add_time_optimal_parameterization_server libPath)
 target_link_libraries(add_time_optimal_parameterization_server libTrajectory)
 add_dependencies(add_time_optimal_parameterization_server raw_totg_gencpp)
+
+
+add_executable(get_minimum_time_server src/get_minimum_time_server.cpp)
+target_link_libraries(get_minimum_time_server ${catkin_LIBRARIES})
+target_link_libraries(get_minimum_time_server libPath)
+target_link_libraries(get_minimum_time_server libTrajectory)
+add_dependencies(get_minimum_time_server raw_totg_gencpp)
 
 
 ## Rename C++ executable without prefix

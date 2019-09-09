@@ -17,6 +17,10 @@
   <!-- Start a service to apply Forward Kinematics using MoveIt RobotState -->
   <node name="apply_fk_service" pkg="dual_ur5_control" type="apply_fk_server" />
 
+  <!-- Start a service to get minimum time from TOTG -->
+  <node name="get_min_time_service" pkg="raw_totg" type="get_minimum_time_server" />
+
+
   <!-- Load moveit controller manager -->
   <include file="$(find dual_ur5_moveit_config)/launch/dual_ur5_moveit_controller_manager.launch" />
 
