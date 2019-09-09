@@ -14,8 +14,11 @@
   <!-- Start a service to add Time Parameterization -->
   <node name="start_TOTG_service" pkg="raw_totg" type="add_time_optimal_parameterization_server" />
 
+  <!-- Start a service to apply Forward Kinematics using MoveIt RobotState -->
+  <node name="apply_fk_service" pkg="dual_ur5_control" type="apply_fk_server" />
+
   <!-- Load moveit controller manager -->
-  <!--include file="$(find dual_ur5_moveit_config)/launch/dual_ur5_moveit_controller_manager.launch" /-->
+  <include file="$(find dual_ur5_moveit_config)/launch/dual_ur5_moveit_controller_manager.launch" />
 
 
 </launch>

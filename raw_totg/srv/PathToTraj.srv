@@ -1,0 +1,8 @@
+trajectory_msgs/JointTrajectoryPoint[] path
+float64[] vel_limits
+float64[] acc_limits
+float64 timestep
+
+---
+
+trajectory_msgs/JointTrajectoryPoint[] traj

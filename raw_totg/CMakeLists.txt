@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8.3)
-project(dual_ur5_control)
+project(raw_totg)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
@@ -7,19 +7,11 @@ add_compile_options(-std=c++11)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(Eigen3 REQUIRED)
-if(NOT EIGEN3_INCLUDE_DIRS)
-  set(EIGEN3_INCLUDE_DIRS ${EIGEN3_INCLUDE_DIR})
-endif()
-
-
 find_package(catkin REQUIRED COMPONENTS
   roscpp
-  moveit_ros_planning
   rospy
   std_msgs
   trajectory_msgs
-  geometry_msgs
   message_generation
 )
 
@@ -56,20 +48,15 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * uncomment the generate_messages entry below
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
-
-
-
 ## Generate messages in the 'msg' folder
-# add_message_files(
-#   FILES
-#   Message1.msg
-#   Message2.msg
-# )
+#  add_message_files(
+#    FILES
+#  )
 
 ## Generate services in the 'srv' folder
 add_service_files(
   FILES
-  JntToCart.srv
+  PathToTraj.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -84,10 +71,7 @@ generate_messages(
   DEPENDENCIES
   std_msgs  # Or other packages containing msgs
   trajectory_msgs
-  geometry_msgs
 )
-
-catkin_package()
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -106,7 +90,7 @@ catkin_package()
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
 # generate_dynamic_reconfigure_options(
 #   cfg/DynReconf1.cfg
-#   cfg/DynReconf2.cfga
+#   cfg/DynReconf2.cfg
 # )
 
 ###################################
@@ -118,7 +102,12 @@ catkin_package()
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-
+catkin_package(
+#  INCLUDE_DIRS include
+#  LIBRARIES raw_totg
+#  CATKIN_DEPENDS other_catkin_pkg
+#  DEPENDS system_lib
+)
 
 ###########
 ## Build ##
@@ -126,12 +115,12 @@ catkin_package()
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
-include_directories(${catkin_INCLUDE_DIRS})
 include_directories("/usr/include/eigen3")
+include_directories(include ${catkin_INCLUDE_DIRS})
 
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/dual_ur5_control.cpp
+#   src/${PROJECT_NAME}/raw_totg.cpp
 # )
 
 ## Add cmake target dependencies of the library
@@ -142,12 +131,16 @@ include_directories("/usr/include/eigen3")
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(fk src/fk.cpp)
-target_link_libraries(fk ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+add_library(libPath src/Path.cpp)
 
-add_executable(apply_fk_server src/apply_fk_server.cpp)
-target_link_libraries(apply_fk_server ${catkin_LIBRARIES} ${Boost_LIBRARIES})
-add_dependencies(apply_fk_server dual_ur5_control_gencpp)
+add_library(libTrajectory src/Trajectory.cpp)
+
+add_executable(add_time_optimal_parameterization_server src/add_time_optimal_parameterization_server.cpp)
+target_link_libraries(add_time_optimal_parameterization_server ${catkin_LIBRARIES})
+target_link_libraries(add_time_optimal_parameterization_server libPath)
+target_link_libraries(add_time_optimal_parameterization_server libTrajectory)
+add_dependencies(add_time_optimal_parameterization_server raw_totg_gencpp)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -178,11 +171,18 @@ add_dependencies(apply_fk_server dual_ur5_control_gencpp)
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
 
-## Mark executables and/or libraries for installation
-# install(TARGETS ${PROJECT_NAME} ${PROJECT_NAME}_node
+## Mark executables for installation
+## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
+# install(TARGETS ${PROJECT_NAME}_node
+#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+# )
+
+## Mark libraries for installation
+## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
+# install(TARGETS ${PROJECT_NAME}
 #   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
 #   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+#   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
 # )
 
 ## Mark cpp header files for installation
@@ -204,7 +204,7 @@ add_dependencies(apply_fk_server dual_ur5_control_gencpp)
 #############
 
 ## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_dual_ur5_control.cpp)
+# catkin_add_gtest(${PROJECT_NAME}-test test/test_raw_totg.cpp)
 # if(TARGET ${PROJECT_NAME}-test)
 #   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
 # endif()

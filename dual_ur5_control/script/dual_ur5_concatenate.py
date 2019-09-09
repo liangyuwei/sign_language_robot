@@ -48,8 +48,9 @@ import copy
 import rospy
 import math
 import tf
-import pdb
 import numpy as np
+import numpy.matlib
+import h5py
 import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
@@ -58,7 +59,7 @@ from math import pi
 from std_msgs.msg import String
 from moveit_commander.conversions import pose_to_list
 from raw_totg.srv import *
-
+from dual_ur5_control.srv import *
 ## END_SUB_TUTORIAL
 
 def all_close(goal, actual, tolerance):
@@ -316,12 +317,11 @@ class MoveGroupPythonIntefaceTutorial(object):
 
     ## END_SUB_TUTORIAL
 
-  #def execute_plan(self, plan):
+  def execute_plan(self, plan):
     # Copy class variables to local variables to make the web tutorials more clear.
     # In practice, you should use the class variables directly unless you have a good
     # reason not to.
-    
-    #group = self.group
+    group = self.group
 
     ## BEGIN_SUB_TUTORIAL execute_plan
     ##
@@ -329,7 +329,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     ## ^^^^^^^^^^^^^^^^
     ## Use execute if you would like the robot to follow
     ## the plan that has already been computed:
-    #group.execute(plan, wait=True)
+    group.execute(plan, wait=True)
 
     ## **Note:** The robot's current joint state must be within some tolerance of the
     ## first waypoint in the `RobotTrajectory`_ or ``execute()`` will fail
@@ -644,7 +644,6 @@ class MoveGroupPythonIntefaceTutorial(object):
       left_pose_target.pose.orientation.z = w_start[2]
       left_pose_target.pose.orientation.w = w_start[3]
       group.set_pose_target(left_pose_target, 'left_ee_link')
-      #group.allow_replanning(True)
     else:
       group = moveit_commander.MoveGroupCommander("right_arm")
       right_pose_target = group.get_current_pose('right_ee_link')
@@ -656,8 +655,6 @@ class MoveGroupPythonIntefaceTutorial(object):
       right_pose_target.pose.orientation.z = w_start[2]
       right_pose_target.pose.orientation.w = w_start[3]
       group.set_pose_target(right_pose_target, 'right_ee_link')
-      #group.allow_replanning(True)
-
     # set planning time
     group.set_planning_time(planning_time)
     # plan
@@ -668,9 +665,6 @@ class MoveGroupPythonIntefaceTutorial(object):
     group.clear_pose_targets()
 
     ### Set via point
-    waypoints = [] # temporary: for generating trajectory segments
-    wpose = group.get_current_pose().pose # temporary: for generating trajectory segments
-    '''
     print "== Set via point =="
     waypoints = []
     wpose = group.get_current_pose().pose
@@ -683,7 +677,6 @@ class MoveGroupPythonIntefaceTutorial(object):
     wpose.orientation.z = w_mid[2]
     wpose.orientation.w = w_mid[3]
     waypoints.append(copy.deepcopy(wpose))
-    '''
 
     ### Set the final point 
     print "== Set final pose =="
@@ -706,146 +699,89 @@ class MoveGroupPythonIntefaceTutorial(object):
 
     ### Execute the plan
     print "== Execute the plan =="
-    group.execute(plan, wait=True)
+    self.execute_plan(plan)
 
 
     return plan 
 
-  def gripper_control(self, open_or_close=True, left_or_right=True):
 
-    # decide which gripper to control
-    if (left_or_right): # left
-      group_name = "left_gripper"
-    else: # right
-      group_name = "right_gripper"
-
-    # initialize the group
-    group = moveit_commander.MoveGroupCommander(group_name)
-
-    # get current joint values for later use
-    joint_goal = group.get_current_joint_values()
-
-    # set angle
-    if (open_or_close): # open
-      ang = 0.2
-    else: # close
-      ang = 0.8  # max is 1.1
-    joint_goal[0] = ang
-    joint_goal[1] = ang * 1.0 / 1.1
-    joint_goal[2] = ang
-    joint_goal[3] = ang * 1.0 / 1.1
-
-    # execute
-    group.go(joint_goal, wait=True)
-
-    # Calling ``stop()`` ensures that there is no residual movement
-    group.stop()
-
-  def grasp(self):
-  
-    # moveit pick
-    grasp = moveit_msgs.msg.Grasp()
-    
-    ## fill in information
-    grasp.id = "grasp_flash"
-
-    # pre grasp posture(open gripper)
-    grasp.pre_grasp_posture.header.frame_id = "world"
-    grasp.pre_grasp_posture.joint_names = ["right_rh_p12_rn", "right_rh_r2", "right_rh_l1", "right_rh_l2"]
-    grasp.pre_grasp_posture.points = [trajectory_msgs.msg.JointTrajectoryPoint()]
-    ang = 0.0
-    grasp.pre_grasp_posture.points[0].positions = [ang, ang/1.1, ang, ang/1.1]
-    grasp.pre_grasp_posture.points[0].time_from_start = rospy.Duration(0.5)
-    # grasp posture(close gripper)
-    grasp.grasp_posture.header.frame_id = "world"
-    grasp.grasp_posture.joint_names = ["right_rh_p12_rn", "right_rh_r2", "right_rh_l1", "right_rh_l2"]
-    grasp.grasp_posture.points = [trajectory_msgs.msg.JointTrajectoryPoint()]
-    ang = 0.8
-    grasp.grasp_posture.points[0].positions = [ang, ang/1.1, ang, ang/1.1]
-    grasp.grasp_posture.points[0].time_from_start = rospy.Duration(0.5)
-
-    # grasp pose
-    grasp.grasp_pose.header.frame_id = "world"
-    grasp.grasp_pose.pose.position.x = 0.5 # 0.5
-    grasp.grasp_pose.pose.position.y = -0.4 # -0.4
-    grasp.grasp_pose.pose.position.z = 0.19 # 0.19
-    tmp = tf.transformations.quaternion_from_euler(math.pi, math.pi/2, 0)
-    grasp.grasp_pose.pose.orientation.x = tmp[0]
-    grasp.grasp_pose.pose.orientation.y = tmp[1]
-    grasp.grasp_pose.pose.orientation.z = tmp[2]
-    grasp.grasp_pose.pose.orientation.w = tmp[3]
-    # pre grasp approach
-    grasp.pre_grasp_approach.direction.header.frame_id = "world"
-    grasp.pre_grasp_approach.direction.vector.z = 1.0
-    grasp.pre_grasp_approach.desired_distance = 0.1
-    grasp.pre_grasp_approach.min_distance = 0.095 # error???
-    # post grasp retreat
-    grasp.post_grasp_retreat.direction.header.frame_id = "world"
-    grasp.post_grasp_retreat.direction.vector.z = -1.0
-    grasp.post_grasp_retreat.desired_distance = 0.1
-    grasp.post_grasp_retreat.min_distance = 0.095
-
-    # move group
-    group_name = "right_arm" 
-    group = moveit_commander.MoveGroupCommander(group_name)
-    object_name = "flash_body"
-    group.pick(object_name, grasp, plan_only=False)
-    
-
-  def place(self):
-
-    # moveit place
-    place_location = moveit_msgs.msg.PlaceLocation()
-
-  def offset_from_origin_along_x_axis(self, origin, rotm, offset):
-
-    # compute offset vector along x axis, in local frame
-    v_offset = [offset, 0, 0]
-    
-    # transform offset vector to world frame
-    v_offset_world = np.dot(rotm, v_offset)
-  
-    # compute new point after shifting along local x axis
-    new_point = origin + v_offset_world
-  
-    return new_point    
-
-def add_time_optimal_parameterization_client(points):
+def add_time_optimal_parameterization_client(path, vel_limits, acc_limits, timestep=0.001):
   # wait for service to come online
   rospy.wait_for_service('add_time_optimal_parameterization_server')
 
   try:
     path_to_traj = rospy.ServiceProxy('add_time_optimal_parameterization_server', PathToTraj)
-    res = path_to_traj(points)
+    res = path_to_traj(path, vel_limits, acc_limits, timestep)
     return res.traj
   except rospy.ServiceException, e:
-    print "Service call failed: %s"%e
+    print "Service call failed: %s" % e
 
 
-def store_h5(cartesian_plan, h5_file_name, path_group_name):
-  
-  print "============ Store realistic results for concatenation, using h5py ..."
- 
-  len_sample = len(cartesian_plan.joint_trajectory.points)
-  pos = np.zeros((len_sample, 6), dtype=float)
-  vel = np.zeros((len_sample, 6), dtype=float)
-  acc = np.zeros((len_sample, 6), dtype=float)
-  time_from_start = np.zeros((len_sample,), dtype=float)
-  for i in range(len_sample):
-    pos[i] = np.array(cartesian_plan.joint_trajectory.points[i].positions)
-    vel[i] = np.array(cartesian_plan.joint_trajectory.points[i].velocities)
-    acc[i] = np.array(cartesian_plan.joint_trajectory.points[i].accelerations) 
-    time_from_start[i] = cartesian_plan.joint_trajectory.points[i].time_from_start.to_sec()
+def merge_two_plans(points_l, points_r):
+  ### points_l and points_r should be trajectory_msgs/JointTrajectoryPoint[]
 
-  f = h5py.File( h5_file_name, "a") 
-  path_group =  f.create_group(path_group_name)
-  path_group.create_dataset("pos", data=pos, dtype=float)
-  path_group.create_dataset("vel", data=vel, dtype=float)
-  path_group.create_dataset("acc", data=acc, dtype=float)    
-  path_group.create_dataset("time_from_start", data=time_from_start, dtype=float)
-  f.close()
+  # initialization
+  if len(points_l) > len(points_r):
+    points_dual = copy.deepcopy(points_r)
+  else:
+    points_dual = copy.deepcopy(points_l)    
 
-  return true
+  # appoint
+  for i in range(len(points_dual)):
+    # only pos info is needed for TOTG
+    points_dual[i].positions = points_l[i].positions + points_r[i].positions
+    #points_dual[i].velocities = points_l[i].velocities + points_r[i].velocities
+    #points_dual[i].accelerations = points_l[i].accelerations + points_r[i].accelerations
+
+  return copy.deepcopy(points_dual)
+
+
+def split_dual_plan(points_dual):
+  ### points_dual should be trajectory_msgs/JointTrajectoryPoint[]
+
+  # initialization
+  points_l = copy.deepcopy(points_dual)
+  points_r = copy.deepcopy(points_dual)
+
+  # split
+  for i in range(len(points_dual)):
+    # for left arm
+    points_l[i].positions = points_dual[i].positions[0:6]
+    points_l[i].velocities = points_dual[i].velocities[0:6]
+    points_l[i].accelerations = points_dual[i].accelerations[0:6]
+
+    # for right arm
+    points_r[i].positions = points_dual[i].positions[6:12]    
+    points_r[i].velocities = points_dual[i].velocities[6:12]    
+    points_r[i].accelerations = points_dual[i].accelerations[6:12]    
+
+  return copy.deepcopy(points_l), copy.deepcopy(points_r)
+
+
+def apply_fk_client(joint_trajectory, left_or_right):
+
+  if type(joint_trajectory) is list:
+    if type(joint_trajectory[0]) is not trajectory_msgs.msg.JointTrajectoryPoint:
+      print "Wrong data type for joint_trajectory!"
+      return False
+  else:
+    if type(joint_trajectory) is not trajectory_msgs.msg.JointTrajectoryPoint:
+      print "Wrong data type for joint_trajectory!"
+      return False
+
+  if type(left_or_right) is not bool:
+    print "Wrong data type for left_or_right selection variable!"
+    return False
+
+  # wait for service to come online
+  rospy.wait_for_service('apply_fk_server')
+
+  try:
+    joint_to_cart = rospy.ServiceProxy('apply_fk_server', JntToCart)
+    res = joint_to_cart(left_or_right, joint_trajectory)
+    return res.cart_trajectory
+  except rospy.ServiceException, e:
+    print "Service call failed: %s" % e
 
 
 def main():
@@ -859,329 +795,410 @@ def main():
 
 
     ### Go to the given joint state
-    '''
+    ''
     print "============ Go to joint state ..."
-    tutorial.go_to_joint_state() # not supported by trac_ik...
-    '''
+    tutorial.go_to_joint_state()
+    ''
 
 
     ### Add mesh
-    ''
-    print "============ Adding flash models into the scene..."
-    import pdb
-    pdb.set_trace()
     # flash body
-    fb_ee_link = 'world' #'right_ee_link'
+    fb_ee_link = 'right_ee_link'
     fb_pose = geometry_msgs.msg.PoseStamped()
     fb_pose.header.frame_id = fb_ee_link
-    fb_pose_tmp = tf.transformations.quaternion_from_euler(0, math.pi/2, 0)
-    fb_pose.pose.orientation.x = fb_pose_tmp[0] #0.0
-    fb_pose.pose.orientation.y = fb_pose_tmp[1] #0.0
-    fb_pose.pose.orientation.z = fb_pose_tmp[2] #0.0
-    fb_pose.pose.orientation.w = fb_pose_tmp[3] #1.0
-    fb_pose.pose.position.x = 0.5 #0.07
-    fb_pose.pose.position.y = -0.4 #0.0
-    fb_pose.pose.position.z = 0.1 #0.0
+    fb_pose.pose.orientation.x = 0.0
+    fb_pose.pose.orientation.y = 0.0
+    fb_pose.pose.orientation.z = 0.0
+    fb_pose.pose.orientation.w = 1.0
+    fb_pose.pose.position.x = 0.07
+    fb_pose.pose.position.y = 0.0
+    fb_pose.pose.position.z = 0.0
     fb_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_body_final.STL"
     fb_mesh_name = "flash_body"
     fb_size = [0.001, 0.001, 0.001]
     tutorial.scene.add_mesh(fb_mesh_name, fb_pose, fb_file_path, fb_size)
     # flash hat
-    fh_ee_link = 'world' #'left_ee_link'
+    fh_ee_link = 'left_ee_link'
     fh_pose = geometry_msgs.msg.PoseStamped()
     fh_pose.header.frame_id = fh_ee_link
-    fh_pose_tmp = tf.transformations.quaternion_from_euler(0, math.pi/2, 0)
-    fh_pose.pose.orientation.x = fh_pose_tmp[0] #0.0
-    fh_pose.pose.orientation.y = fh_pose_tmp[1] #0.0
-    fh_pose.pose.orientation.z = fh_pose_tmp[2] #0.0
-    fh_pose.pose.orientation.w = fh_pose_tmp[3] #1.0
-    fh_pose.pose.position.x = 0.5 #0.07
-    fh_pose.pose.position.y = 0.4 #0.0
-    fh_pose.pose.position.z = 0.04 #0.0
-    fh_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_hat_final.STL"
-    fh_mesh_name = "flash_hat"
-    fh_size = [0.001, 0.001, 0.001]
-    tutorial.scene.add_mesh(fh_mesh_name, fh_pose, fh_file_path, fh_size)
-    ''
-
-
-    ### Go to grasp position
-    print "============ Go to grasp position..."
-#    import pdb
-#    pdb.set_trace()
-    # get pose target for dual_arms
-    left_pose_target = tutorial.group.get_current_pose('left_ee_link')
-    right_pose_target = tutorial.group.get_current_pose('right_ee_link')
-    # set new targets
-    left_pre_grasp_pos = [0.5, 0.4, 0.15] # flash hat height + dist_from_eef = 0.04 + 0.11
-    left_pose_target.pose.position.x = left_pre_grasp_pos[0]
-    left_pose_target.pose.position.y = left_pre_grasp_pos[1]
-    left_pose_target.pose.position.z = left_pre_grasp_pos[2]
-    left_pre_grasp_pose = tf.transformations.quaternion_from_euler(math.pi, math.pi/2, 0) #[0, 0, -0.707, 0.707]
-    left_pose_target.pose.orientation.x = left_pre_grasp_pose[0]
-    left_pose_target.pose.orientation.y = left_pre_grasp_pose[1]
-    left_pose_target.pose.orientation.z = left_pre_grasp_pose[2]
-    left_pose_target.pose.orientation.w = left_pre_grasp_pose[3]
-
-    right_pre_grasp_pos = [0.5, -0.4, 0.19] # flash body height + dist_from_eef = 0.1 + 0.09
-    right_pose_target.pose.position.x = right_pre_grasp_pos[0]
-    right_pose_target.pose.position.y = right_pre_grasp_pos[1]
-    right_pose_target.pose.position.z = right_pre_grasp_pos[2]
-    right_pre_grasp_pose = tf.transformations.quaternion_from_euler(0, math.pi/2, math.pi) #[0, 0, 0.707, 0.707]
-    right_pose_target.pose.orientation.x = right_pre_grasp_pose[0]#0.707#0.0
-    right_pose_target.pose.orientation.y = right_pre_grasp_pose[1]#0.707#0.0
-    right_pose_target.pose.orientation.z = right_pre_grasp_pose[2]#0.0#0.707
-    right_pose_target.pose.orientation.w = right_pre_grasp_pose[3]#0.0#0.707#1.0
-
-    tutorial.group.set_pose_target(left_pose_target, 'left_ee_link')
-    tutorial.group.set_pose_target(right_pose_target, 'right_ee_link')
-    # plan
-    tutorial.group.allow_replanning(True) # added by LYW, 2019/07/09, for the dual-arm to go to grasp position
-    plan = tutorial.group.go(wait=True)
-    # stop
-    tutorial.group.stop()
-    # clear targets
-    tutorial.group.clear_pose_targets()
-
-
-    ### Attach mesh(so that grasp action won't cause collision checking)
-    ''
-    print "============ Attach flash models to eef links..."
-    import pdb
-    pdb.set_trace()
-    # flash body
-    fb_pose.pose.orientation.x = 0.0
-    fb_pose.pose.orientation.y = 0.0
-    fb_pose.pose.orientation.z = 0.0
-    fb_pose.pose.orientation.w = 1.0
-    fb_pose.pose.position.x = 0.09
-    fb_pose.pose.position.y = 0.0
-    fb_pose.pose.position.z = 0.0
-    fb_grasping_group = 'right_gripper'
-    touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
-    tutorial.scene.attach_mesh("right_ee_link", fb_mesh_name, fb_pose, touch_links=touch_links)
-    # flash hat
     fh_pose.pose.orientation.x = 0.0
     fh_pose.pose.orientation.y = 0.0
     fh_pose.pose.orientation.z = 0.0
     fh_pose.pose.orientation.w = 1.0
-    fh_pose.pose.position.x = 0.11
+    fh_pose.pose.position.x = 0.07
     fh_pose.pose.position.y = 0.0
     fh_pose.pose.position.z = 0.0
+    fh_file_path = "/home/liangyuwei/dual_ur5_ws/src/dual_ur5_control/meshes/flash_hat_final.STL"
+    fh_mesh_name = "flash_hat"
+    fh_size = [0.001, 0.001, 0.001]
+    tutorial.scene.add_mesh(fh_mesh_name, fh_pose, fh_file_path, fh_size)
+
+
+    ### Attach mesh   
+    # flash body
+    fb_grasping_group = 'right_gripper'
+    touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
+    tutorial.scene.attach_mesh(fb_ee_link, fb_mesh_name, fb_pose, touch_links=touch_links)
     fh_grasping_group = 'left_gripper'
-    touch_links = tutorial.robot.get_link_names(group=fh_grasping_group)
-    tutorial.scene.attach_mesh("left_ee_link", fh_mesh_name, fh_pose, touch_links=touch_links)
-    ''
+    touch_links = tutorial.robot.get_link_names(group=fb_grasping_group)
+    tutorial.scene.attach_mesh(fh_ee_link, fh_mesh_name, fh_pose, touch_links=touch_links)
 
 
-    ### Execute grasping
-    '''
-    print "============ Execute grasp action for Gazebo..."
-    import pdb
-    pdb.set_trace()
-    #open_or_close = True
-    #left_or_right = True
-    # left gripper grasps flash hat 
-    tutorial.gripper_control(False, True)
-    # right gripper grasps flash body
-    tutorial.gripper_control(False, False)
-    '''
+    ### Load a Cartesian path from h5 file
+    print "========== Load a Cartesian path from h5 file "
+    f = h5py.File("tmp_new_paths_from_primitives.h5", "r")
+    n_cols = 2
+    n_actions = 2
+    n_rows = n_actions
+    # temporary: what if actions are not in pair!!! should split the left and right arms' actions in the first place!!!!
+    cartesian_paths_lib = [[0 for i in range(n_cols)] for j in range(n_rows)]
+    coord_sign = np.array([[0, 0], [1, 1]]) # set coordinated motion to 1; use ndarray, easy for finding the coordinated actions
+    cartesian_paths_lib[0][0] = f['l_approach_2_tmp'][:]
+    cartesian_paths_lib[1][0] = f['l_insert_2_tmp'][:]
+    cartesian_paths_lib[0][1] = f['r_approach_2_tmp'][:]
+    cartesian_paths_lib[1][1] = f['r_insert_2_tmp'][:]
+    print "========== Convert Carteisna path to joint path through IK... "
+    joint_path_plans_lib = [[0 for i in range(n_cols)] for j in range(n_rows)]
+    for r in range(n_rows):
+      for c in range(n_cols):
+        print "== Processing actions " + str(r+1) + "/" + str(n_rows) + " of arms " + str(c+1) + "/" + str(n_cols) + "..."
+
+        # set group and pose target, go to the start pose before planning!!!
+        import pdb
+        pdb.set_trace()
+        if c == 0: # left arm
+          l_or_r = "left"
+        else:
+          l_or_r = "right"
+        group = moveit_commander.MoveGroupCommander(l_or_r + "_arm")
+        print "-- Go to start pose before planning..."
+        pose_target = group.get_current_pose(l_or_r + "_ee_link") # get current eef's pose
+        pose_target.pose.position.x = cartesian_paths_lib[r][c][0, 0]
+        pose_target.pose.position.y = cartesian_paths_lib[r][c][0, 1]
+        pose_target.pose.position.z = cartesian_paths_lib[r][c][0, 2]
+        quat = tf.transformations.quaternion_from_euler(cartesian_paths_lib[r][c][0, 3], cartesian_paths_lib[r][c][0, 4], cartesian_paths_lib[r][c][0, 5]) # same order
+        pose_target.pose.orientation.x = quat[0]
+        pose_target.pose.orientation.y = quat[1]
+        pose_target.pose.orientation.z = quat[2]
+        pose_target.pose.orientation.w = quat[3] # set the start pose
+        group.set_pose_target(pose_target, l_or_r + '_ee_link') # set pose target
+        group.allow_replanning(True)
+        group.set_planning_time(1.0)
+        group.go(wait=True) # plan and go
+        group.stop() # stop
+        group.clear_pose_targets() # clear targets
+
+
+        # set Pose trajectories(should go to first pose before planning!!!)
+        waypoints = []
+        wpose = geometry_msgs.msg.Pose()
+        for l in range(1, cartesian_paths_lib[r][c].shape[0]):
+          wpose.position.x = cartesian_paths_lib[r][c][l, 0]
+          wpose.position.y = cartesian_paths_lib[r][c][l, 1]
+          wpose.position.z = cartesian_paths_lib[r][c][l, 2]
+          quat = tf.transformations.quaternion_from_euler(cartesian_paths_lib[r][c][l, 3], cartesian_paths_lib[r][c][l, 4], cartesian_paths_lib[r][c][l, 5]) # same order ???
+          wpose.orientation.x = quat[0]
+          wpose.orientation.y = quat[1]
+          wpose.orientation.z = quat[2]
+          wpose.orientation.w = quat[3]
+          waypoints.append(copy.deepcopy(wpose))
+        # compute plan to convert cartesian path to joint plan
+        print "-- Start planning now..."
+        import pdb
+        pdb.set_trace()
+        (plan, fraction) = group.compute_cartesian_path(
+                                        waypoints,   # waypoints to follow
+                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                        0.0,     # jump_threshold
+                                        avoid_collisions=False)    
+        # temporary: using compute_cartesian_path is actually not good for dual-arm coordinated actions since the number of the resultant points is not in consistent with the number of cartesian points!!!
+
+        # display the result
+        group.execute(plan, wait=True)
+        # store the generated joint plans
+        joint_path_plans_lib[r][c] = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
 
     
-    ### Planning of two ur5 arms: plan a cartesian path
-    print "============ Plan and display an assembly action(cartesian path) ..."
+    ### Add Time Parameterization(joint path -> joint trajectory)
     import pdb
     pdb.set_trace()
+    print "========== Apply TOTG to generate time optimal joint trajectory... "
+    joint_traj_plans_lib = [[0 for i in range(n_cols)] for j in range(n_rows)] # stored as moveit_msgs/RobotTrajectory 
+    vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
+    acc_limits = [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
 
-    x_contact_origin = [0.5, 0.0, 0.35]
-    l_pre_grasp_offset = -0.1
-    r_pre_grasp_offset = -0.1
+    ## ----- temporary: should split the left and right arms' actions in the first place, not presumed as in pair
+    for c in range(n_cols): # uncoordinated actions, add TP separately
+      print "== -- for actions " + str(c+1) + "/4..."
+      tmp_plan = copy.deepcopy(joint_path_plans_lib[0][c])
+      new_plan = moveit_msgs.msg.RobotTrajectory() 
+      new_plan.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits, 0.001)
+      joint_traj_plans_lib[0][c] = copy.deepcopy(new_plan)
+
+    tmp_plan_l = copy.deepcopy(joint_path_plans_lib[1][0])
+    tmp_plan_r = copy.deepcopy(joint_path_plans_lib[1][1])
+    tmp_plan_dual = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(tmp_plan_l) # initialization
+    tmp_plan_dual.joint_trajectory.points = merge_two_plans(tmp_plan_l.joint_trajectory.points, tmp_plan_r.joint_trajectory.points)
+
+
+    new_plan_dual = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(tmp_plan_dual)  # initialization
+
+    print "== -- for actions 3/4..."
+    print "== -- for actions 4/4..."
+    new_plan_dual.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_dual.joint_trajectory.points, vel_limits+vel_limits, acc_limits+acc_limits, 0.001) # get the result with TP
+
+    new_plan_l = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(new_plan_dual)
+    new_plan_r = moveit_msgs.msg.RobotTrajectory() #copy.deepcopy(new_plan_dual)
+    new_plan_l.joint_trajectory.points, new_plan_r.joint_trajectory.points = split_dual_plan(new_plan_dual.joint_trajectory.points) # split the dual plan
+
+    joint_traj_plans_lib[1][0] = copy.deepcopy(new_plan_l)
+    joint_traj_plans_lib[1][1] = copy.deepcopy(new_plan_r)
+    ## ----- end of temporary
+              
+
+    # convert plan structure to array structure
+    import pdb
+    pdb.set_trace()
+    print "== Convert plan structure to array type..."
+    joint_traj_lib = [[0 for i in range(n_cols)] for j in range(n_rows)]
+    joint_time_stamp = [[0 for i in range(n_cols)] for j in range(n_rows)]
+    for r in range(n_rows):
+      for c in range(n_cols):
+        print "== -- for actions " + str(r+1) + "/" + str(n_rows) + " of arms " + str(c+1) + "/" + str(n_cols) + "..."
+        # initialization
+        num_points = len(joint_traj_plans_lib[r][c].joint_trajectory.points)
+        tmp_pos = np.zeros((num_points, 6), dtype=np.float64)
+        tmp_vel = np.zeros((num_points, 6), dtype=np.float64)
+        tmp_acc = np.zeros((num_points, 6), dtype=np.float64) 
+        tmp_timestamp = np.zeros((num_points, 1), dtype=np.float64)
+        for n in range(num_points):
+          tmp_timestamp[n] = joint_traj_plans_lib[r][c].joint_trajectory.points[n].time_from_start.to_sec()
+          tmp_pos[n, :] = np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].positions)
+          tmp_vel[n, :] = np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].velocities)
+          tmp_acc[n, :] = np.array(joint_traj_plans_lib[r][c].joint_trajectory.points[n].accelerations)
+        # store the result
+        joint_traj_lib[r][c] = np.concatenate((tmp_pos, tmp_vel, tmp_acc, tmp_timestamp), axis=1) # stored as ndarray, deep copy!!!
+
+   
+    ### Concatenate plans with the help of coord_sign
+    print "============= Concatenate plans with the help of coordination signs"
+    t_spent_already_l = 0
+    t_spent_already_r = 0 # should check if they are equal
+
+    id_start_l = 1
+    id_start_r = 1
+    id_coord_l, = np.where(coord_sign[1:, 0]==1) # the indices of the coordinated actions
+    id_coord_l = id_coord_l + 1 # since the search starts from 1 instead of 0
+    id_coord_r, = np.where(coord_sign[1:, 1]==1) # ignore the first
+    id_coord_r = id_coord_r + 1
+    num_coord_actions = len(id_coord_l) # the same as id_coord_r
+
+    # initialization
+    whole_traj_l = joint_traj_lib[0][0][:, :-1].copy() # copy just pos, vel and acc
+    whole_timestamp_l = joint_traj_lib[0][0][:, -1].copy() # copy the last column
+    t_spent_already_l = whole_timestamp_l[-1] # set new start
+
+    whole_traj_r = joint_traj_lib[0][1][:, :-1].copy() 
+    whole_timestamp_r = joint_traj_lib[0][1][:, -1].copy() # copy the last column
+    t_spent_already_r = whole_timestamp_r[-1] # set new start
+
+    # start concatenation, note that after the last coordinated actions, there could be more actions behind
+    for n in range(num_coord_actions):
+      print "== Processing coordinated action " + str(n+1) + "/" + str(num_coord_actions) 
+
+      ## left arm, concatenate uncoordinated actions in-between
+      print "== -- Left arm: uncoordinated actions..."
+      import pdb
+      pdb.set_trace()
+      for m in range(id_start_l, id_coord_l[n]): # if two coordinated actions are adjacent, range() would return empty and the for-loop would not be run
+        # until coordinated actions(not concatenated yet)
+        whole_traj_l = np.concatenate((whole_traj_l, joint_traj_lib[m][0][:, :-1]))
+        whole_timestamp_l = np.concatenate((whole_timestamp_l, joint_traj_lib[m][0][:, -1] + t_spent_already_l))
+        t_spent_already_l = whole_timestamp_l[-1] # set new start
+        
+      ## right arm, concatenate uncoordinated actions in-between
+      print "== -- Right arm: uncoordinated actions..."
+      import pdb
+      pdb.set_trace()
+      for m in range(id_start_r, id_coord_r[n]):
+        # until coordinated actions(not concatenated yet)
+        whole_traj_r = np.concatenate((whole_traj_r, joint_traj_lib[m][1][:, :-1]))
+        whole_timestamp_r = np.concatenate((whole_timestamp_r, joint_traj_lib[m][1][:, -1] + t_spent_already_r))
+        t_spent_already_r = whole_timestamp_r[-1] # set new start
+
+      ## append extra lines to make the lengths equal
+      print "== -- Align the lengths..."
+      import pdb
+      pdb.set_trace()
+      len_l = len(whole_timestamp_l)
+      len_r = len(whole_timestamp_r)
+      if len_l > len_r:
+        whole_timestamp_r = np.concatenate((whole_timestamp_r, whole_timestamp_l[len_r:len_l]))
+        whole_traj_r = np.concatenate( (whole_traj_r, np.matlib.repmat(whole_traj_r[-1, :], len_l-len_r, 1)) )
+        t_spent_already_r = whole_timestamp_r[-1] # set new start
+      elif len_l < len_r:
+        whole_timestamp_l = np.concatenate((whole_timestamp_l, whole_timestamp_r[len_l:len_r]))
+        whole_traj_l = np.concatenate( (whole_traj_l, np.matlib.repmat(whole_traj_l[-1, :], len_r-len_l, 1)) )
+        t_spent_already_l = whole_timestamp_l[-1] # set new start
+      
+      ## concatenate coordinated actions(Note that coordinated actions should have the same length!!!)
+      print "== -- Both arms: coordinated actions..."
+      import pdb
+      pdb.set_trace()
+      whole_traj_l = np.concatenate((whole_traj_l, joint_traj_lib[id_coord_l[n]][0][:, :-1]))
+      whole_timestamp_l = np.concatenate((whole_timestamp_l, joint_traj_lib[id_coord_l[n]][0][:, -1] + t_spent_already_l)) # copy and concatenate the last column
+      t_spent_already_l = whole_timestamp_l[-1] # set new start
+      id_start_l = id_coord_l[n] + 1  # set the next action after the current coordinated one
+
+      whole_traj_r = np.concatenate((whole_traj_r, joint_traj_lib[id_coord_r[n]][1][:, :-1]))
+      whole_timestamp_r = np.concatenate((whole_timestamp_r, joint_traj_lib[id_coord_r[n]][1][:, -1] + t_spent_already_r))
+ # copy the last column
+      t_spent_already_r = whole_timestamp_r[-1] # set new start
+      id_start_r = id_coord_r[n] + 1  # set the next action after the current coordinated one  
+
+    ### Process uncoordinated actions after the last coordinated actions (if any)
+    if id_coord_l[-1] + 1 is not n_actions:
+      for m in range(id_coord_l[-1] + 1, n_actions): 
+        # until the end
+        whole_traj_l = np.concatenate((whole_traj_l, joint_traj_lib[m][0][:, :-1]))
+        whole_timestamp_l = np.concatenate((whole_timestamp_l, joint_traj_lib[m][0][:, -1] + t_spent_already_l))
+        t_spent_already_l = whole_timestamp_l[-1] # set new start
+
+    if id_coord_r[-1] + 1 is not n_actions:
+      for m in range(id_coord_r[-1] + 1, n_actions): 
+        # until the end
+        whole_traj_r = np.concatenate((whole_traj_r, joint_traj_lib[m][1][:, :-1]))
+        whole_timestamp_r = np.concatenate((whole_timestamp_r, joint_traj_lib[m][1][:, -1] + t_spent_already_r))
+        t_spent_already_r = whole_timestamp_r[-1] # set new start
+      
+
+    ### Convert the result into a plan
+    print "=========== Convert the resultant trajectories into a plan"
+    import pdb
+    pdb.set_trace()
+    plan_whole_traj = moveit_msgs.msg.RobotTrajectory()
+    plan_whole_traj.joint_trajectory.header.frame_id = '/world'
+    plan_whole_traj.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint', 'right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
+    traj_point = trajectory_msgs.msg.JointTrajectoryPoint()
+    for n in range(whole_traj_l.shape[0]):
+      traj_point.positions = np.concatenate((whole_traj_l[n, 0:6], whole_traj_r[n, 0:6])).tolist()
+      traj_point.velocities = np.concatenate((whole_traj_l[n, 6:12], whole_traj_r[n, 6:12])).tolist()
+      traj_point.accelerations = np.concatenate((whole_traj_l[n, 12:18], whole_traj_r[n, 12:18])).tolist()
+      traj_point.time_from_start = rospy.Duration(whole_timestamp_l[n]) # left and right timestamp sequence are close to each other...
+      plan_whole_traj.joint_trajectory.points.append(copy.deepcopy(traj_point))
     
-    # left arm
-#    l_x_start = [0.6, 0.38, 0.4]
-#    l_x_mid = [0.5, 0.3, 0.35] #[0.6, 0.26, 0.3] # from mid to final, only y changes and differs
-#    l_x_final = [0.5, 0.25, 0.35] #[0.6, 0.16, 0.3]
 
-    l_w_start = tf.transformations.quaternion_from_euler(0, 0, -0.75*math.pi) # [0, 0, -0.707, 0.707] #
-    l_w_mid = tf.transformations.quaternion_from_euler(0, 0, -0.45*math.pi) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
-    l_w_final = l_w_mid #tf.transformations.quaternion_from_euler(0, 0, -0.5*math.pi) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, -0.25*math.pi) #tf.transformations.quaternion_from_euler(0, 0, -0.25*math.pi) #[0, 0, -0.707, 0.707]
-
-    l_x_start = [0.55, 0.33, 0.35]
-    left_rotm = tf.transformations.quaternion_matrix(l_w_final)
-    left_rotm = left_rotm[:3, :3]
-    l_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, left_rotm, -left_pre_grasp_pos[2] + 0.03) #[0.5, 0.1, 0.35]#
-    l_x_mid = tutorial.offset_from_origin_along_x_axis(l_x_final, left_rotm, l_pre_grasp_offset)
-
-
-    planning_time = 1 # time used for motion planning!!! Not total time of the trajectory!!
-
-    left_or_right_eef = True
-
-    #plan_l = tutorial.plan_motion(l_x_start, l_w_start, l_x_mid, l_w_mid, l_x_final, l_w_final, planning_time, left_or_right_eef)
-
-    # plan a more realistic(at least runnable) trajectory for MATLAB to process
+    ### Execute dual arm plan
+    print "============ Execute the processed dual arm plan..."
     import pdb
     pdb.set_trace()
-    plan_l_approach = tutorial.plan_motion(l_x_start, l_w_start, l_x_mid, l_w_mid, l_x_mid, l_w_mid, planning_time, left_or_right_eef)
-    import pdb
-    pdb.set_trace()
-    plan_l_insert = tutorial.plan_motion(l_x_mid, l_w_mid, l_x_mid, l_w_mid, l_x_final, l_w_final, planning_time, left_or_right_eef)
+    group = moveit_commander.MoveGroupCommander("dual_arms")
+    # go to start position first
+    joint_goal = plan_whole_traj.joint_trajectory.points[0].positions
+    group.go(joint_goal, wait=True)
+    group.stop()
+    # execute the plan now
+    group.execute(plan_whole_traj, wait=True)
+    rospy.sleep(3.0)
 
-    # right arm
-#    r_x_start = [0.55, -0.35, 0.32]
-#    r_x_mid = [0.4, -0.2, 0.3] #[0.5, -0.26, 0.3]
-#    r_x_final = [0.4, -0.1, 0.3] #[0.5, -0.16, 0.3]
-
-    r_w_start = tf.transformations.quaternion_from_euler(0, 0, 0.45*math.pi)  #[0, 0, 0.707, 0.707]
-    relative_quat = tf.transformations.quaternion_from_euler(0, 0, math.pi) #(math.pi, 0, math.pi) # - two ways of inserting flash body into flash hat
-    r_w_mid = tf.transformations.quaternion_multiply(l_w_mid, relative_quat) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, 0.75*math.pi) #tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
-    r_w_final = r_w_mid #tf.transformations.quaternion_multiply(l_w_final, relative_quat) #tf.transformations.quaternion_from_euler(0, 0.25*math.pi, 0.75*math.pi) #tf.transformations.quaternion_from_euler(0, 0, 0.75*math.pi) #[0, 0, 0.707, 0.707]
-
-    r_x_start = [0.45, -0.34, 0.35]
-    right_rotm = tf.transformations.quaternion_matrix(r_w_final)
-    right_rotm = right_rotm[:3, :3]
-    r_x_final = tutorial.offset_from_origin_along_x_axis(x_contact_origin, right_rotm, -right_pre_grasp_pos[2]) #[0.5, -0.1, 0.35] #
-    r_x_mid = tutorial.offset_from_origin_along_x_axis(r_x_final, right_rotm, r_pre_grasp_offset)
-
-
-    planning_time = 1 # time used for motion planning!!! Not total time of the trajectory!!
-
-    left_or_right_eef = False
-
-    #plan_r = tutorial.plan_motion(r_x_start, r_w_start, r_x_mid, r_w_mid, r_x_final, r_w_final, planning_time, left_or_right_eef)
-
-    # plan a more realistic(at least runnable) trajectory for MATLAB to process
-    import pdb
-    pdb.set_trace()
-    plan_r_approach = tutorial.plan_motion(r_x_start, r_w_start, r_x_mid, r_w_mid, r_x_mid, r_w_mid, planning_time, left_or_right_eef)
-    import pdb
-    pdb.set_trace()
-    plan_r_insert = tutorial.plan_motion(r_x_mid, r_w_mid, r_x_mid, r_w_mid, r_x_final, r_w_final, planning_time, left_or_right_eef)
-
-    ### Add TimeOptimalParameterization to the path generated by computeCartesianPath
+    ### Store the result for display in MATLAB
     '''
-    import pdb
-    pdb.set_trace()
-    new_points_l = add_time_optimal_parameterization_client(plan_l.joint_trajectory.points)
-    new_points_r = add_time_optimal_parameterization_client(plan_r.joint_trajectory.points)
-    # replace with the original computed plan
-    plan_l.joint_trajectory.points = new_points_l
-    plan_r.joint_trajectory.points = new_points_r
-
-    ### Plot the generated joint trajectories to check whether they're within bounds
-    ''
-    import pdb
-    pdb.set_trace()
-    import matplotlib.pyplot as plt
-    import numpy as np
-    fig, axes = plt.subplots(nrows=2, ncols=6) # create a figure object
-    for ir in range(2):
-      # get plan
-      if ir == 0: # left arm
-        tmp_plan = plan_l
-      else: # right arm
-        tmp_plan = plan_r
-
-      # obtain trajectory points
-      tmp_points = np.ndarray((len(tmp_plan.joint_trajectory.points), 6), dtype=float)
-      tmp_time = np.ndarray(len(tmp_plan.joint_trajectory.points))
-      for n in range(len(tmp_plan.joint_trajectory.points)):
-        tmp_points[n, :] = tmp_plan.joint_trajectory.points[n].positions
-        tmp_time[n] = tmp_plan.joint_trajectory.points[n].time_from_start.to_sec()
-
-      # plot the acquired data
-      for ic in range(6):
-        # set title
-        axes[ir, ic].set(title=tmp_plan.joint_trajectory.joint_names[ic])
-        # plot data
-        #axes[ir, ic].plot(np.linspace(0, 10, len(tmp_plan.joint_trajectory.points)), tmp_points[:, ic])
-        axes[ir, ic].plot(tmp_time, tmp_points[:, ic])
-
-    # display
-    plt.show()
-
+    f = h5py.File("dual_ur5_whole_traj_concat_2.h5", "a")
+    joint_traj_name = "traj_pair_approach2_insert2_tmp"
+    joint_traj_group =  f.create_group(joint_traj_name)
+    joint_traj_group.create_dataset("joint_traj_l", data=whole_traj_l, dtype=float)
+    joint_traj_group.create_dataset("joint_traj_r", data=whole_traj_r, dtype=float)
+    joint_traj_group.create_dataset("joint_timestamp_l", data=whole_timestamp_l, dtype=float)    
+    joint_traj_group.create_dataset("joint_timestamp_r", data=whole_timestamp_r, dtype=float)
+    f.close()
     '''
 
 
-    ### Use h5py to store the generated motion plan
+    ### Convert joint trajectories to end-effector trajectory --- Too slow!!!
     '''
-    print "============ Store the results using h5py ..."
     import pdb
     pdb.set_trace()
-    import h5py
-    import numpy as np
-    # process the data using numpy 
-    cartesian_plan = plan_l
-    index = "9" 
-    # 1 for TP, 2 for spline, 3 for TOTG, 4 for TOTG(Add TP first, ORDER matters), 5 for no TP
-    # 6 for TOTG with nonzero(limited) acc(0.0 means unlimited) -- acc 2.0
-    # 7 for TP -- acc 2.0
-    # 8 for TOTG -- acc 10.0
-    # 9 for TP -- acc 10.0
+    group = moveit_commander.MoveGroupCommander("left_arm")
+    whole_cart_traj_l = np.zeros((whole_traj_l.shape[0], 6))
+    for m in range(whole_traj_l.shape[0]):
+      joint_goal = whole_traj_l[m, 0:6]
+      group.go(joint_goal, wait=True)
+      group.stop()
+      wpose = group.get_current_pose().pose
+      pos = np.array([wpose.position.x, wpose.position.y, wpose.position.z])
+      quat = np.array([wpose.orientation.x, wpose.orientation.y, wpose.orientation.z, wpose.orientation.w])
+      eul = np.array(tf.transformations.euler_from_quaternion(quat))
+      whole_cart_traj_l[m, :] = np.concatenate((pos, eul))
     
-    imi_path_name = "traj_pair_l_" + index # traj_pair_r_1
-    for j in range(2):
-      len_sample = len(cartesian_plan.joint_trajectory.points)
-      pos = np.zeros((len_sample, 6), dtype=float)
-      vel = np.zeros((len_sample, 6), dtype=float)
-      acc = np.zeros((len_sample, 6), dtype=float)
-      time_from_start = np.zeros((len_sample,), dtype=float)
-      for i in range(len_sample):
-        pos[i] = np.array(cartesian_plan.joint_trajectory.points[i].positions)
-        vel[i] = np.array(cartesian_plan.joint_trajectory.points[i].velocities)
-        acc[i] = np.array(cartesian_plan.joint_trajectory.points[i].accelerations) 
-        time_from_start[i] = cartesian_plan.joint_trajectory.points[i].time_from_start.to_sec()
+    rospy.sleep(3.0)
 
-      # store the results using h5py
-      f = h5py.File("dual_ur5_joint_trajectory_DIFF_TIME_PARAMETERIZATION.h5", "a") 
-      path_group =  f.create_group(imi_path_name)
-      path_group.create_dataset("pos", data=pos, dtype=float)
-      path_group.create_dataset("vel", data=vel, dtype=float)
-      path_group.create_dataset("acc", data=acc, dtype=float)    
-      path_group.create_dataset("time_from_start", data=time_from_start, dtype=float)
-      f.close()
+    group = moveit_commander.MoveGroupCommander("right_arm")
+    whole_cart_traj_r = np.zeros((whole_traj_r.shape[0], 6))
+    for m in range(whole_traj_r.shape[0]):
+      joint_goal = whole_traj_r[m, 0:6]
+      group.go(joint_goal, wait=True)
+      group.stop()
+      wpose = group.get_current_pose().pose
+      pos = np.array([wpose.position.x, wpose.position.y, wpose.position.z])
+      quat = np.array([wpose.orientation.x, wpose.orientation.y, wpose.orientation.z, wpose.orientation.w])
+      eul = np.array(tf.transformations.euler_from_quaternion(quat))
+      whole_cart_traj_r[m, :] = np.concatenate((pos, eul))
+    '''
+  
+    ### Convert joint trajectories to Cartesian trajectories using RobotState!!!
+    # get individual plan first
+    traj_point = trajectory_msgs.msg.JointTrajectoryPoint()
+    joint_trajectory_l = []
+    joint_trajectory_r = []
+    for n in range(whole_traj_l.shape[0]):
+      # left
+      traj_point.positions = whole_traj_l[n, 0:6].tolist()
+      joint_trajectory_l.append(copy.deepcopy(traj_point))
+      # right
+      traj_point.positions = whole_traj_r[n, 0:6].tolist()
+      joint_trajectory_r.append(copy.deepcopy(traj_point))
+    # call the service
+    pdb.set_trace()
+    cart_traj_l = apply_fk_client(joint_trajectory_l, True)
+    cart_traj_r = apply_fk_client(joint_trajectory_r, False)
+    pdb.set_trace()
+    # convert to 6 dim = pos + eul structure
+    whole_cart_traj_l = np.zeros((len(cart_traj_l), 6))
+    whole_cart_traj_r = np.zeros((len(cart_traj_r), 6))
+    for m in range(whole_cart_traj_l.shape[0]):
+      # left
+      pos = np.array([cart_traj_l[m].position.x, cart_traj_l[m].position.y, cart_traj_l[m].position.z])
+      quat = np.array([cart_traj_l[m].orientation.x, cart_traj_l[m].orientation.y, cart_traj_l[m].orientation.z, cart_traj_l[m].orientation.w])
+      eul = np.array(tf.transformations.euler_from_quaternion(quat))
+      whole_cart_traj_l[m, :] = np.concatenate((pos, eul))
+      # right
+      pos = np.array([cart_traj_r[m].position.x, cart_traj_r[m].position.y, cart_traj_r[m].position.z])
+      quat = np.array([cart_traj_r[m].orientation.x, cart_traj_r[m].orientation.y, cart_traj_r[m].orientation.z, cart_traj_r[m].orientation.w])
+      eul = np.array(tf.transformations.euler_from_quaternion(quat))
+      whole_cart_traj_r[m, :] = np.concatenate((pos, eul))      
     
 
-      # set to plan_r for the next iteration
-      cartesian_plan = plan_r  
-      imi_path_name = "traj_pair_r_" + index
-
-    '''
-
+    ### Display and store the resultant trajectory
     import pdb
     pdb.set_trace()
-    import h5py
-    import numpy as np
+    f = h5py.File("dual_ur5_whole_cart_traj_concat_2.h5", "a")
+    cart_traj_name = "traj_pair_approach2_insert2_tmp"
+    cart_traj_group =  f.create_group(cart_traj_name)
+    cart_traj_group.create_dataset("cart_traj_l", data=whole_cart_traj_l, dtype=float)
+    cart_traj_group.create_dataset("cart_traj_r", data=whole_cart_traj_r, dtype=float)
+    f.close()    
 
-    store_h5(plan_l_approach, "dual_ur5_realistic_motion_primitives_for_concatenation.h5", "l_approach")
-    store_h5(plan_l_insert, "dual_ur5_realistic_motion_primitives_for_concatenation.h5", "l_insert")
-    store_h5(plan_r_approach, "dual_ur5_realistic_motion_primitives_for_concatenation.h5", "r_approach")
-    store_h5(plan_r_insert, "dual_ur5_realistic_motion_primitives_for_concatenation.h5", "r_insert")    
-
-
-    ### Open grippers
-    '''
-    print "============ Open grippers for Gazebo..."
-    import pdb
-    pdb.set_trace()
-    tutorial.gripper_control(True, True)
-    tutorial.gripper_control(True, False)
-    '''
 
     ### Detach mesh
     ''
-    print "============ Detach flash models..."
     import pdb
     pdb.set_trace()
-    tutorial.scene.remove_attached_object("right_ee_link", fb_mesh_name)
-    tutorial.scene.remove_attached_object("left_ee_link", fh_mesh_name)
+    tutorial.scene.remove_attached_object(fb_ee_link, fb_mesh_name)
+    tutorial.scene.remove_attached_object(fh_ee_link, fh_mesh_name)
     ''
 
     ### Remove mesh
     ''
-    print "============ Remove flash models from the scene ..."
-    import pdb
-    pdb.set_trace()
     tutorial.remove_object(fb_mesh_name, timeout=4)
     tutorial.remove_object(fh_mesh_name, timeout=4)
     ''
