@@ -764,8 +764,9 @@ class PSOCostFunc():
     self.l_group = moveit_commander.MoveGroupCommander("left_arm")
     self.r_group = moveit_commander.MoveGroupCommander("right_arm")
     self.largest_cost = -1
+    #self.cost_history = [] # there should not be a cost history for PSO, since the cost func is not optimized by one set of variables, but a set of particles, each with different set of variables...
 
-  def f(self, left_goal):
+  def f(self, left_goal_pos):
 
     ### Input a target pose for left arm, generate a corresponding right arm's goal.
     # (left_start and right_start as arguments)
@@ -773,7 +774,14 @@ class PSOCostFunc():
 
     ## -- temporary: should be able to pass arguments
     left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
-    right_start = np.array([0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi])
+    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
+#    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.35, 0.4, 0.6, 0.0, 0.0, 0.25*math.pi])
+#    right_start = np.array([0.55, -0.4, 0.2, 0.0, 0.0, -0.25*math.pi]) 
+
+    left_goal_pose = [0, 0, -0.5*math.pi]
+    left_goal = left_goal_pos + left_goal_pose
     ## -- end of temporary  
 
     ## 1 - set right arm's goal
@@ -794,7 +802,7 @@ class PSOCostFunc():
     # construct right arm's goal
     right_goal = np.concatenate((r_x_final, tf.transformations.euler_from_quaternion(r_w_final)))
     # check constraint on right goal ~~~
-    bounds = [(0.3, 0.6), (-0.3, 0.3), (0.3, 0.6), (-math.pi, math.pi), (-math.pi, math.pi), (-math.pi, math.pi)]
+    bounds = [(0.3, 0.6), (-0.6, 0.6), (0.2, 0.6), (-math.pi, math.pi), (-math.pi, math.pi), (-math.pi, math.pi)]
     for l in range(len(bounds)):
       if right_goal[l] <= bounds[l][0] or right_goal[l] >= bounds[l][1]:
         # right_goal is out of bounds, abort this iteration
@@ -876,7 +884,7 @@ class PSOCostFunc():
     print("========== Apply TOTG to get minimum time... ")
     # set up joint kinematic constraints
     vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
-    acc_limits = [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+    acc_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15] #[10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
     # get minimum time for left arm's motion using TOTG
     print("-- for left arm...")   
     tmp_plan = copy.deepcopy(l_joint_path_plan)
@@ -904,6 +912,10 @@ class PSOCostFunc():
 
     if pso_cost_val > self.largest_cost:
       self.largest_cost = pso_cost_val # recordd for constraint
+
+    # record the descent process
+    #self.cost_history.append(pso_cost_val)
+
 
     return pso_cost_val
   
@@ -971,7 +983,12 @@ def main():
 
     ### Set up start poses
     left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
-    right_start = np.array([0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi])
+    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
+#    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.35, 0.4, 0.6, 0.0, 0.0, 0.25*math.pi])
+#    right_start = np.array([0.55, -0.4, 0.2, 0.0, 0.0, -0.25*math.pi]) 
+
     # left_goal is the variable to optimize
 
   
@@ -1009,35 +1026,54 @@ def main():
 
 
     ### Perform PSO
+    '''
     import pdb
     pdb.set_trace()
     t = time.time() # record time used
     # Set-up hyperparameters as dict
     options = {'c1': 0.5, 'c2': 0.3, 'w':0.9}
     # set bounds
-    bounds = [(0.3, 0.6), (-0.3, 0.3), (0.3, 0.6), (-math.pi, math.pi), (-math.pi, math.pi), (-math.pi, math.pi)]
+    bounds = [(0.3, 0.6), (-0.6, 0.6), (0.2, 0.6)] #, (-math.pi, math.pi), (-math.pi, math.pi), (-math.pi, math.pi)]
     # Create an instance of PSO optimizer
-    initials = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    initials = [0.0, 0.0, 0.0] #, 0.0, 0.0, 0.0]
     pso_cost_func = PSOCostFunc()
-    PSO_instance = simple_PSO.PSO(pso_cost_func.f, initials, bounds, num_particles=5, maxiter=20, verbose=True, options=options)
+    PSO_instance = simple_PSO.PSO(pso_cost_func.f, initials, bounds, num_particles=10, maxiter=10, verbose=True, options=options)
     cost, pos = PSO_instance.result()
     elapsed = time.time() - t # time used
-    print('time used for PSO : ' + str(elapsed) + ' s')
+    print('========= Time used for PSO : ' + str(elapsed) + ' s')
     
- 
+    '''
 
 
     import pdb
     pdb.set_trace()    
 
   
-    left_goal = pos
+    # add precision(time resolution) when displaying the result!! 
+    t0 = time.time()
+    #left_goal_pos = pos
+
+    # re-modify the left_goal here  
+    print("===== Re-modify the left_goal for comparison...")
+    left_goal_pos = [0.452955, 0.009273, 0.473311]
+    #left_goal_pos[0] = left_goal_pos[0] + 0.1 # move x, forward
+    #left_goal_pos[1] = left_goal_pos[1] + 0.1 # move y, to right
+    left_goal_pos[2] = left_goal_pos[2] + 0.1 # move z, up
+
+
+    left_goal_pose = [0, 0, -0.5*math.pi]
+    left_goal = left_goal_pos + left_goal_pose
     l_group = moveit_commander.MoveGroupCommander("left_arm")
     r_group = moveit_commander.MoveGroupCommander("right_arm")
+    t1 = time.time()
 
     ### Compute trajs for the optimized left_goal
     left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
-    right_start = np.array([0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi])
+    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
+#    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.35, 0.4, 0.6, 0.0, 0.0, 0.25*math.pi])
+#    right_start = np.array([0.55, -0.4, 0.2, 0.0, 0.0, -0.25*math.pi]) 
     ## 1 - set right arm's goal
     print("========== Set right arm's goal")
     # get right arm's pose
@@ -1060,6 +1096,9 @@ def main():
     for i in range(6):
       l_cartesian_path[i, :] = np.linspace(left_start[i], left_goal[i], num=ndata, endpoint=True)
       r_cartesian_path[i, :] = np.linspace(right_start[i], right_goal[i], num=ndata, endpoint=True)
+
+    t2 = time.time()
+
     ## 3 - IK
     # LEFT ARM
     print("========== Perform IK for left arm's path...")
@@ -1079,7 +1118,7 @@ def main():
       waypoints.append(copy.deepcopy(wpose))
     (plan, fraction) = l_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
-                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                        0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
                                         avoid_collisions=False)    
     
@@ -1102,12 +1141,12 @@ def main():
       waypoints.append(copy.deepcopy(wpose))
     (plan, fraction) = r_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
-                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                        0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
                                         avoid_collisions=False)    
     # store the generated joint plans
     r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
-
+    t3 = time.time()
 
     # display the result
     #import pdb
@@ -1120,7 +1159,7 @@ def main():
     print("========== Apply TOTG to get minimum time... ")
     # set up joint kinematic constraints
     vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
-    acc_limits = [10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+    acc_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15] #[10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
     # get minimum time for left arm's motion using TOTG
     print("-- for left arm...")   
     tmp_plan = copy.deepcopy(l_joint_path_plan)
@@ -1130,16 +1169,27 @@ def main():
     print("-- for right arm...")   
     tmp_plan = copy.deepcopy(r_joint_path_plan)
     l_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
+  
+    t4 = time.time()
+    print('>>>>> Statistics:')
+    print('>>>>>   Time used for setting up moveit commander: ' + str(t1-t0) + ' s')
+    print('>>>>>   Time used for setting up goals and fake DMP: ' + str(t2-t1) + ' s')
+    print('>>>>>   Time used for IK: ' + str(t3-t2) + ' s')
+    print('>>>>>   Time used for getting minimum time from TOTG: ' + str(t4-t3) + ' s')
+    print('>>>>> Total time used: ' + str(t4-t0) + ' s')
 
 
     # 5 - get optimal plans and merge two plans into one dual-arm motion plan
     print("========= Merge into two plans...")
     tmp_plan_l = copy.deepcopy(l_joint_path_plan)
     new_plan_l = moveit_msgs.msg.RobotTrajectory() 
-    new_plan_l.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_l.joint_trajectory.points, vel_limits, acc_limits, 0.01)
+    new_plan_l.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_l.joint_trajectory.points, vel_limits, acc_limits, 0.001)
     tmp_plan_r = copy.deepcopy(r_joint_path_plan)
     new_plan_r = moveit_msgs.msg.RobotTrajectory() 
-    new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_r.joint_trajectory.points, vel_limits, acc_limits, 0.01)
+    new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_r.joint_trajectory.points, vel_limits, acc_limits, 0.001)
+    # get minimum time
+    r_min_time = new_plan_r.joint_trajectory.points[-1].time_from_start.to_sec()
+    l_min_time = new_plan_l.joint_trajectory.points[-1].time_from_start.to_sec()
     # timesteps are the same, so it should be ok to append directly
     len_l = len(new_plan_l.joint_trajectory.points) 
     len_r = len(new_plan_r.joint_trajectory.points)
@@ -1175,19 +1225,39 @@ def main():
     import pdb
     pdb.set_trace()
 
-    print("======== Execute the dual plan..")
+    print("======= Get to ready position...")
     group = moveit_commander.MoveGroupCommander("dual_arms")
     # go to start position first
     joint_goal = new_plan_dual.joint_trajectory.points[0].positions
     group.go(joint_goal, wait=True)
     group.stop()
     # execute the plan now
+    import pdb
+    pdb.set_trace()
+    print("======== Execute the dual plan..")
     group.execute(new_plan_dual, wait=True)
     rospy.sleep(3.0)
 
 
     import pdb
     pdb.set_trace()
+
+
+    ### Display the cost history
+    '''
+    print("Displaying the cost history now")
+    import matplotlib.pyplot as plt
+    cost_history = pso_cost_func.cost_history
+    plt.figure()
+    plt.plot(range(len(cost_history)), cost_history)    
+    plt.xlabel('Iteration')
+    plt.ylabel('Cost')
+    plt.show() # can save the image through GUI
+
+
+    import pdb
+    pdb.set_trace()
+    '''
 
 
     ### Store the result for display in MATLAB

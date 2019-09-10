@@ -79,6 +79,9 @@ class PSO():
         err_best_g=-1                   # best error for group
         pos_best_g=[]                   # best position for group
 
+        # record the cost history
+        self.cost_history = []
+
         # establish the swarm
         swarm=[]
         for i in range(0,num_particles):
