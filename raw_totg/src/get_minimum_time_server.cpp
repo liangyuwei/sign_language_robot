@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <string>
 #include <vector>
+#include <ctime>
 #include <Eigen/Core>
 #include "Trajectory.h"
 #include "Path.h"
@@ -12,11 +13,14 @@
 using namespace std;
 using namespace Eigen;
 
+clock_t t0, t1, t2;
+
 bool path_to_traj(raw_totg::GetMinTime::Request &req, raw_totg::GetMinTime::Response &res)
 {
 
 	// Obtain the request
 	ROS_INFO("Obtain the request");
+	t0 = clock();
 	vector<trajectory_msgs::JointTrajectoryPoint> path = req.path;
 	vector<double> vel_limits = req.vel_limits;
 	vector<double> acc_limits = req.acc_limits;
@@ -33,7 +37,7 @@ bool path_to_traj(raw_totg::GetMinTime::Request &req, raw_totg::GetMinTime::Resp
 		waypoint = Map<VectorXd>(tmp.data(), tmp.size()); // << it->positions[0], it->positions[1], it->positions[2], it->positions[3], it->positions[4], it->positions[5]; //
 		waypoints.push_back(waypoint);
 	}
-
+	t1 = clock();
 
 	// Set velocity and acceleration limits
 	ROS_INFO("Set velocity and acceleration limits...");
@@ -61,7 +65,12 @@ bool path_to_traj(raw_totg::GetMinTime::Request &req, raw_totg::GetMinTime::Resp
 		ROS_ERROR("Trajectory generation failed.");
 		return false;
 	}
-	
+
+	t2 = clock();
+
+	ROS_INFO(">>> Time used for getting request path and transforming into other datatypes: %f", (double)(t1-t0)/CLOCKS_PER_SEC);
+	ROS_INFO(">>> Time used for getting duration from TOTG: %f", (double)(t2-t1)/CLOCKS_PER_SEC);
+
 
 	return true;
 

@@ -654,7 +654,7 @@ class MoveGroupPythonIntefaceTutorial(object):
     print("== Compute a cartesian path ==")
     (plan, fraction) = group.compute_cartesian_path(
                                        waypoints,   # waypoints to follow
-                                       0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                       0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                        0.0,     # jump_threshold
                                        avoid_collisions=False)         
 
@@ -813,7 +813,7 @@ class PSOCostFunc():
 
     ## 2 - DMP, new cartesian paths
     # -- temporary, generate cartesian paths using DMP
-    ndata = 200
+    ndata = 50
     l_cartesian_path = np.zeros((6, ndata), dtype=float)
     r_cartesian_path = np.zeros((6, ndata), dtype=float)
     for i in range(6):
@@ -1054,11 +1054,11 @@ def main():
     #left_goal_pos = pos
 
     # re-modify the left_goal here  
-    print("===== Re-modify the left_goal for comparison...")
+    #print("===== Re-modify the left_goal for comparison...")
     left_goal_pos = [0.452955, 0.009273, 0.473311]
     #left_goal_pos[0] = left_goal_pos[0] + 0.1 # move x, forward
     #left_goal_pos[1] = left_goal_pos[1] + 0.1 # move y, to right
-    left_goal_pos[2] = left_goal_pos[2] + 0.1 # move z, up
+    #left_goal_pos[2] = left_goal_pos[2] + 0.1 # move z, up
 
 
     left_goal_pose = [0, 0, -0.5*math.pi]
@@ -1089,8 +1089,9 @@ def main():
     r_x_final = left_goal[0:3] + v_offset_world
     # construct right arm's goal
     right_goal = np.concatenate((r_x_final, tf.transformations.euler_from_quaternion(r_w_final)))
+
     ## 2 - DMP, new cartesian paths
-    ndata = 200
+    ndata = 50
     l_cartesian_path = np.zeros((6, ndata), dtype=float)
     r_cartesian_path = np.zeros((6, ndata), dtype=float)
     for i in range(6):
@@ -1098,6 +1099,35 @@ def main():
       r_cartesian_path[i, :] = np.linspace(right_start[i], right_goal[i], num=ndata, endpoint=True)
 
     t2 = time.time()
+
+
+    # display to check the smoothness
+    '''
+    print("Display the DMP path to check smoothness")
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import Axes3D
+    fig = plt.figure() # create a figure object
+    ax1 = fig.add_subplot(121, projection='3d')
+    ax1.set(title='Left Arm''s cartesian path')
+    ax1.scatter3D(l_cartesian_path[0, :], l_cartesian_path[1, :], l_cartesian_path[2, :], cmap='Blues')
+    ax1.plot3D(l_cartesian_path[0, :], l_cartesian_path[1, :], l_cartesian_path[2, :], 'gray')
+    ax1.set_xlabel('x')
+    ax1.set_ylabel('y')
+    ax1.set_zlabel('z')
+    ax2 = fig.add_subplot(122, projection='3d')
+    ax2.set(title='Right Arm''s cartesian path')
+    ax2.scatter3D(r_cartesian_path[0, :], r_cartesian_path[1, :], r_cartesian_path[2, :], cmap='Blues')
+    ax2.plot3D(r_cartesian_path[0, :], r_cartesian_path[1, :], r_cartesian_path[2, :])
+    ax2.set_xlabel('x')
+    ax2.set_ylabel('y')
+    ax2.set_zlabel('z')
+    plt.show()
+    
+    import pdb
+    pdb.set_trace()
+    '''
+
+
 
     ## 3 - IK
     # LEFT ARM
@@ -1118,7 +1148,7 @@ def main():
       waypoints.append(copy.deepcopy(wpose))
     (plan, fraction) = l_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
-                                        0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
                                         avoid_collisions=False)    
     
@@ -1141,7 +1171,7 @@ def main():
       waypoints.append(copy.deepcopy(wpose))
     (plan, fraction) = r_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
-                                        0.001, #0.01,        # eef_step # set to 0.001 for collecting the data
+                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
                                         avoid_collisions=False)    
     # store the generated joint plans

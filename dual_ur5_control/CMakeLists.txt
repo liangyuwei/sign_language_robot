@@ -20,6 +20,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   trajectory_msgs
   geometry_msgs
+  moveit_msgs
   message_generation
 )
 
@@ -70,6 +71,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(
   FILES
   JntToCart.srv
+  CartToJnt.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -85,6 +87,7 @@ generate_messages(
   std_msgs  # Or other packages containing msgs
   trajectory_msgs
   geometry_msgs
+  moveit_msgs
 )
 
 catkin_package()
@@ -148,6 +151,11 @@ target_link_libraries(fk ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 add_executable(apply_fk_server src/apply_fk_server.cpp)
 target_link_libraries(apply_fk_server ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 add_dependencies(apply_fk_server dual_ur5_control_gencpp)
+
+
+add_executable(compute_cartesian_path_server src/compute_cartesian_path_server.cpp)
+target_link_libraries(compute_cartesian_path_server ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+add_dependencies(compute_cartesian_path_server dual_ur5_control_gencpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
