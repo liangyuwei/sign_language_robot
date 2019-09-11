@@ -1,0 +1,6 @@
+string group_name
+geometry_msgs/Pose[] waypoints
+
+---
+
+moveit_msgs/RobotTrajectory plan
