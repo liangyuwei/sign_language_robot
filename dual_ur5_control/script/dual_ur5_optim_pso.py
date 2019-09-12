@@ -918,6 +918,20 @@ class PSOCostFunc():
 
 
     return pso_cost_val
+
+
+
+def compute_cartesian_path_client(group_name, waypoints):
+
+  # wait for service to come online
+  rospy.wait_for_service('compute_cartesian_path_server')
+
+  try:
+    cart_to_jnt = rospy.ServiceProxy('compute_cartesian_path_server', CartToJnt)
+    res = cart_to_jnt(group_name, waypoints)
+    return res.plan
+  except rospy.ServiceException as e:
+    print("Service call failed: %s" % e)
   
 
 
@@ -1091,7 +1105,7 @@ def main():
     right_goal = np.concatenate((r_x_final, tf.transformations.euler_from_quaternion(r_w_final)))
 
     ## 2 - DMP, new cartesian paths
-    ndata = 50
+    ndata = 200
     l_cartesian_path = np.zeros((6, ndata), dtype=float)
     r_cartesian_path = np.zeros((6, ndata), dtype=float)
     for i in range(6):
@@ -1146,12 +1160,15 @@ def main():
       wpose.orientation.z = quat[2]
       wpose.orientation.w = quat[3]
       waypoints.append(copy.deepcopy(wpose))
+    tt0 = time.time()
     (plan, fraction) = l_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
                                         0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
                                         avoid_collisions=False)    
-    
+    tt1 = time.time()
+    print(">>> Time used for compute_cartesian_path only(left): " + str(tt1-tt0) + " s")    
+
     # store the generated joint plans
     l_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
     # RIGHT ARM
@@ -1169,11 +1186,15 @@ def main():
       wpose.orientation.z = quat[2]
       wpose.orientation.w = quat[3]
       waypoints.append(copy.deepcopy(wpose))
+    tt0 = time.time()
     (plan, fraction) = r_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
                                         0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
                                         avoid_collisions=False)    
+    tt1 = time.time()
+    print(">>> Time used for compute_cartesian_path only(right): " + str(tt1-tt0) + " s")  
+
     # store the generated joint plans
     r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
     t3 = time.time()
@@ -1208,6 +1229,65 @@ def main():
     print('>>>>>   Time used for getting minimum time from TOTG: ' + str(t4-t3) + ' s')
     print('>>>>> Total time used: ' + str(t4-t0) + ' s')
 
+    
+
+    # Test on C++ API -------
+    import pdb
+    pdb.set_trace()
+    ## IK using C++ API through service
+    t0 = time.time()
+    # LEFT ARM
+    print("========== C++ version of IK for left arm...")
+    # set Pose trajectories(should go to first pose before planning!!!)
+    waypoints = []
+    wpose = geometry_msgs.msg.Pose()
+    for n in range(1, l_cartesian_path.shape[1]):
+      wpose.position.x = l_cartesian_path[0, n]
+      wpose.position.y = l_cartesian_path[1, n]
+      wpose.position.z = l_cartesian_path[2, n]
+      quat = tf.transformations.quaternion_from_euler(l_cartesian_path[3, n], l_cartesian_path[4, n], l_cartesian_path[5, n]) # same order ???
+      wpose.orientation.x = quat[0]
+      wpose.orientation.y = quat[1]
+      wpose.orientation.z = quat[2]
+      wpose.orientation.w = quat[3]
+      waypoints.append(copy.deepcopy(wpose))
+
+    l_joint_path_plan = compute_cartesian_path_client('left_arm', waypoints)
+    elapsed0 = time.time() - t0
+    print(">>> Time used for C++ version of IK through service call(including communication): " + str(elapsed0) + " s")
+
+    # RIGHT ARM
+    t1 = time.time()
+    print("========== C++ version of IK for right arm...")
+    # set Pose trajectories(should go to first pose before planning!!!)
+    waypoints = []
+    wpose = geometry_msgs.msg.Pose()
+    for n in range(1, r_cartesian_path.shape[1]):
+      wpose.position.x = r_cartesian_path[0, n]
+      wpose.position.y = r_cartesian_path[1, n]
+      wpose.position.z = r_cartesian_path[2, n]
+      quat = tf.transformations.quaternion_from_euler(r_cartesian_path[3, n], r_cartesian_path[4, n], r_cartesian_path[5, n]) # same order ???
+      wpose.orientation.x = quat[0]
+      wpose.orientation.y = quat[1]
+      wpose.orientation.z = quat[2]
+      wpose.orientation.w = quat[3]
+      waypoints.append(copy.deepcopy(wpose))
+
+    r_joint_path_plan = compute_cartesian_path_client('right_arm', waypoints)
+    elapsed1 = time.time() - t1
+    print(">>> Time used for C++ version of IK through service call(including communication): " + str(elapsed1) + " s")
+
+    # test the performance of generated plan
+    pdb.set_trace()
+    l_group.execute(l_joint_path_plan, wait=True) 
+    pdb.set_trace()
+    r_group.execute(r_joint_path_plan, wait=True)
+
+    # END of Test on C++ API ---------
+    
+
+    import pdb
+    pdb.set_trace()
 
     # 5 - get optimal plans and merge two plans into one dual-arm motion plan
     print("========= Merge into two plans...")
@@ -1255,6 +1335,8 @@ def main():
     import pdb
     pdb.set_trace()
 
+
+    ### Execute the dual-arm plan
     print("======= Get to ready position...")
     group = moveit_commander.MoveGroupCommander("dual_arms")
     # go to start position first

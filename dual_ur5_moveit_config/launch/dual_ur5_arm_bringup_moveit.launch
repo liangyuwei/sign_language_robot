@@ -20,6 +20,8 @@
   <!-- Start a service to get minimum time from TOTG -->
   <node name="get_min_time_service" pkg="raw_totg" type="get_minimum_time_server" output="screen"/>
 
+  <!-- Start a service to compute cartesian path using C++ API -->
+  <node name="compute_cartesian_path_server" pkg="dual_ur5_control" type="compute_cartesian_path_server" output="screen" />
 
   <!-- Load moveit controller manager -->
   <include file="$(find dual_ur5_moveit_config)/launch/dual_ur5_moveit_controller_manager.launch" />

@@ -24,14 +24,17 @@ bool cart_to_joint(dual_ur5_control::CartToJnt::Request &req, dual_ur5_control::
   // get the request
   t0 = clock();
   ROS_INFO("Obtain the request pose path.");
-  static const string group_name = req.group_name;
+  string group_name = req.group_name; // do not use static const... static variable is initialized when the function is called the first time, but would not be destroyed as the function terminates
   vector<geometry_msgs::Pose> waypoints = req.waypoints;
   
 
   // prepare for planning
   t1 = clock();
   ROS_INFO("Getting ready for planning...");
+  ROS_INFO_STREAM("Planning for group: " << group_name); // ROS_INFO_STREAM vs. ROS_INFO???
   moveit::planning_interface::MoveGroupInterface move_group(group_name);
+  ROS_INFO_STREAM("Planning frame: " << move_group.getPlanningFrame());
+  ROS_INFO_STREAM("End effector link: " << move_group.getEndEffectorLink());
 
 
   // Compute Cartesian Path
@@ -40,7 +43,8 @@ bool cart_to_joint(dual_ur5_control::CartToJnt::Request &req, dual_ur5_control::
   moveit_msgs::RobotTrajectory trajectory;
   const double jump_threshold = 0.0;
   const double eef_step = 0.01; // 1 cm in workspace
-  double fraction = move_group.computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory);
+  bool avoid_collisions = false;
+  double fraction = move_group.computeCartesianPath(waypoints, eef_step, jump_threshold, trajectory, avoid_collisions);
   // if fraction < 1.0, then the planning is not successful...
   t3 = clock();
 

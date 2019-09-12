@@ -22,6 +22,8 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   moveit_msgs
   message_generation
+  # for computeCartesianPath
+  moveit_ros_planning_interface
 )
 
 ## System dependencies are found with CMake's conventions
@@ -156,6 +158,7 @@ add_dependencies(apply_fk_server dual_ur5_control_gencpp)
 add_executable(compute_cartesian_path_server src/compute_cartesian_path_server.cpp)
 target_link_libraries(compute_cartesian_path_server ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 add_dependencies(compute_cartesian_path_server dual_ur5_control_gencpp)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
