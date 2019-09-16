@@ -759,12 +759,14 @@ def apply_fk_client(joint_trajectory, left_or_right):
 
 class PSOCostFunc():
 
-  def __init__(self):
+  def __init__(self, goal_rel_pos_pose):
 
     self.l_group = moveit_commander.MoveGroupCommander("left_arm")
     self.r_group = moveit_commander.MoveGroupCommander("right_arm")
     self.largest_cost = -1
+    self.rel_trans = goal_rel_pos_pose # relative transformation matrix
     #self.cost_history = [] # there should not be a cost history for PSO, since the cost func is not optimized by one set of variables, but a set of particles, each with different set of variables...
+
 
   def f(self, left_goal_pos):
 
@@ -773,10 +775,10 @@ class PSOCostFunc():
     # new goals --> [DMP] --> new cartesian paths --> [IK] --> new joint paths --> [TOTG] --> duration(and new joint trajs) --> Cost function for PSO
 
     ## -- temporary: should be able to pass arguments
-    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
-    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
-#    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
-#    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
+#    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
+    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
 #    left_start = np.array([0.35, 0.4, 0.6, 0.0, 0.0, 0.25*math.pi])
 #    right_start = np.array([0.55, -0.4, 0.2, 0.0, 0.0, -0.25*math.pi]) 
 
@@ -784,11 +786,22 @@ class PSOCostFunc():
     left_goal = left_goal_pos + left_goal_pose
     ## -- end of temporary  
 
+
     ## 1 - set right arm's goal
-    #import pdb
-    #pdb.set_trace()
     print("========== Set right arm's goal")
-    # get right arm's pose
+    # obtain left_goal's homogeneous matrix representation
+    left_goal_trans = tf.transformations.euler_matrix(left_goal[3], left_goal[4], left_goal[5])
+    left_goal_trans[:3, 3] = np.array(left_goal_pos)
+
+    # obtain right_goal's homogeneous matrix representation
+    right_goal_trans = np.dot(left_goal_trans, self.rel_trans) # right-multiply ???
+    # transform into xyz and euler angles
+    right_goal = np.concatenate((right_goal_trans[:3, 3], tf.transformations.euler_from_matrix(right_goal_trans[:3][:3])))
+
+
+    # check right arm's pose
+    '''    
+    print("==== Check the right arm's pose...")
     l_w_final = tf.transformations.quaternion_from_euler(left_goal[3], left_goal[4], left_goal[5])
     relative_quat = tf.transformations.quaternion_from_euler(0, 0, math.pi)
     r_w_final = tf.transformations.quaternion_multiply(l_w_final, relative_quat)
@@ -800,7 +813,12 @@ class PSOCostFunc():
     v_offset_world = np.dot(right_rotm, v_offset)
     r_x_final = left_goal[0:3] + v_offset_world
     # construct right arm's goal
-    right_goal = np.concatenate((r_x_final, tf.transformations.euler_from_quaternion(r_w_final)))
+    right_goal_tmp = np.concatenate((r_x_final, tf.transformations.euler_from_quaternion(r_w_final)))
+    if not all_close(right_goal, right_goal_tmp, 0.001):
+      print("******* Error right_goal *******")
+    '''
+
+
     # check constraint on right goal ~~~
     bounds = [(0.3, 0.6), (-0.6, 0.6), (0.2, 0.6), (-math.pi, math.pi), (-math.pi, math.pi), (-math.pi, math.pi)]
     for l in range(len(bounds)):
@@ -810,6 +828,7 @@ class PSOCostFunc():
           return self.largest_cost
         else:
           return 10
+
 
     ## 2 - DMP, new cartesian paths
     # -- temporary, generate cartesian paths using DMP
@@ -844,8 +863,8 @@ class PSOCostFunc():
       waypoints.append(copy.deepcopy(wpose))
     (plan, fraction) = self.l_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
-                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
-                                        0.0,     # jump_threshold
+                                        0.01,        # eef_step # set to 0.01 for 1 cm resolution
+                                        0.0,         # jump_threshold
                                         avoid_collisions=False)    
     # display the result
     #l_group.execute(plan, wait=True) # do not execute!!! current state should always be set to the  start.
@@ -869,8 +888,8 @@ class PSOCostFunc():
       waypoints.append(copy.deepcopy(wpose))
     (plan, fraction) = self.r_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
-                                        0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
-                                        0.0,     # jump_threshold
+                                        0.01,        # eef_step # set to 0.01 for 1 cm resolution
+                                        0.0,         # jump_threshold
                                         avoid_collisions=False)    
     # display the result
     #r_group.execute(plan, wait=True)
@@ -908,7 +927,7 @@ class PSOCostFunc():
     # 5 - the costs
     #import pdb
     #pdb.set_trace()
-    pso_cost_val = r_min_time + l_min_time #+ (r_min_time - l_min_time) ** 2
+    pso_cost_val = max(r_min_time, l_min_time) # max function is much more reasonable!!
 
     if pso_cost_val > self.largest_cost:
       self.largest_cost = pso_cost_val # recordd for constraint
@@ -996,10 +1015,10 @@ def main():
 
 
     ### Set up start poses
-    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
-    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
-#    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
-#    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
+#    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
+    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
 #    left_start = np.array([0.35, 0.4, 0.6, 0.0, 0.0, 0.25*math.pi])
 #    right_start = np.array([0.55, -0.4, 0.2, 0.0, 0.0, -0.25*math.pi]) 
 
@@ -1040,7 +1059,7 @@ def main():
 
 
     ### Perform PSO
-    '''
+    ''
     import pdb
     pdb.set_trace()
     t = time.time() # record time used
@@ -1048,15 +1067,22 @@ def main():
     options = {'c1': 0.5, 'c2': 0.3, 'w':0.9}
     # set bounds
     bounds = [(0.3, 0.6), (-0.6, 0.6), (0.2, 0.6)] #, (-math.pi, math.pi), (-math.pi, math.pi), (-math.pi, math.pi)]
-    # Create an instance of PSO optimizer
+    # set initials!!! (this could set to the middle point of two arms' starting positions)
     initials = [0.0, 0.0, 0.0] #, 0.0, 0.0, 0.0]
-    pso_cost_func = PSOCostFunc()
-    PSO_instance = simple_PSO.PSO(pso_cost_func.f, initials, bounds, num_particles=10, maxiter=10, verbose=True, options=options)
+    # set the assembly constraint, i.e. the goal relative transformation matrix
+    rot_z = tf.transformations.euler_matrix(0.0, 0.0, math.pi)
+    trans_x = tf.transformations.identity_matrix()
+    offset = -0.32
+    trans_x[0, 3] = offset
+    goal_rel_trans = np.dot(rot_z, trans_x) # moving frame, post-multiply
+    # Create an instance of PSO optimizer
+    pso_cost_func = PSOCostFunc(goal_rel_trans)
+    PSO_instance = simple_PSO.PSO(pso_cost_func.f, initials, bounds, num_particles=10, maxiter=20, verbose=True, options=options)
     cost, pos = PSO_instance.result()
     elapsed = time.time() - t # time used
     print('========= Time used for PSO : ' + str(elapsed) + ' s')
     
-    '''
+    ''
 
 
     import pdb
@@ -1065,11 +1091,11 @@ def main():
   
     # add precision(time resolution) when displaying the result!! 
     t0 = time.time()
-    #left_goal_pos = pos
+    left_goal_pos = pos # use the result of PSO
 
     # re-modify the left_goal here  
     #print("===== Re-modify the left_goal for comparison...")
-    left_goal_pos = [0.452955, 0.009273, 0.473311]
+    #left_goal_pos = [0.452955, 0.009273, 0.473311]
     #left_goal_pos[0] = left_goal_pos[0] + 0.1 # move x, forward
     #left_goal_pos[1] = left_goal_pos[1] + 0.1 # move y, to right
     #left_goal_pos[2] = left_goal_pos[2] + 0.1 # move z, up
@@ -1082,10 +1108,10 @@ def main():
     t1 = time.time()
 
     ### Compute trajs for the optimized left_goal
-    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
-    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
-#    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
-#    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
+#    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
+    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
 #    left_start = np.array([0.35, 0.4, 0.6, 0.0, 0.0, 0.25*math.pi])
 #    right_start = np.array([0.55, -0.4, 0.2, 0.0, 0.0, -0.25*math.pi]) 
     ## 1 - set right arm's goal
@@ -1105,7 +1131,7 @@ def main():
     right_goal = np.concatenate((r_x_final, tf.transformations.euler_from_quaternion(r_w_final)))
 
     ## 2 - DMP, new cartesian paths
-    ndata = 200
+    ndata = 50
     l_cartesian_path = np.zeros((6, ndata), dtype=float)
     r_cartesian_path = np.zeros((6, ndata), dtype=float)
     for i in range(6):
@@ -1232,6 +1258,7 @@ def main():
     
 
     # Test on C++ API -------
+    '''
     import pdb
     pdb.set_trace()
     ## IK using C++ API through service
@@ -1285,9 +1312,10 @@ def main():
 
     # END of Test on C++ API ---------
     
-
     import pdb
     pdb.set_trace()
+    '''
+
 
     # 5 - get optimal plans and merge two plans into one dual-arm motion plan
     print("========= Merge into two plans...")

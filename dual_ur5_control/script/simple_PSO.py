@@ -16,19 +16,21 @@ def func1(x):
     return total
 
 #--- MAIN ---------------------------------------------------------------------+
-
+# data structure(class) for a single particle to store corresponding information
 class Particle:
     def __init__(self,x0, options=None):
         self.position_i=[]          # particle position
         self.velocity_i=[]          # particle velocity
-        self.pos_best_i=[]          # best position individual
-        self.err_best_i=-1          # best error individual
+        self.pos_best_i=[]          # best position, individual, so far
+        self.err_best_i=-1          # best error, individual, so far
         self.err_i=-1               # error individual
         self.options = options
 
+        # initialization of position and velocity
         for i in range(0,num_dimensions):
             self.velocity_i.append(random.uniform(-1,1))
             self.position_i.append(x0[i])
+
 
     # evaluate current fitness
     def evaluate(self,costFunc):
@@ -38,18 +40,19 @@ class Particle:
         if self.err_i<self.err_best_i or self.err_best_i==-1:
             self.pos_best_i=copy.deepcopy(self.position_i)
             self.err_best_i=self.err_i
-                    
+             
+       
     # update new particle velocity
     def update_velocity(self,pos_best_g):
         if self.options is None:
-            w=0.5       # constant inertia weight (how much to weigh the previous velocity)
-            c1=1        # cognative constant
-            c2=2        # social constant
+            w=0.5       # constant(could be dynamically changing!! need modifications in that case) inertia weight (how much to weigh the previous velocity)
+            c1=1        # cognitive acceleration constant
+            c2=2        # social acceleration constant
         else:
             w=self.options['w']
             c1=self.options['c1']
             c2=self.options['c2']
-        
+
         for i in range(0,num_dimensions):
             r1=random.random()
             r2=random.random()
@@ -58,7 +61,8 @@ class Particle:
             vel_social=c2*r2*(pos_best_g[i]-self.position_i[i])
             self.velocity_i[i]=w*self.velocity_i[i]+vel_cognitive+vel_social
 
-    # update the particle position based off new velocity updates
+
+    # update the particle position based on new velocity updates, with bounds
     def update_position(self,bounds):
         for i in range(0,num_dimensions):
             self.position_i[i]=self.position_i[i]+self.velocity_i[i]
@@ -71,6 +75,7 @@ class Particle:
             if self.position_i[i]<bounds[i][0]:
                 self.position_i[i]=bounds[i][0]
         
+
 class PSO():
     def __init__(self, costFunc, x0, bounds, num_particles, maxiter, verbose=False, options=None):
         global num_dimensions
@@ -79,10 +84,8 @@ class PSO():
         err_best_g=-1                   # best error for group
         pos_best_g=[]                   # best position for group
 
-        # record the cost history
-        self.cost_history = []
-
-        # establish the swarm
+        # establish the swarm, initialize particles
+        print('Initializing particle swarm...')
         swarm=[]
         for i in range(0,num_particles):
             swarm.append(Particle(x0, options))
@@ -95,7 +98,7 @@ class PSO():
             for j in range(0,num_particles):
                 swarm[j].evaluate(costFunc)
 
-                # determine if current particle is the best (globally)
+                # determine if current particle is the best (globally), and update immediately
                 if swarm[j].err_i<err_best_g or err_best_g==-1:
                     pos_best_g=list(swarm[j].position_i)
                     err_best_g=float(swarm[j].err_i)
@@ -104,6 +107,8 @@ class PSO():
             for j in range(0,num_particles):
                 swarm[j].update_velocity(pos_best_g)
                 swarm[j].update_position(bounds)
+
+            # next iteration
             i+=1
 
         # print final results

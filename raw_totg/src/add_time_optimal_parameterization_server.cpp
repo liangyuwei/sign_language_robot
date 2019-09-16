@@ -66,7 +66,7 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 		for(double t = 0.0; t < duration; t += timestep)
 		{		
 			// get pos, vel and acc
-			ROS_INFO("Generating trajectory point at time t = %f / %f", t, duration);
+			//ROS_INFO("Generating trajectory point at time t = %f / %f", t, duration);
 			tmpPosition = trajectory.getPosition(t);
 			tmpVelocity = trajectory.getVelocity(t);
 			tmpAcceleration = trajectory.getAcceleration(t);
@@ -81,7 +81,7 @@ bool path_to_traj(raw_totg::PathToTraj::Request &req, raw_totg::PathToTraj::Resp
 			traj_point.time_from_start = ros::Duration(t);
 			traj.push_back(traj_point);
 		}
-		ROS_INFO("Generating trajectory point at time t = %f / %f", duration, duration);
+		//ROS_INFO("Generating trajectory point at time t = %f / %f", duration, duration);
 		// for the last point
 		tmpPosition = trajectory.getPosition(duration);
 		tmpVelocity = trajectory.getVelocity(duration);
