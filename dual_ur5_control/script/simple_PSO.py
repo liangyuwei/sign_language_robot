@@ -5,6 +5,7 @@ from __future__ import division
 import random
 import math
 import copy
+import numpy as np
 
 #--- COST FUNCTION ------------------------------------------------------------+
 
@@ -24,7 +25,8 @@ class Particle:
         self.pos_best_i=[]          # best position, individual, so far
         self.err_best_i=-1          # best error, individual, so far
         self.err_i=-1               # error individual
-        self.options = options
+        self.options = options      # w, c1, c2
+
 
         # initialization of position and velocity
         for i in range(0,num_dimensions):
@@ -34,13 +36,17 @@ class Particle:
 
     # evaluate current fitness
     def evaluate(self,costFunc):
-        self.err_i=costFunc(self.position_i)
 
-        # check to see if the current position is an individual best
-        if self.err_i<self.err_best_i or self.err_best_i==-1:
-            self.pos_best_i=copy.deepcopy(self.position_i)
-            self.err_best_i=self.err_i
-             
+        tmp=costFunc(self.position_i)
+
+        # check if it's a feasible solution
+        if tmp != -1: #(still compute for the first time even it's not feasible!!! cost much time to initialize with feasible points)
+            self.err_i = tmp
+            # check to see if the current position is an individual best
+            if self.err_i<self.err_best_i or self.err_best_i==-1:
+                self.pos_best_i=copy.deepcopy(self.position_i)
+                self.err_best_i=self.err_i
+ 
        
     # update new particle velocity
     def update_velocity(self,pos_best_g):
@@ -80,33 +86,85 @@ class PSO():
     def __init__(self, costFunc, x0, bounds, num_particles, maxiter, verbose=False, options=None):
         global num_dimensions
 
-        num_dimensions=len(x0)
+        num_dimensions=len(x0[0])
         err_best_g=-1                   # best error for group
         pos_best_g=[]                   # best position for group
 
-        # establish the swarm, initialize particles
+        # criterion threshold
+        eps1 = 0.05
+        eps2 = 0.6 # how much is good???
+        #eps3 = 0.06
+        #delta = 0.6 # 60% of particles
+        cnt_violate = 0 # number of times(consecutive) that slope of cost violates the threshold
+
+
+        # establish the swarm, initialize particles 
         print('Initializing particle swarm...')
+        #import pdb
+        #pdb.set_trace()
+        if len(x0) != num_particles:
+            print("[ERROR]: The number of initial particles: " + str(len(x0)) + " is not in consistent with the given num_particles: " + str(num_particles))
+            return False
         swarm=[]
         for i in range(0,num_particles):
-            swarm.append(Particle(x0, options))
+            swarm.append(Particle(x0[i], options))
+
+
+        # compute diameter of the set of initial points for later use(maximum swarm radius)
+        diam_x0 = -1
+        for i in range(0, num_particles-1):
+            for j in range(i+1, num_particles):
+                dist_ij = np.sqrt( np.sum( ( np.array(x0[i])-np.array(x0[j]) )**2 ) )
+                if dist_ij > diam_x0: diam_x0 = dist_ij
+  
 
         # begin optimization loop
         i=0
+        last_err = -1
         while i<maxiter:
             if verbose: print('iter: ' + str(i) + ', best solution: ' + str(err_best_g) + '\n')
             # cycle through particles in swarm and evaluate fitness
             for j in range(0,num_particles):
+                # evaluate fitness
                 swarm[j].evaluate(costFunc)
-
                 # determine if current particle is the best (globally), and update immediately
                 if swarm[j].err_i<err_best_g or err_best_g==-1:
                     pos_best_g=list(swarm[j].position_i)
                     err_best_g=float(swarm[j].err_i)
             
+
             # cycle through swarm and update velocities and position
             for j in range(0,num_particles):
                 swarm[j].update_velocity(pos_best_g)
                 swarm[j].update_position(bounds)
+           
+
+            ## stopping criterion
+            if i != 0: # not the first iteration
+                slope = (err_best_g - last_err) / err_best_g
+                print('[DEBUG]: slope of cost function is: ' + str(slope))
+
+                # the first stopping criterion: if not improving much
+                if abs(slope) < eps1:
+                    print('Best err not improving...')
+                    cnt_violate += 1
+
+                    if cnt_violate >= 4:
+                        # the second stopping criterion: if all particles close to the global best particle
+                        Rmax = -1
+                        for m in range(num_particles):
+                            dist_p_gb = np.sqrt( np.sum( (np.array(swarm[m].position_i) - np.array(pos_best_g)) **2 ) )
+                            if dist_p_gb > Rmax: Rmax = dist_p_gb
+                        print('[DEBUG]: ratio of swarm radius: ' + str(Rmax / diam_x0))
+                        if Rmax / diam_x0 < eps2: 
+                            print('>>> Best err not improving much for ' + str(cnt_violate) +' iterations, check the radius now...')                        
+                            break
+                   
+                else:
+                    cnt_violate = 0
+
+            # update the last err information
+            last_err = err_best_g
 
             # next iteration
             i+=1
