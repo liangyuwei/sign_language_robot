@@ -22,6 +22,8 @@ from dual_ur5_control.srv import *
 
 # Import simple_PSO code(copied from online, did a little modification)
 import simple_PSO
+# Import Gradient Descent code
+import simple_GD
 
 
 def all_close(goal, actual, tolerance):
@@ -1082,6 +1084,7 @@ def main():
     goal_rel_trans = np.dot(rot_z, trans_x) # moving frame, post-multiply
 
     # set initials!!! (this could set to the middle point of two arms' starting positions)
+    '''
     num_particles = 10
     initials = []
     tmp = (left_start[:3] + right_start[:3]) / 2 # set the middle point as one initial particle
@@ -1105,17 +1108,51 @@ def main():
      
 
     # Create an instance of PSO optimizer
+    ''
     pso_cost_func = PSOCostFunc(goal_rel_trans)
     PSO_instance = simple_PSO.PSO(pso_cost_func.f, initials, bounds, num_particles=num_particles, maxiter=200, verbose=True, options=options)
     cost, pos = PSO_instance.result()
     elapsed = time.time() - t # time used
     print('========= Time used for PSO : ' + str(elapsed) + ' s')
     
-    ''
+    '''
+
+    # Create an instance of GD optimizer
+    x0 = (left_start[:3] + right_start[:3]) / 2 # set the middle point as one initial particle
+    x0 = x0.tolist()
+    options = {'alpha':0.01, 'epsilon':0.0001, 'precision':0.01}
+    cost_func = PSOCostFunc(goal_rel_trans)    
+    gd_instance = simple_GD.GD_Optimizer(cost_func.f, bounds, maxiter=20, options=options)
+    cost, pos = gd_instance.train(x0)
+    elapsed = time.time() - t # time used
+    print('========= Time used for GD Optimizer : ' + str(elapsed) + ' s')
 
 
     import pdb
     pdb.set_trace()    
+
+
+    # display the cost history
+    print("Display the cost history and step history")
+    # step size is not a good stopping criterion!!!
+    cost_history = copy.deepcopy(gd_instance.cost_history)
+    step_history = copy.deepcopy(gd_instance.step_history)
+    import matplotlib.pyplot as plt
+    fig, ax = plt.subplots(nrows=2, ncols=1)
+    fig.suptitle('GD Optimizer - learning_rate: ' + str(options['alpha']) + ', epsilon: ' + str(options['epsilon']) + ', precision: ' + str(options['precision']))
+    ax[0].set(title='Cost history')
+    ax[0].set_xlabel('Iteration')
+    ax[0].set_ylabel('Cost value')
+    ax[0].plot(range(len(cost_history)), cost_history)
+    ax[1].set(title='Step history')
+    ax[1].set_xlabel('Iteration')
+    ax[1].set_ylabel('Step size')
+    ax[1].plot(range(len(step_history)), step_history)
+    plt.show()
+    
+    import pdb
+    pdb.set_trace()
+
 
   
     # add precision(time resolution) when displaying the result!! 
@@ -1350,10 +1387,10 @@ def main():
     print("========= Merge into two plans...")
     tmp_plan_l = copy.deepcopy(l_joint_path_plan)
     new_plan_l = moveit_msgs.msg.RobotTrajectory() 
-    new_plan_l.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_l.joint_trajectory.points, vel_limits, acc_limits, 0.001)
+    new_plan_l.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_l.joint_trajectory.points, vel_limits, acc_limits, 0.01) # keep in consistent with the training procedure
     tmp_plan_r = copy.deepcopy(r_joint_path_plan)
     new_plan_r = moveit_msgs.msg.RobotTrajectory() 
-    new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_r.joint_trajectory.points, vel_limits, acc_limits, 0.001)
+    new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_r.joint_trajectory.points, vel_limits, acc_limits, 0.01) # keep in consistent with the training procedure
     # get minimum time
     r_min_time = new_plan_r.joint_trajectory.points[-1].time_from_start.to_sec()
     l_min_time = new_plan_l.joint_trajectory.points[-1].time_from_start.to_sec()
