@@ -942,7 +942,7 @@ class PSOCostFunc():
     #self.cost_history.append(pso_cost_val)
 
 
-    return pso_cost_val
+    return pso_cost_val #l_min_time, r_min_time, left_goal[:3], right_goal[:3] # modification for heuristic gradient descent #pso_cost_val 
 
 
 
@@ -1071,7 +1071,7 @@ def main():
     t = time.time() # record time used
 
     # Set-up hyperparameters as dict
-    options = {'c1': 1.0, 'c2': 2.0, 'w':0.9} #{'c1': 0.5, 'c2': 0.3, 'w':0.9}
+    options = {'c1': 2.0, 'c2': 2.0, 'w':0.8} #{'c1': 1.0, 'c2': 2.0, 'w':0.9} #{'c1': 0.5, 'c2': 0.3, 'w':0.9}
 
     # set bounds
     bounds = [(0.3, 0.6), (-0.6, 0.6), (0.2, 0.6)] #, (-math.pi, math.pi), (-math.pi, math.pi), (-math.pi, math.pi)]
@@ -1084,7 +1084,7 @@ def main():
     goal_rel_trans = np.dot(rot_z, trans_x) # moving frame, post-multiply
 
     # set initials!!! (this could set to the middle point of two arms' starting positions)
-    '''
+    ''
     num_particles = 10
     initials = []
     tmp = (left_start[:3] + right_start[:3]) / 2 # set the middle point as one initial particle
@@ -1110,23 +1110,24 @@ def main():
     # Create an instance of PSO optimizer
     ''
     pso_cost_func = PSOCostFunc(goal_rel_trans)
-    PSO_instance = simple_PSO.PSO(pso_cost_func.f, initials, bounds, num_particles=num_particles, maxiter=200, verbose=True, options=options)
+    PSO_instance = simple_PSO.PSO(pso_cost_func.f, initials, bounds, num_particles=num_particles, maxiter=20, verbose=True, options=options)
     cost, pos = PSO_instance.result()
     elapsed = time.time() - t # time used
     print('========= Time used for PSO : ' + str(elapsed) + ' s')
     
-    '''
+    ''
 
     # Create an instance of GD optimizer
+    '''
     x0 = (left_start[:3] + right_start[:3]) / 2 # set the middle point as one initial particle
     x0 = x0.tolist()
-    options = {'alpha':0.01, 'epsilon':0.0001, 'precision':0.01}
+    options = {'alpha':0.01, 'epsilon':0.0001, 'precision':0.02}
     cost_func = PSOCostFunc(goal_rel_trans)    
     gd_instance = simple_GD.GD_Optimizer(cost_func.f, bounds, maxiter=20, options=options)
     cost, pos = gd_instance.train(x0)
     elapsed = time.time() - t # time used
     print('========= Time used for GD Optimizer : ' + str(elapsed) + ' s')
-
+    '''
 
     import pdb
     pdb.set_trace()    
@@ -1135,19 +1136,31 @@ def main():
     # display the cost history
     print("Display the cost history and step history")
     # step size is not a good stopping criterion!!!
-    cost_history = copy.deepcopy(gd_instance.cost_history)
-    step_history = copy.deepcopy(gd_instance.step_history)
+    cost_history = copy.deepcopy(PSO_instance.cost_history) #copy.deepcopy(gd_instance.cost_history)
+    step_history = copy.deepcopy(PSO_instance.leader_step_history) #copy.deepcopy(gd_instance.step_history)
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(nrows=2, ncols=1)
-    fig.suptitle('GD Optimizer - learning_rate: ' + str(options['alpha']) + ', epsilon: ' + str(options['epsilon']) + ', precision: ' + str(options['precision']))
-    ax[0].set(title='Cost history')
+    #fig.suptitle('GD Optimizer - learning_rate: ' + str(options['alpha']) + ', epsilon: ' + str(options['epsilon']) + ', precision: ' + str(options['precision']), fontsize=18)
+    fig.suptitle('PSO Optimizer - #particles: ' + str(num_particles) + ', c1: ' + str(options['c1']) + ', c2: ' + str(options['c2']) + ', w: ' + str(options['w']), fontsize=18)
+    ax[0].set(title='Cost history') # set title and labels
     ax[0].set_xlabel('Iteration')
     ax[0].set_ylabel('Cost value')
-    ax[0].plot(range(len(cost_history)), cost_history)
-    ax[1].set(title='Step history')
+    ax[0].plot(range(len(cost_history)), cost_history) # line plot
+    ax[0].scatter(range(len(cost_history)), cost_history, marker='*') # draw scatter points
+    ax[0].set_xlim([0, len(cost_history)]) # set x and y limits
+    ax[0].set_ylim([0.0, 1.5]) 
+    for xy in zip(range(len(cost_history)), cost_history):
+      ax[0].annotate('{0:.3f}'.format(xy[1]), xy=xy)
+    
+    ax[1].set(title='Step history') # set title and labels
     ax[1].set_xlabel('Iteration')
     ax[1].set_ylabel('Step size')
-    ax[1].plot(range(len(step_history)), step_history)
+    ax[1].plot(range(len(step_history)), step_history) # line plot
+    ax[1].scatter(range(len(step_history)), step_history, marker='o') # draw scatter points
+    ax[1].set_xlim([0, len(step_history)]) # set x and y limits
+    for xy in zip(range(len(step_history)), step_history):
+      ax[1].annotate('{0:.3f}'.format(xy[1]), xy=xy)
+
     plt.show()
     
     import pdb

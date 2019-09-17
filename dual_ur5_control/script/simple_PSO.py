@@ -2,6 +2,7 @@
 #--- IMPORT DEPENDENCIES ------------------------------------------------------+
 
 from __future__ import division
+from numpy.linalg import norm
 import random
 import math
 import copy
@@ -90,6 +91,10 @@ class PSO():
         err_best_g=-1                   # best error for group
         pos_best_g=[]                   # best position for group
 
+        # record cost history
+        self.cost_history = []    
+        self.leader_step_history = []
+
         # criterion threshold
         eps1 = 0.05
         eps2 = 0.6 # how much is good???
@@ -131,7 +136,18 @@ class PSO():
                 if swarm[j].err_i<err_best_g or err_best_g==-1:
                     pos_best_g=list(swarm[j].position_i)
                     err_best_g=float(swarm[j].err_i)
-            
+
+
+            # record cost history
+            self.cost_history.append(err_best_g)
+            if i == 0: # first iteration
+                self.leader_step_history.append(0)
+            else:
+                dist = norm(np.array(last_pos_best_g) - np.array(pos_best_g))
+                self.leader_step_history.append(dist)
+            # record the current best position
+            last_pos_best_g = pos_best_g
+
 
             # cycle through swarm and update velocities and position
             for j in range(0,num_particles):
@@ -181,6 +197,8 @@ class PSO():
     def result(self):
 
         return self.err_best_g, self.pos_best_g
+
+
 
 
 if __name__ == "__main__":
