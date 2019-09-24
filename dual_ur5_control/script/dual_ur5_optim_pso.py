@@ -1083,8 +1083,8 @@ def main():
     trans_x[0, 3] = offset
     goal_rel_trans = np.dot(rot_z, trans_x) # moving frame, post-multiply
 
-    # set initials!!! (this could set to the middle point of two arms' starting positions)
-    ''
+    # set initials for PSO!!! (this could set to the middle point of two arms' starting positions)
+    '''
     num_particles = 10
     initials = []
     tmp = (left_start[:3] + right_start[:3]) / 2 # set the middle point as one initial particle
@@ -1106,19 +1106,17 @@ def main():
           within_bounds = False
       if within_bounds: initials.append(copy.deepcopy(tmp))
      
-
     # Create an instance of PSO optimizer
-    ''
     pso_cost_func = PSOCostFunc(goal_rel_trans)
     PSO_instance = simple_PSO.PSO(pso_cost_func.f, initials, bounds, num_particles=num_particles, maxiter=20, verbose=True, options=options)
     cost, pos = PSO_instance.result()
     elapsed = time.time() - t # time used
     print('========= Time used for PSO : ' + str(elapsed) + ' s')
-    
-    ''
+    '''
+
 
     # Create an instance of GD optimizer
-    '''
+    ''
     x0 = (left_start[:3] + right_start[:3]) / 2 # set the middle point as one initial particle
     x0 = x0.tolist()
     options = {'alpha':0.01, 'epsilon':0.0001, 'precision':0.02}
@@ -1127,7 +1125,7 @@ def main():
     cost, pos = gd_instance.train(x0)
     elapsed = time.time() - t # time used
     print('========= Time used for GD Optimizer : ' + str(elapsed) + ' s')
-    '''
+    ''
 
     import pdb
     pdb.set_trace()    
@@ -1136,12 +1134,12 @@ def main():
     # display the cost history
     print("Display the cost history and step history")
     # step size is not a good stopping criterion!!!
-    cost_history = copy.deepcopy(PSO_instance.cost_history) #copy.deepcopy(gd_instance.cost_history)
-    step_history = copy.deepcopy(PSO_instance.leader_step_history) #copy.deepcopy(gd_instance.step_history)
+    cost_history = copy.deepcopy(gd_instance.cost_history) #copy.deepcopy(PSO_instance.cost_history) #
+    step_history = copy.deepcopy(gd_instance.step_history) #copy.deepcopy(PSO_instance.leader_step_history) #
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(nrows=2, ncols=1)
-    #fig.suptitle('GD Optimizer - learning_rate: ' + str(options['alpha']) + ', epsilon: ' + str(options['epsilon']) + ', precision: ' + str(options['precision']), fontsize=18)
-    fig.suptitle('PSO Optimizer - #particles: ' + str(num_particles) + ', c1: ' + str(options['c1']) + ', c2: ' + str(options['c2']) + ', w: ' + str(options['w']), fontsize=18)
+    fig.suptitle('GD Optimizer - learning_rate: ' + str(options['alpha']) + ', epsilon: ' + str(options['epsilon']) + ', precision: ' + str(options['precision']), fontsize=18)
+    #fig.suptitle('PSO Optimizer - #particles: ' + str(num_particles) + ', c1: ' + str(options['c1']) + ', c2: ' + str(options['c2']) + ', w: ' + str(options['w']), fontsize=18)
     ax[0].set(title='Cost history') # set title and labels
     ax[0].set_xlabel('Iteration')
     ax[0].set_ylabel('Cost value')
@@ -1170,7 +1168,7 @@ def main():
   
     # add precision(time resolution) when displaying the result!! 
     t0 = time.time()
-    left_goal_pos = pos # use the result of PSO
+    left_goal_pos = pos # use the result of PSO/GD
 
     # re-modify the left_goal here  
     #print("===== Re-modify the left_goal for comparison...")
@@ -1309,6 +1307,27 @@ def main():
     #pdb.set_trace()
     #l_group.execute(l_joint_path_plan, wait=True) 
     #r_group.execute(r_joint_path_plan, wait=True)
+  
+
+    # 3.5 - store the IK results for comparison between TOTG, TOPP and TOPP-RA 
+    import pdb
+    pdb.set_trace()
+    print("Convert IK plans to arrays and store in h5 file, for later comparison between TOTG, TOPP and TOPP-RA.")
+    len_l = len(l_joint_path_plan.joint_trajectory.points)
+    len_r = len(r_joint_path_plan.joint_trajectory.points)
+    l_joint_path_array = np.zeros((6, len_l))
+    r_joint_path_array = np.zeros((6, len_r))    
+    for ll in range(len_l):
+      l_joint_path_array[:, ll] = np.array(l_joint_path_plan.joint_trajectory.points[ll].positions)
+    for rr in range(len_r):
+      r_joint_path_array[:, rr] = np.array(r_joint_path_plan.joint_trajectory.points[rr].positions)
+    # store
+    f = h5py.File("example_paths_for_TP_comparison.h5", "a") 
+    l_path_group =  f.create_group("l_joint_path_array_1")
+    l_path_group.create_dataset("pos", data=l_joint_path_array, dtype=float)
+    r_path_group =  f.create_group("r_joint_path_array_1")
+    r_path_group.create_dataset("pos", data=r_joint_path_array, dtype=float)
+    f.close()
 
 
     # 4 - TOTG
@@ -1397,6 +1416,7 @@ def main():
 
 
     # 5 - get optimal plans and merge two plans into one dual-arm motion plan
+    t5 = time.time()
     print("========= Merge into two plans...")
     tmp_plan_l = copy.deepcopy(l_joint_path_plan)
     new_plan_l = moveit_msgs.msg.RobotTrajectory() 
@@ -1404,6 +1424,8 @@ def main():
     tmp_plan_r = copy.deepcopy(r_joint_path_plan)
     new_plan_r = moveit_msgs.msg.RobotTrajectory() 
     new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_r.joint_trajectory.points, vel_limits, acc_limits, 0.01) # keep in consistent with the training procedure
+    t6 = time.time()
+    print('>>>>>   Time used for getting whole trajectory from TOTG: ' + str(t6-t5) + ' s')
     # get minimum time
     r_min_time = new_plan_r.joint_trajectory.points[-1].time_from_start.to_sec()
     l_min_time = new_plan_l.joint_trajectory.points[-1].time_from_start.to_sec()
