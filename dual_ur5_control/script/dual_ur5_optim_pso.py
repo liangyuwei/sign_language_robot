@@ -669,7 +669,8 @@ class MoveGroupPythonIntefaceTutorial(object):
     return plan    
 
 
-def add_time_optimal_parameterization_client(path, vel_limits, acc_limits, timestep=0.001):
+### TOTG ###
+def add_time_optimal_parameterization_client(path, vel_limits, acc_limits, timestep=0.01):
   # wait for service to come online
   rospy.wait_for_service('add_time_optimal_parameterization_server')
 
@@ -681,6 +682,7 @@ def add_time_optimal_parameterization_client(path, vel_limits, acc_limits, times
     print("Service call failed: %s" % e)
 
 
+### Get minimum time from TOTG ###
 def get_minimum_time_client(path, vel_limits, acc_limits):
   # wait for service to come online
   rospy.wait_for_service('get_minimum_time_server')
@@ -689,6 +691,32 @@ def get_minimum_time_client(path, vel_limits, acc_limits):
     get_min_time = rospy.ServiceProxy('get_minimum_time_server', GetMinTime)
     res = get_min_time(path, vel_limits, acc_limits)
     return res.min_time
+  except rospy.ServiceException as e:
+    print("Service call failed: %s" % e)
+
+
+### TOPP service ###
+def TOPP_client(path, vel_limits, acc_limits, timestep=0.01):
+  # wait for service to come online
+  rospy.wait_for_service('TOPP_server')
+
+  try:
+    path_to_traj = rospy.ServiceProxy('TOPP_server', PathToTraj)
+    res = path_to_traj(path, vel_limits, acc_limits, timestep)
+    return res.traj
+  except rospy.ServiceException as e:
+    print("Service call failed: %s" % e)
+
+
+### TOPP-RA service ###
+def TOPPRA_client(path, vel_limits, acc_limits, timestep=0.01):
+  # wait for service to come online
+  rospy.wait_for_service('TOPPRA_server')
+
+  try:
+    path_to_traj = rospy.ServiceProxy('TOPPRA_server', PathToTraj)
+    res = path_to_traj(path, vel_limits, acc_limits, timestep)
+    return res.traj
   except rospy.ServiceException as e:
     print("Service call failed: %s" % e)
 
@@ -901,18 +929,21 @@ class PSOCostFunc():
     r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
 
   
-    # 4 - TOTG
+    # 4 - TOTG --> switched to TOPP now!!!
     #import pdb
     #pdb.set_trace()
-    print("========== Apply TOTG to get minimum time... ")
+    #print("========== Apply TOTG to get minimum time... ")
+    print("========== Apply TOPP to get minimum time... ")
     # set up joint kinematic constraints
     vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
     acc_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15] #[10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
     # get minimum time for left arm's motion using TOTG
     print("-- for left arm...")   
-    tmp_plan = copy.deepcopy(l_joint_path_plan)
-    r_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
-    if r_min_time is None: # in case that trajectory generation fails
+    #tmp_plan = copy.deepcopy(l_joint_path_plan)
+    tmp_plan_reparam = TOPP_client(l_joint_path_plan.joint_trajectory.points, vel_limits, acc_limits, timestep=0.01)
+    l_min_time = tmp_plan_reparam[-1].time_from_start.to_sec()
+    #get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
+    if l_min_time is None: # in case that trajectory generation fails
       return -1 # indicating infeasible solution
       #if self.largest_cost > 0:
       #  return self.largest_cost
@@ -921,9 +952,11 @@ class PSOCostFunc():
 
     # get minimum time for right arm's motion using TOTG
     print("-- for right arm...")   
-    tmp_plan = copy.deepcopy(r_joint_path_plan)
-    l_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
-    if l_min_time is None: # in case that trajectory generation fails
+    #tmp_plan = copy.deepcopy(r_joint_path_plan)
+    tmp_plan_reparam = TOPP_client(r_joint_path_plan.joint_trajectory.points, vel_limits, acc_limits, timestep=0.01)
+    r_min_time = tmp_plan_reparam[-1].time_from_start.to_sec()
+    #get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
+    if r_min_time is None: # in case that trajectory generation fails
       return -1 # indicating infeasible solution      
       #if self.largest_cost > 0:
       #  return self.largest_cost
@@ -1300,6 +1333,8 @@ def main():
 
     # store the generated joint plans
     r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+
+
     t3 = time.time()
 
     # display the result
@@ -1310,6 +1345,7 @@ def main():
   
 
     # 3.5 - store the IK results for comparison between TOTG, TOPP and TOPP-RA 
+    '''
     import pdb
     pdb.set_trace()
     print("Convert IK plans to arrays and store in h5 file, for later comparison between TOTG, TOPP and TOPP-RA.")
@@ -1328,30 +1364,35 @@ def main():
     r_path_group =  f.create_group("r_joint_path_array_1")
     r_path_group.create_dataset("pos", data=r_joint_path_array, dtype=float)
     f.close()
+    '''
 
-
-    # 4 - TOTG
-    print("========== Apply TOTG to get minimum time... ")
+    # 4 - TOTG --> switched to TOPP now!!!
+    #print("========== Apply TOTG to get minimum time... ")
+    print("========== Apply TOPP to get minimum time... ")
     # set up joint kinematic constraints
     vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
     acc_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15] #[10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
     # get minimum time for left arm's motion using TOTG
     print("-- for left arm...")   
-    tmp_plan = copy.deepcopy(l_joint_path_plan)
-    r_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
+    #tmp_plan = copy.deepcopy(l_joint_path_plan)
+    l_plan_reparam = TOPP_client(l_joint_path_plan.joint_trajectory.points, vel_limits, acc_limits, timestep=0.01)
+    l_min_time = l_plan_reparam[-1].time_from_start.to_sec()
 
     # get minimum time for right arm's motion using TOTG
     print("-- for right arm...")   
-    tmp_plan = copy.deepcopy(r_joint_path_plan)
-    l_min_time = get_minimum_time_client(tmp_plan.joint_trajectory.points, vel_limits, acc_limits)
+    #tmp_plan = copy.deepcopy(r_joint_path_plan)
+    r_plan_reparam = TOPP_client(r_joint_path_plan.joint_trajectory.points, vel_limits, acc_limits, timestep=0.01)
+    r_min_time = r_plan_reparam[-1].time_from_start.to_sec()
   
     t4 = time.time()
     print('>>>>> Statistics:')
     print('>>>>>   Time used for setting up moveit commander: ' + str(t1-t0) + ' s')
     print('>>>>>   Time used for setting up goals and fake DMP: ' + str(t2-t1) + ' s')
     print('>>>>>   Time used for IK: ' + str(t3-t2) + ' s')
-    print('>>>>>   Time used for getting minimum time from TOTG: ' + str(t4-t3) + ' s')
+    #print('>>>>>   Time used for getting minimum time from TOTG: ' + str(t4-t3) + ' s')
+    print('>>>>>   Time used for getting minimum time from TOPP: ' + str(t4-t3) + ' s')
     print('>>>>> Total time used: ' + str(t4-t0) + ' s')
+
 
     
 
@@ -1418,17 +1459,21 @@ def main():
     # 5 - get optimal plans and merge two plans into one dual-arm motion plan
     t5 = time.time()
     print("========= Merge into two plans...")
-    tmp_plan_l = copy.deepcopy(l_joint_path_plan)
+    #tmp_plan_l = copy.deepcopy(l_joint_path_plan)
     new_plan_l = moveit_msgs.msg.RobotTrajectory() 
-    new_plan_l.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_l.joint_trajectory.points, vel_limits, acc_limits, 0.01) # keep in consistent with the training procedure
-    tmp_plan_r = copy.deepcopy(r_joint_path_plan)
+    new_plan_l.joint_trajectory.points = TOPP_client(l_joint_path_plan.joint_trajectory.points, vel_limits, acc_limits, 0.01)
+    #add_time_optimal_parameterization_client(tmp_plan_l.joint_trajectory.points, vel_limits, acc_limits, 0.01) # keep in consistent with the training procedure
+    #tmp_plan_r = copy.deepcopy(r_joint_path_plan)
     new_plan_r = moveit_msgs.msg.RobotTrajectory() 
-    new_plan_r.joint_trajectory.points = add_time_optimal_parameterization_client(tmp_plan_r.joint_trajectory.points, vel_limits, acc_limits, 0.01) # keep in consistent with the training procedure
+    new_plan_r.joint_trajectory.points = TOPP_client(r_joint_path_plan.joint_trajectory.points, vel_limits, acc_limits, 0.01)
+    #add_time_optimal_parameterization_client(tmp_plan_r.joint_trajectory.points, vel_limits, acc_limits, 0.01) # keep in consistent with the training procedure
     t6 = time.time()
-    print('>>>>>   Time used for getting whole trajectory from TOTG: ' + str(t6-t5) + ' s')
+    #print('>>>>>   Time used for getting whole trajectory from TOTG: ' + str(t6-t5) + ' s')
+
     # get minimum time
     r_min_time = new_plan_r.joint_trajectory.points[-1].time_from_start.to_sec()
     l_min_time = new_plan_l.joint_trajectory.points[-1].time_from_start.to_sec()
+    print('>>>>>   Time used for getting whole trajectory from TOPP: ' + str(t6-t5) + ' s')
     # timesteps are the same, so it should be ok to append directly
     len_l = len(new_plan_l.joint_trajectory.points) 
     len_r = len(new_plan_r.joint_trajectory.points)

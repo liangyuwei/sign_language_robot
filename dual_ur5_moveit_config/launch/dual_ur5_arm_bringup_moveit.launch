@@ -20,6 +20,12 @@
   <!-- Start a service to get minimum time from TOTG -->
   <node name="get_min_time_service" pkg="raw_totg" type="get_minimum_time_server" output="screen"/>
 
+  <!-- Start TOPP service -->
+  <node name="start_TOPP_service" pkg="dual_ur5_control" type="TOPP_service.py" output="screen"/>
+
+  <!-- Start TOPP-RA service -->
+  <node name="start_TOPPRA_service" pkg="dual_ur5_control" type="TOPPRA_service.py" output="screen"/>
+
   <!-- Start a service to compute cartesian path using C++ API -->
   <node name="compute_cartesian_path_server" pkg="dual_ur5_control" type="compute_cartesian_path_server" output="screen" />
 
