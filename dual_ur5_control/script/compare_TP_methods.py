@@ -51,6 +51,19 @@ def TOPP_client(path, vel_limits, acc_limits, timestep=0.001):
     print("Service call failed: %s" % e)
 
 
+### TOPP-RA service ###
+def TOPPRA_client(path, vel_limits, acc_limits, timestep=0.001):
+  # wait for service to come online
+  rospy.wait_for_service('TOPPRA_server')
+
+  try:
+    path_to_traj = rospy.ServiceProxy('TOPPRA_server', PathToTraj)
+    res = path_to_traj(path, vel_limits, acc_limits, timestep)
+    return res.traj
+  except rospy.ServiceException as e:
+    print("Service call failed: %s" % e)
+
+
 ### Conversion ###
 def convert_plan_to_array(traj_plan):
 
@@ -87,8 +100,8 @@ if __name__ == '__main__':
 
 
   ### Parameters
-  vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
-  acc_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15]
+  vel_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15] #[0.5 for _ in range(6)] 
+  acc_limits = [3.15, 3.15, 3.15, 3.15, 3.15, 3.15] #[0.5 for _ in range(6)] 
   timestep = 0.01
 
 
@@ -116,6 +129,15 @@ if __name__ == '__main__':
 
 
   ### Call TOPP-RA service
+  t0_TOPPRA = time.time()  
+  l_traj_TOPPRA = TOPPRA_client(l_path_points, vel_limits, acc_limits, timestep)
+  r_traj_TOPPRA = TOPPRA_client(r_path_points, vel_limits, acc_limits, timestep)
+  t1_TOPPRA = time.time()  
+  print("=== Total time used for TOPP-RA(including communication): " + str(t1_TOPPRA-t0_TOPPRA) + " s")
+  #import pdb
+  #pdb.set_trace()
+  l_traj_array_TOPPRA = convert_plan_to_array(l_traj_TOPPRA)
+  r_traj_array_TOPPRA = convert_plan_to_array(r_traj_TOPPRA)
 
 
   ### Print trajectory time
@@ -124,6 +146,8 @@ if __name__ == '__main__':
   print("TOTG - right: " + str(r_traj_TOTG[-1].time_from_start.to_sec()) + " s")  
   print("TOPP - left: " + str(l_traj_TOPP[-1].time_from_start.to_sec()) + " s")
   print("TOPP - right: " + str(r_traj_TOPP[-1].time_from_start.to_sec()) + " s")
+  print("TOPP-RA - left: " + str(l_traj_TOPPRA[-1].time_from_start.to_sec()) + " s")
+  print("TOPP-RA - right: " + str(r_traj_TOPPRA[-1].time_from_start.to_sec()) + " s")
   print(">>> End <<<")
 
 
@@ -132,8 +156,8 @@ if __name__ == '__main__':
   pdb.set_trace()
   import matplotlib.pyplot as plt
   from mpl_toolkits.mplot3d import Axes3D
-  traj_list = [[l_traj_array_TOTG, r_traj_array_TOTG], [l_traj_array_TOPP, r_traj_array_TOPP]] #, [l_traj_array_TOPPRA, r_traj_array_TOPPRA]]
-  traj_list_names = ['TOTG', 'TOPP']#, 'TOPP-RA']
+  traj_list = [[l_traj_array_TOTG, r_traj_array_TOTG], [l_traj_array_TOPP, r_traj_array_TOPP], [l_traj_array_TOPPRA, r_traj_array_TOPPRA]]
+  traj_list_names = ['TOTG', 'TOPP', 'TOPP-RA']
   # iterate to plot
   for i in range(len(traj_list_names)):
     #fig = plt.figure() # create a figure object
@@ -152,13 +176,6 @@ if __name__ == '__main__':
       #ax[j][1].scatter(range(traj_list[i][1].shape[0]), traj_list[i][1], marker='*') # scatter points
   # plot  
   plt.show()
-
-
-
-
-
-
-
 
 
 

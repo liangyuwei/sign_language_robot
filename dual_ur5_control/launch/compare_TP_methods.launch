@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- Start TOTG service -->
+  <node name="start_TOTG_service" pkg="raw_totg" type="add_time_optimal_parameterization_server" output="screen"/>
+
+
+  <!-- Start a service to get minimum time from TOTG -->
+  <node name="get_min_time_service" pkg="raw_totg" type="get_minimum_time_server" output="screen"/>
+
+
+  <!-- Start TOPP service -->
+  <node name="start_TOPP_service" pkg="dual_ur5_control" type="TOPP_service.py" output="screen"/>
+
+
+  <!-- Start a service to get minimum time from TOTG -->
+  <node name="start_TOPPRA_service" pkg="dual_ur5_control" type="TOPPRA_service.py" output="screen"/>
+
+
+</launch>
+
+
