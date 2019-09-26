@@ -806,10 +806,10 @@ class PSOCostFunc():
     # new goals --> [DMP] --> new cartesian paths --> [IK] --> new joint paths --> [TOTG] --> duration(and new joint trajs) --> Cost function for PSO
 
     ## -- temporary: should be able to pass arguments
-    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
-    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
-#    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
-#    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
+#    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
+    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
 #    left_start = np.array([0.35, 0.4, 0.6, 0.0, 0.0, 0.25*math.pi])
 #    right_start = np.array([0.55, -0.4, 0.2, 0.0, 0.0, -0.25*math.pi]) 
 
@@ -893,7 +893,7 @@ class PSOCostFunc():
       wpose.orientation.z = quat[2]
       wpose.orientation.w = quat[3]
       waypoints.append(copy.deepcopy(wpose))
-    (plan, fraction) = self.l_group.compute_cartesian_path(
+    (l_joint_path_plan, fraction) = self.l_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
                                         0.01,        # eef_step # set to 0.01 for 1 cm resolution
                                         0.0,         # jump_threshold
@@ -901,7 +901,7 @@ class PSOCostFunc():
     # display the result
     #l_group.execute(plan, wait=True) # do not execute!!! current state should always be set to the  start.
     # store the generated joint plans
-    l_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+    #l_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
 
     # RIGHT ARM
     # set Pose trajectories(should go to first pose before planning!!!)
@@ -918,7 +918,7 @@ class PSOCostFunc():
       wpose.orientation.z = quat[2]
       wpose.orientation.w = quat[3]
       waypoints.append(copy.deepcopy(wpose))
-    (plan, fraction) = self.r_group.compute_cartesian_path(
+    (r_joint_path_plan, fraction) = self.r_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
                                         0.01,        # eef_step # set to 0.01 for 1 cm resolution
                                         0.0,         # jump_threshold
@@ -926,7 +926,7 @@ class PSOCostFunc():
     # display the result
     #r_group.execute(plan, wait=True)
     # store the generated joint plans
-    r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+    #r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
 
   
     # 4 - TOTG --> switched to TOPP now!!!
@@ -1054,10 +1054,10 @@ def main():
 
 
     ### Set up start poses
-    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
-    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
-#    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
-#    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
+#    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
+    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
 #    left_start = np.array([0.35, 0.4, 0.6, 0.0, 0.0, 0.25*math.pi])
 #    right_start = np.array([0.55, -0.4, 0.2, 0.0, 0.0, -0.25*math.pi]) 
 
@@ -1152,7 +1152,7 @@ def main():
     ''
     x0 = (left_start[:3] + right_start[:3]) / 2 # set the middle point as one initial particle
     x0 = x0.tolist()
-    options = {'alpha':0.01, 'epsilon':0.0001, 'precision':0.02}
+    options = {'alpha':0.01, 'epsilon':0.0001, 'precision':0.01}#0.02}
     cost_func = PSOCostFunc(goal_rel_trans)    
     gd_instance = simple_GD.GD_Optimizer(cost_func.f, bounds, maxiter=20, options=options)
     cost, pos = gd_instance.train(x0)
@@ -1179,7 +1179,7 @@ def main():
     ax[0].plot(range(len(cost_history)), cost_history) # line plot
     ax[0].scatter(range(len(cost_history)), cost_history, marker='*') # draw scatter points
     ax[0].set_xlim([0, len(cost_history)]) # set x and y limits
-    ax[0].set_ylim([0.0, 1.5]) 
+    ax[0].set_ylim([0.0, np.ceil(max(cost_history))]) 
     for xy in zip(range(len(cost_history)), cost_history):
       ax[0].annotate('{0:.3f}'.format(xy[1]), xy=xy)
     
@@ -1218,10 +1218,10 @@ def main():
     t1 = time.time()
 
     ### Compute trajs for the optimized left_goal
-    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
-    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
-#    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
-#    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+#    left_start = np.array([0.55, 0.35, 0.4, 0.0, 0.0, -0.25*math.pi])
+#    right_start = np.array([0.55, -0.35, 0.4, 0.0, 0.0, 0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
+    left_start = np.array([0.55, 0.6, 0.4, 0.0, 0.0, 0.25*math.pi])
+    right_start = np.array([0.55, -0.1, 0.4, 0.0, 0.0, -0.25*math.pi]) #[0.45, -0.35, 0.3, 0.0, 0.0, -0.25*math.pi]
 #    left_start = np.array([0.35, 0.4, 0.6, 0.0, 0.0, 0.25*math.pi])
 #    right_start = np.array([0.55, -0.4, 0.2, 0.0, 0.0, -0.25*math.pi]) 
     ## 1 - set right arm's goal
@@ -1297,7 +1297,7 @@ def main():
       wpose.orientation.w = quat[3]
       waypoints.append(copy.deepcopy(wpose))
     tt0 = time.time()
-    (plan, fraction) = l_group.compute_cartesian_path(
+    (l_joint_path_plan, fraction) = l_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
                                         0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
@@ -1306,7 +1306,8 @@ def main():
     print(">>> Time used for compute_cartesian_path only(left): " + str(tt1-tt0) + " s")    
 
     # store the generated joint plans
-    l_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+    #l_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+
     # RIGHT ARM
     # set Pose trajectories(should go to first pose before planning!!!)
     print("-- Plan for right arm...")
@@ -1323,7 +1324,7 @@ def main():
       wpose.orientation.w = quat[3]
       waypoints.append(copy.deepcopy(wpose))
     tt0 = time.time()
-    (plan, fraction) = r_group.compute_cartesian_path(
+    (r_joint_path_plan, fraction) = r_group.compute_cartesian_path(
                                         waypoints,   # waypoints to follow
                                         0.01, #0.01,        # eef_step # set to 0.001 for collecting the data
                                         0.0,     # jump_threshold
@@ -1332,7 +1333,7 @@ def main():
     print(">>> Time used for compute_cartesian_path only(right): " + str(tt1-tt0) + " s")  
 
     # store the generated joint plans
-    r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
+    #r_joint_path_plan = copy.deepcopy(plan) # stored as moveit_msgs/RobotTrajectory
 
 
     t3 = time.time()
@@ -1387,7 +1388,7 @@ def main():
     t4 = time.time()
     print('>>>>> Statistics:')
     print('>>>>>   Time used for setting up moveit commander: ' + str(t1-t0) + ' s')
-    print('>>>>>   Time used for setting up goals and fake DMP: ' + str(t2-t1) + ' s')
+    print('>>>>>   Time used for setting up goals and DMP: ' + str(t2-t1) + ' s')
     print('>>>>>   Time used for IK: ' + str(t3-t2) + ' s')
     #print('>>>>>   Time used for getting minimum time from TOTG: ' + str(t4-t3) + ' s')
     print('>>>>>   Time used for getting minimum time from TOPP: ' + str(t4-t3) + ' s')
