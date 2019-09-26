@@ -95,9 +95,13 @@ class PSO():
         self.cost_history = []    
         self.leader_step_history = []
 
+        # record stopping criteria
+        self.cost_slope_history = []
+        self.swarm_radius_history = []
+
         # criterion threshold
-        eps1 = 0.05
-        eps2 = 0.6 # how much is good???
+        eps1 = 0.02 #0.05
+        eps2 = 0.5 #0.6 # how much is good???
         #eps3 = 0.06
         #delta = 0.6 # 60% of particles
         cnt_violate = 0 # number of times(consecutive) that slope of cost violates the threshold
@@ -158,7 +162,15 @@ class PSO():
             ## stopping criterion
             if i != 0: # not the first iteration
                 slope = (err_best_g - last_err) / err_best_g
+                self.cost_slope_history.append(slope)
                 print('[DEBUG]: slope of cost function is: ' + str(slope))
+
+                # record swarm radius
+                Rmax = -1
+                for m in range(num_particles):
+                    dist_p_gb = np.sqrt(np.sum((np.array(swarm[m].position_i)-np.array(pos_best_g))**2))
+                    if dist_p_gb > Rmax: Rmax = dist_p_gb
+                self.swarm_radius_history.append(Rmax / diam_x0)
 
                 # the first stopping criterion: if not improving much
                 if abs(slope) < eps1:
