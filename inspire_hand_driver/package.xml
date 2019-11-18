@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<package>
+  <name>inspire_hand</name>
+  <version>1.0.0</version>
+  <description> RS232 and RS485 control node for basic communication with inspire hand</description>
+  
+  <maintainer email="111@163.com">Hanson Du</maintainer>
+  <license>BSD</license>
+  <url type="website">http://www.inspire-robots.com/</url> 
+  <author email="111@163.com">Hanson Du</author>
+  
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>roscpp</build_depend>
+  <build_depend>serial</build_depend>
+  <build_depend>message_generation</build_depend>
+  <build_depend>tf</build_depend>
+  
+  <run_depend>roscpp</run_depend>
+  <run_depend>serial</run_depend>
+  <run_depend>tf</run_depend>
+    
+</package>

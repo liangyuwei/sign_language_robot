@@ -1,0 +1,8 @@
+int32 current0
+int32 current1
+int32 current2
+int32 current3
+int32 current4
+int32 current5
+---
+bool current_limit_accepted

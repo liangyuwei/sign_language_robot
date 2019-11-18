@@ -1,0 +1,8 @@
+int32 force0
+int32 force1
+int32 force2
+int32 force3
+int32 force4
+int32 force5
+---
+bool default_force_accepted

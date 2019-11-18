@@ -1,0 +1,8 @@
+int32 pos0
+int32 pos1
+int32 pos2
+int32 pos3
+int32 pos4
+int32 pos5
+---
+bool pos_accepted

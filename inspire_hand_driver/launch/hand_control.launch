@@ -1,0 +1,14 @@
+<?xml version="1.0" ?>
+<launch>
+  <arg name="id" default= "1" />
+  <arg name="port" default= "/dev/ttyUSB0" />
+  <arg name="baud" default= "115200" />
+  <arg name="test_flag" default= "0" />
+  <node name="inspire_hand" pkg="inspire_hand" type="inspire_hand" output="screen" >
+    <param name = "hand_id" value="$(arg id)" />
+    <param name = "portname" value="$(arg port)" />
+    <param name = "baudrate" value="$(arg baud)" />
+    <param name = "test_flags" value="$(arg test_flag)" />
+  </node>
+  
+</launch>

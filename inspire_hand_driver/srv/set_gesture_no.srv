@@ -1,0 +1,3 @@
+int32 gesture_no
+---
+bool gesture_nograb

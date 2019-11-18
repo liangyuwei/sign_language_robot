@@ -1,0 +1,8 @@
+int32 speed0
+int32 speed1
+int32 speed2
+int32 speed3
+int32 speed4
+int32 speed5
+---
+bool speed_accepted
