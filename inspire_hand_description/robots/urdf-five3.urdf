@@ -1,5 +1,26 @@
-<robot
-  name="inspire_hand_description">
+<?xml version="1.0"?>
+
+
+<robot name="inspire_hand_description">
+  
+  <!-- Create a new base frame for convenience, by LYW, 2019/11/18 -->
+  <link name="base">
+    <!-- Add visual tag for calibration -->
+    <!--visual>
+      <origin xyz="0 0 -0.025" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.0279" length="0.05" /> <!- - diameter is 55.8 mm according to the technical specifics- ->
+      </geometry>
+    </visual-->
+  </link>
+
+  <!-- Fix frame of reference through solidworks measurement and manual calibration, by LYW, 2019/11/18 -->
+  <joint name="Link111_shift" type="fixed">
+    <origin xyz="-0.00850 0.0180 0.0404" rpy="1.5707 -1.5707 0" /> <!--0.00985 0.02039 0.0404-->
+    <parent link="base" />
+    <child link="Link111" />
+  </joint>
+
   <link
     name="Link111">
     <inertial>
