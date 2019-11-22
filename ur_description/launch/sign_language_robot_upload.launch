@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+
+  <param name="robot_description" textfile="$(find ur_description)/urdf/ur5_robot_with_hands.urdf" />
+
+
+</launch>

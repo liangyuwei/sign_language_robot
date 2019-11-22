@@ -49,7 +49,7 @@
 
   <gazebo>
     <plugin filename="libgazebo_ros_control.so" name="ros_control">
-      <robotNamespace>dual_ur5_arm</robotNamespace>
+      <robotNamespace>sign_language_robot</robotNamespace>
       <!--robotSimType>gazebo_ros_control/DefaultRobotHWSim</robotSimType-->
     </plugin>
     <!--
@@ -758,27 +758,795 @@
 
 
 
-<!-- left hand part-->
-  <!-- Waiting for the left-hand's urdf model and the specifics of finger joints' coupling. -->
-<!-- above is the part of left hand -->  
-
-
-<!-- right gripper part-->
-<joint name="right_gripper_joint" type="fixed">
-    <parent link="right_ee_link" />
-    <child link="base" />
+<!-- LEFT HAND part-->
+<joint name="left_gripper_joint" type="fixed">
+    <parent link="left_ee_link" />
+    <child link="left_hand_base" />
     <origin rpy="3.1415 -1.5707 0" xyz="0 0 0"/>
 </joint>
 
+ <!-- Create a new base frame for convenience, by LYW, 2019/11/22 -->
+  <link name="left_hand_base">
+    <!-- Add visual tag for calibration -->
+    <!--visual>
+      <origin xyz="0 0 -0.025" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.0279" length="0.05" /> <!- - diameter is 55.8 mm according to the technical specifics- ->
+      </geometry>
+    </visual-->
+  </link>
+
+  <!-- Fix frame of reference through solidworks measurement and manual calibration, by LYW, 2019/11/22 -->
+  <joint name="link111_shift" type="fixed">
+    <origin xyz="-0.00850 -0.0190 0.0404" rpy="3.1415 0 -1.5707" /> <!--0.00985 0.02039 0.0404-->
+    <parent link="left_hand_base" />
+    <child link="link111" />
+  </joint>
+
+
+  <link
+    name="link111">
+    <inertial>
+      <origin
+        xyz="-0.0211971496867713 -0.00980607468332059 -0.0291539210995797"
+        rpy="0 0 0" />
+      <mass
+        value="0.226288892912552" />
+      <inertia
+        ixx="0.00025807950453196"
+        ixy="-4.83159310640912E-06"
+        ixz="7.9714751769554E-07"
+        iyy="0.000358691949590454"
+        iyz="3.73467589382574E-06"
+        izz="0.000161017137787831" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link111.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.827450980392157 0.83921568627451 0.827450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link111.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="link1">
+    <inertial>
+      <origin
+        xyz="0.0107728972114067 0.00213787716764519 -1.04416311069722E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.00330630285835291" />
+      <inertia
+        ixx="1.55839473420917E-07"
+        ixy="-3.78961194376192E-08"
+        ixz="-3.77173039190185E-12"
+        iyy="5.30393024372046E-07"
+        iyz="-7.4062368302925E-13"
+        izz="5.55170037339627E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link1.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link1"
+    type="revolute">
+    <origin
+      xyz="0.0068852 -0.0077547 -0.08206"
+      rpy="-1.4604 1.2485 -1.466" />
+    <parent
+      link="link111" />
+    <child
+      link="link1" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link11">
+    <inertial>
+      <origin
+        xyz="0.0190179143887291 0.00563447080965412 1.42999243835096E-08"
+        rpy="0 0 0" />
+      <mass
+        value="0.00453366979354947" />
+      <inertia
+        ixx="8.56969401817861E-08"
+        ixy="-3.6550236316683E-08"
+        ixz="1.43626963228685E-12"
+        iyy="7.5823333421962E-07"
+        iyz="7.37235171817566E-13"
+        izz="7.68832168975162E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link11.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link11.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link11"
+    type="revolute">
+    <origin
+      xyz="0.032132 0 0"
+      rpy="-5.2101E-10 -2.8366E-11 -0.05439" />
+    <parent
+      link="link1" />
+    <child
+      link="link11" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link2">
+    <inertial>
+      <origin
+        xyz="0.0107729848426235 0.00213783905889497 -1.15186638033338E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.00330621735666597" />
+      <inertia
+        ixx="1.55837836898236E-07"
+        ixy="-3.78957279466946E-08"
+        ixz="-4.46779108562076E-12"
+        iyy="5.30385092299547E-07"
+        iyz="-1.06162548544094E-12"
+        izz="5.5516472017082E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link2.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link2"
+    type="revolute">
+    <origin
+      xyz="-0.012436 -0.0077547 -0.082423"
+      rpy="-1.5708 1.4093 -1.5708" />
+    <parent
+      link="link111" />
+    <child
+      link="link2" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link22">
+    <inertial>
+      <origin
+        xyz="0.0190179449257988 0.00563447974623821 1.95695375043714E-08"
+        rpy="0 0 0" />
+      <mass
+        value="0.00453367027223764" />
+      <inertia
+        ixx="8.56969657851684E-08"
+        ixy="-3.655092334419E-08"
+        ixz="1.59947670219807E-12"
+        iyy="7.58233058731142E-07"
+        iyz="6.82745605693632E-13"
+        izz="7.68832058388577E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link22.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link22.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link22"
+    type="revolute">
+    <origin
+      xyz="0.032132 0 0"
+      rpy="-5.0853E-10 -1.1686E-10 -0.22588" />
+    <parent
+      link="link2" />
+    <child
+      link="link22" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link3">
+    <inertial>
+      <origin
+        xyz="0.0107730870011274 0.00213783984115729 -1.4434440405442E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.00330616517571661" />
+      <inertia
+        ixx="1.55836709865158E-07"
+        ixy="-3.78959914486162E-08"
+        ixz="-4.87563626733582E-12"
+        iyy="5.30380857158255E-07"
+        iyz="-1.32040927550488E-12"
+        izz="5.55162479884557E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link3.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link3"
+    type="revolute">
+    <origin
+      xyz="-0.031665 -0.0077547 -0.08192"
+      rpy="-1.9857 1.4406 -1.9826" />
+    <parent
+      link="link111" />
+    <child
+      link="link3" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link33">
+    <inertial>
+      <origin
+        xyz="0.0190179173374263 0.00563447812355383 2.17778843153438E-08"
+        rpy="0 0 0" />
+      <mass
+        value="0.00453366946672897" />
+      <inertia
+        ixx="8.56969954123567E-08"
+        ixy="-3.65502686172672E-08"
+        ixz="1.914131820864E-12"
+        iyy="7.58232390943582E-07"
+        iyz="6.102905747127E-13"
+        izz="7.68831206632801E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link33.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link33.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link33"
+    type="revolute">
+    <origin
+      xyz="0.032132 0 0"
+      rpy="-5.0314E-10 -1.3824E-10 -0.26815" />
+    <parent
+      link="link3" />
+    <child
+      link="link33" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link4">
+    <inertial>
+      <origin
+        xyz="0.0107728838996999 0.00213787812202321 -1.47685512180695E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.00330630460851054" />
+      <inertia
+        ixx="1.55839834881808E-07"
+        ixy="-3.78966413485388E-08"
+        ixz="-5.46215465743034E-12"
+        iyy="5.3039377562325E-07"
+        iyz="-1.57695349654339E-12"
+        izz="5.55171477054147E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link4.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link4"
+    type="revolute">
+    <origin
+      xyz="-0.050841 -0.0077547 -0.08041"
+      rpy="-2.0186 1.327 -2.007" />
+    <parent
+      link="link111" />
+    <child
+      link="link4" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link44">
+    <inertial>
+      <origin
+        xyz="0.0155924434001128 0.00555617869155978 -1.05483765444614E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.00356888715893842" />
+      <inertia
+        ixx="6.67772840408144E-08"
+        ixy="-2.70391833548355E-08"
+        ixz="-3.26434716125092E-12"
+        iyy="4.33419425101179E-07"
+        iyz="-9.18888508148905E-13"
+        izz="4.39763878420807E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link44.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="1 1 1 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link44.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link44"
+    type="revolute">
+    <origin
+      xyz="0.032132 0 0"
+      rpy="-5.1334E-10 -9.3483E-11 -0.18013" />
+    <parent
+      link="link4" />
+    <child
+      link="link44" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-2"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link5">
+    <inertial>
+      <origin
+        xyz="-0.00433166459951286 0.000656790554769388 -0.000486675184306562"
+        rpy="0 0 0" />
+      <mass
+        value="0.00487393910083768" />
+      <inertia
+        ixx="1.30409345970056E-07"
+        ixy="8.91998160729811E-09"
+        ixz="1.76607007575074E-08"
+        iyy="1.7058032498292E-07"
+        iyz="-1.02771404037179E-09"
+        izz="2.11710622768954E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link5.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.827450980392157 0.83921568627451 0.827450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link5"
+    type="revolute">
+    <origin
+      xyz="0.0010638 -0.025 -0.0059231"
+      rpy="-1.5708 -2.455E-15 2.3555" />
+    <parent
+      link="link111" />
+    <child
+      link="link5" />
+    <axis
+      xyz="0 1 0" />
+    <limit
+      lower="0"
+      upper="1"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link51">
+    <inertial>
+      <origin
+        xyz="0.0261736471642429 0.00353664240332538 -7.35522423800372E-08"
+        rpy="0 0 0" />
+      <mass
+        value="0.00652741708580189" />
+      <inertia
+        ixx="8.93663478287007E-07"
+        ixy="6.28882108303181E-08"
+        ixz="-3.67789097092471E-11"
+        iyy="2.37350868720489E-06"
+        iyz="8.30149702319962E-12"
+        izz="2.7502170955408E-06" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link51.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link51.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link51"
+    type="revolute">
+    <origin
+      xyz="-0.0115 -0.00075 0"
+      rpy="-1.4988E-15 -5.5511E-17 1.8988" />
+    <parent
+      link="link5" />
+    <child
+      link="link51" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="0"
+      upper="1"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link52">
+    <inertial>
+      <origin
+        xyz="-0.00731595394729753 -0.00552216810488045 1.31327036717588E-07"
+        rpy="0 0 0" />
+      <mass
+        value="0.00226947954597765" />
+      <inertia
+        ixx="1.72809908882086E-07"
+        ixy="4.52296648937248E-08"
+        ixz="-3.78399670014347E-12"
+        iyy="2.78044490402836E-07"
+        iyz="1.5225345233066E-13"
+        izz="2.99628844053565E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link52.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.827450980392157 0.83921568627451 0.827450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link52.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link52"
+    type="revolute">
+    <origin
+      xyz="0.056001 0 0"
+      rpy="-1.3323E-15 -2.7756E-17 -3.0416" />
+    <parent
+      link="link51" />
+    <child
+      link="link52" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+  <link
+    name="link53">
+    <inertial>
+      <origin
+        xyz="0.0104629360450728 0.00192820283562468 -3.38351464429509E-06"
+        rpy="0 0 0" />
+      <mass
+        value="0.00330869122519449" />
+      <inertia
+        ixx="8.21794532311926E-08"
+        ixy="1.14153196955289E-08"
+        ixz="-1.49218673904795E-10"
+        iyy="1.90093466236439E-07"
+        iyz="3.77060351806357E-11"
+        izz="1.96169077984371E-07" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link53.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.827450980392157 0.83921568627451 0.827450980392157 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://inspire_hand_description/meshes/left/link53.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="link53"
+    type="revolute">
+    <origin
+      xyz="-0.022653 0 0"
+      rpy="1.2712E-14 -9.7145E-17 2.856" />
+    <parent
+      link="link52" />
+    <child
+      link="link53" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      lower="-1"
+      upper="0"
+      effort="1"
+      velocity="1" />
+  </joint>
+
+<!-- above is the part of LEFT HAND -->  
+
+
+
+<!-- RIGHT HAND part-->
+<joint name="right_gripper_joint" type="fixed">
+    <parent link="right_ee_link" />
+    <child link="right_hand_base" />
+    <origin rpy="3.1415 -1.5707 0" xyz="0 0 0"/>
+</joint>
 
   <!-- Create a new base frame for convenience, by LYW, 2019/11/18 -->
-  <link name="base" />
-
+  <link name="right_hand_base">
+    <!-- Add visual tag for calibration -->
+    <!--visual>
+      <origin xyz="0 0 -0.025" rpy="0 0 0" />
+      <geometry>
+        <cylinder radius="0.0279" length="0.05" /> <!- - diameter is 55.8 mm according to the technical specifics- ->
+      </geometry>
+    </visual-->
+  </link>
 
   <!-- Fix frame of reference through solidworks measurement and manual calibration, by LYW, 2019/11/18 -->
   <joint name="Link111_shift" type="fixed">
     <origin xyz="-0.00850 0.0180 0.0404" rpy="1.5707 -1.5707 0" /> <!--0.00985 0.02039 0.0404-->
-    <parent link="base" />
+    <parent link="right_hand_base" />
     <child link="Link111" />
   </joint>
 
@@ -804,7 +1572,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link111.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link111.STL" />
       </geometry>
       <material
         name="">
@@ -818,7 +1586,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link111.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link111.STL" />
       </geometry>
     </collision>
   </link>
@@ -844,7 +1612,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link1.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link1.STL" />
       </geometry>
       <material
         name="">
@@ -858,7 +1626,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link1.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link1.STL" />
       </geometry>
     </collision>
   </link>
@@ -902,7 +1670,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link11.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link11.STL" />
       </geometry>
       <material
         name="">
@@ -916,7 +1684,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link11.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link11.STL" />
       </geometry>
     </collision>
   </link>
@@ -960,7 +1728,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link2.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link2.STL" />
       </geometry>
       <material
         name="">
@@ -974,7 +1742,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link2.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link2.STL" />
       </geometry>
     </collision>
   </link>
@@ -1018,7 +1786,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link22.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link22.STL" />
       </geometry>
       <material
         name="">
@@ -1032,7 +1800,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link22.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link22.STL" />
       </geometry>
     </collision>
   </link>
@@ -1076,7 +1844,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link3.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link3.STL" />
       </geometry>
       <material
         name="">
@@ -1090,7 +1858,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link3.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link3.STL" />
       </geometry>
     </collision>
   </link>
@@ -1134,7 +1902,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link33.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link33.STL" />
       </geometry>
       <material
         name="">
@@ -1148,7 +1916,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link33.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link33.STL" />
       </geometry>
     </collision>
   </link>
@@ -1192,7 +1960,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link4.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link4.STL" />
       </geometry>
       <material
         name="">
@@ -1206,7 +1974,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link4.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link4.STL" />
       </geometry>
     </collision>
   </link>
@@ -1250,7 +2018,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link44.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link44.STL" />
       </geometry>
       <material
         name="">
@@ -1264,7 +2032,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link44.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link44.STL" />
       </geometry>
     </collision>
   </link>
@@ -1308,7 +2076,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link5.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link5.STL" />
       </geometry>
       <material
         name="">
@@ -1322,7 +2090,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link5.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link5.STL" />
       </geometry>
     </collision>
   </link>
@@ -1366,7 +2134,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link51.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link51.STL" />
       </geometry>
       <material
         name="">
@@ -1380,7 +2148,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link51.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link51.STL" />
       </geometry>
     </collision>
   </link>
@@ -1424,7 +2192,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link52.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link52.STL" />
       </geometry>
       <material
         name="">
@@ -1438,7 +2206,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link52.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link52.STL" />
       </geometry>
     </collision>
   </link>
@@ -1482,7 +2250,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link53.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link53.STL" />
       </geometry>
       <material
         name="">
@@ -1496,7 +2264,7 @@
         rpy="0 0 0" />
       <geometry>
         <mesh
-          filename="package://inspire_hand_description/meshes/Link53.STL" />
+          filename="package://inspire_hand_description/meshes/right/Link53.STL" />
       </geometry>
     </collision>
   </link>
@@ -1518,7 +2286,280 @@
       effort="1"
       velocity="1" />
   </joint>
-<!-- above is the part of gripper -->  
+
+  
+<!-- above is the part of RIGHT HAND -->  
+
+
+
+<!-- Transmissions for BOTH HANDs -->
+<!-- Trans for LEFT HAND-->
+<transmission name="link1_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link1">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link1_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link11_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link11">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link11_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link2_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link2">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link2_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link22_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link22">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link22_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link3_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link3">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link3_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link33_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link33">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link33_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link4_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link4">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link4_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link44_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link44">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link44_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link5_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link5">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link5_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link51_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link51">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link51_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link52_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link52">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link52_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="link53_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="link53">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="link53_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<!-- Trans for RIGHT HAND-->
+<transmission name="Link1_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link1">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link1_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link11_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link11">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link11_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link2_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link2">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link2_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link22_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link22">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link22_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link3_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link3">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link3_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link33_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link33">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link33_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link4_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link4">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link4_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link44_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link44">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link44_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link5_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link5">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link5_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link51_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link51">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link51_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link52_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link52">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link52_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<transmission name="Link53_trans">
+  <type>transmission_interface/SimpleTransmission</type>
+  <joint name="Link53">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+  </joint>
+  <actuator name="Link53_motor">
+    <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+    <mechanicalReduction>1</mechanicalReduction>
+  </actuator>
+</transmission>
+
+<!-- above is the part of TRANSMISSION FOR BOTH HANDS-->
 
 
 </robot>

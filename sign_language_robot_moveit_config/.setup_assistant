@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: ur_description
+    relative_path: urdf/ur5_robot_with_hands.urdf
+    xacro_args: "--inorder "
+  SRDF:
+    relative_path: config/ur5.srdf
+  CONFIG:
+    author_name: Yuwei Liang
+    author_email: lyw.liangyuwei@gmail.com
+    generated_timestamp: 1574419193

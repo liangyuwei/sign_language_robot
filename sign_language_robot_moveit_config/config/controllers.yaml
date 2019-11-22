@@ -1,0 +1,58 @@
+controller_manager_ns: controller_manager
+controller_list:
+  - name: sign_language_robot/left_arm_joint_controller
+    action_ns: follow_joint_trajectory
+    type: FollowJointTrajectory
+    joints:
+      - left_shoulder_pan_joint
+      - left_shoulder_lift_joint
+      - left_elbow_joint
+      - left_wrist_1_joint
+      - left_wrist_2_joint
+      - left_wrist_3_joint
+
+  - name: sign_language_robot/right_arm_joint_controller
+    action_ns: follow_joint_trajectory
+    type: FollowJointTrajectory
+    joints:
+      - right_shoulder_pan_joint
+      - right_shoulder_lift_joint
+      - right_elbow_joint
+      - right_wrist_1_joint
+      - right_wrist_2_joint
+      - right_wrist_3_joint
+
+  - name: sign_language_robot/left_hand_controller
+    action_ns: follow_joint_trajectory #gripper_cmd #  gripper_cmd #follow_joint_trajectory # 
+    type: FollowJointTrajectory #GripperCommand #GripperCommand # FollowJointTrajectory # FollowJointTrajectory
+    joints:
+      - link1
+      - link11
+      - link2
+      - link22
+      - link3
+      - link33
+      - link4
+      - link44
+      - link5
+      - link51
+      - link52
+      - link53
+    
+  - name: sign_language_robot/right_hand_controller
+    action_ns: follow_joint_trajectory #gripper_cmd #  gripper_cmd #follow_joint_trajectory # 
+    type: FollowJointTrajectory #GripperCommand #GripperCommand # FollowJointTrajectory # FollowJointTrajectory
+    joints:
+      - Link1
+      - Link11
+      - Link2
+      - Link22
+      - Link3
+      - Link33
+      - Link4
+      - Link44
+      - Link5
+      - Link51
+      - Link52
+      - Link53
+

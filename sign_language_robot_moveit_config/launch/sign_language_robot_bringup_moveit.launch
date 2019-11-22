@@ -1,0 +1,35 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- Launch Gazebo -->
+  <include file="$(find ur_gazebo)/launch/sign_language_robot_world.launch" />
+
+  <!-- Launch RViz with MoveIt -->
+  <include file="$(find sign_language_robot_moveit_config)/launch/demo.launch" />
+
+  <!-- Start a service to add Time Parameterization -->
+  <!--node name="start_TOTG_service" pkg="raw_totg" type="add_time_optimal_parameterization_server" output="screen"/-->
+
+  <!-- Start a service to apply Forward Kinematics using MoveIt RobotState -->
+  <!--node name="apply_fk_service" pkg="dual_ur5_control" type="apply_fk_server" output="screen"/-->
+
+  <!-- Start a service to get minimum time from TOTG -->
+  <!--node name="get_min_time_service" pkg="raw_totg" type="get_minimum_time_server" output="screen"/-->
+
+  <!-- Start TOPP service -->
+  <!--node name="start_TOPP_service" pkg="dual_ur5_control" type="TOPP_service.py" output="screen"/-->
+
+  <!-- Start TOPP-RA service -->
+  <!--node name="start_TOPPRA_service" pkg="dual_ur5_control" type="TOPPRA_service.py" output="screen"/-->
+
+  <!-- Start a service to compute cartesian path using C++ API -->
+  <!--node name="compute_cartesian_path_server" pkg="dual_ur5_control" type="compute_cartesian_path_server" output="screen" /-->
+
+  <!-- Load moveit controller manager -->
+  <include file="$(find sign_language_robot_moveit_config)/launch/sign_language_robot_moveit_controller_manager.launch" />
+
+
+</launch>
+
+

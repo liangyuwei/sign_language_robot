@@ -1,0 +1,152 @@
+sign_language_robot:
+
+  # common
+  joint_state_controller:
+    type: joint_state_controller/JointStateController
+    publish_rate: 50  
+
+  # arms
+  left_arm_joint_controller:
+    type: position_controllers/JointTrajectoryController
+    joints:
+      - left_shoulder_pan_joint
+      - left_shoulder_lift_joint
+      - left_elbow_joint
+      - left_wrist_1_joint
+      - left_wrist_2_joint
+      - left_wrist_3_joint
+    constraints:
+      goal_time: 0.6
+      stopped_velocity_tolerance: 0.05
+      left_shoulder_pan_joint: {trajectory: 0.1, goal: 0.1}
+      left_shoulder_lift_joint: {trajectory: 0.1, goal: 0.1}
+      left_elbow_joint: {trajectory: 0.1, goal: 0.1}
+      left_wrist_1_joint: {trajectory: 0.1, goal: 0.1}
+      left_wrist_2_joint: {trajectory: 0.1, goal: 0.1}
+      left_wrist_3_joint: {trajectory: 0.1, goal: 0.1}
+    stop_trajectory_duration: 0.5
+    state_publish_rate:  25
+    action_monitor_rate: 10
+
+  right_arm_joint_controller:
+    type: position_controllers/JointTrajectoryController
+    joints:
+      - right_shoulder_pan_joint
+      - right_shoulder_lift_joint
+      - right_elbow_joint
+      - right_wrist_1_joint
+      - right_wrist_2_joint
+      - right_wrist_3_joint
+    gains:
+      right_shoulder_pan_joint: {p: 10000.0, d: 100.0, i: 5, i_clamp: 1}
+      right_shoulder_lift_joint: {p: 10000.0, d: 100.0, i: 5, i_clamp: 1}
+      right_elbow_joint: {p: 10000.0, d: 100.0, i: 5, i_clamp: 1}
+      right_wrist_1_joint: {p: 10000.0, d: 100.0, i: 5, i_clamp: 1}
+      right_wrist_2_joint: {p: 10000.0, d: 100.0, i: 5, i_clamp: 1}
+      right_wrist_3_joint: {p: 10000.0, d: 100.0, i: 5, i_clamp: 1}
+    constraints:
+      goal_time: 0.6
+      stopped_velocity_tolerance: 0.05
+      right_shoulder_pan_joint: {trajectory: 0.1, goal: 0.1}
+      right_shoulder_lift_joint: {trajectory: 0.1, goal: 0.1}
+      right_elbow_joint: {trajectory: 0.1, goal: 0.1}
+      right_wrist_1_joint: {trajectory: 0.1, goal: 0.1}
+      right_wrist_2_joint: {trajectory: 0.1, goal: 0.1}
+      right_wrist_3_joint: {trajectory: 0.1, goal: 0.1}
+    stop_trajectory_duration: 0.5
+    state_publish_rate:  25
+    action_monitor_rate: 10
+
+  # hands
+  left_hand_controller:
+    type: position_controllers/JointTrajectoryController
+    joints:
+      - link1
+      - link11
+      - link2
+      - link22
+      - link3
+      - link33
+      - link4
+      - link44
+      - link5
+      - link51
+      - link52
+      - link53
+    constraints:
+      goal_time: 0.6
+      stopped_velocity_tolerance: 0.05
+      link1: {trajectory: 0.1, goal: 0.1}
+      link11: {trajectory: 0.1, goal: 0.1}
+      link2: {trajectory: 0.1, goal: 0.1}
+      link22: {trajectory: 0.1, goal: 0.1}
+      link3: {trajectory: 0.1, goal: 0.1}
+      link33: {trajectory: 0.1, goal: 0.1}
+      link4: {trajectory: 0.1, goal: 0.1}
+      link44: {trajectory: 0.1, goal: 0.1}
+      link5: {trajectory: 0.1, goal: 0.1}
+      link51: {trajectory: 0.1, goal: 0.1}
+      link52: {trajectory: 0.1, goal: 0.1}
+      link53: {trajectory: 0.1, goal: 0.1}
+    gains:
+      link1: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link11: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link2: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link22: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link3: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link33: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link4: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link44: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link5: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link51: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link52: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      link53: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+    stop_trajectory_duratin: 0.5
+
+  right_hand_controller:
+    type: position_controllers/JointTrajectoryController
+    joints:
+      - Link1
+      - Link11
+      - Link2
+      - Link22
+      - Link3
+      - Link33
+      - Link4
+      - Link44
+      - Link5
+      - Link51
+      - Link52
+      - Link53
+    constraints:
+      goal_time: 0.6
+      stopped_velocity_tolerance: 0.05
+      Link1: {trajectory: 0.1, goal: 0.1}
+      Link11: {trajectory: 0.1, goal: 0.1}
+      Link2: {trajectory: 0.1, goal: 0.1}
+      Link22: {trajectory: 0.1, goal: 0.1}
+      Link3: {trajectory: 0.1, goal: 0.1}
+      Link33: {trajectory: 0.1, goal: 0.1}
+      Link4: {trajectory: 0.1, goal: 0.1}
+      Link44: {trajectory: 0.1, goal: 0.1}
+      Link5: {trajectory: 0.1, goal: 0.1}
+      Link51: {trajectory: 0.1, goal: 0.1}
+      Link52: {trajectory: 0.1, goal: 0.1}
+      Link53: {trajectory: 0.1, goal: 0.1}
+    gains:
+      Link1: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link11: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link2: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link22: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link3: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link33: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link4: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link44: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link5: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link51: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link52: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+      Link53: {p: 10000, d: 100.0, i: 5, i_clamp: 1}
+    stop_trajectory_duratin: 0.5
+
+
+

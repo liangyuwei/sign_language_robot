@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<launch>
+
+  <arg name="limited" default="false"  doc="If true, limits joint range [-PI, PI] on all joints." />
+  <arg name="paused" default="false" doc="Starts gazebo in paused mode" />
+  <arg name="gui" default="true" doc="Starts gazebo gui" />
+  
+  <!-- startup simulated world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" default="worlds/empty.world"/>
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="gui" value="$(arg gui)"/>
+    <!--arg name="physics" value="ode" /-->
+  </include>
+
+  <!-- send robot urdf to param server -->
+  <include file="$(find ur_description)/launch/sign_language_robot_upload.launch" />
+
+  <!-- spawn robot in gazebo -->
+  <node name="spawn_gazebo_model" pkg="gazebo_ros" type="spawn_model" args="-urdf -param robot_description -model sign_language_robot" respawn="false" output="screen" />
+
+  <!-- Load controller configuration YAML and start controllers -->
+  <rosparam file="$(find ur_gazebo)/controller/sign_language_robot_controller.yaml" command="load"/>
+  <node name="sign_language_robot_controller_manager" pkg="controller_manager" type="controller_manager" ns="sign_language_robot" args="spawn joint_state_controller left_arm_joint_controller right_arm_joint_controller left_hand_controller right_hand_controller" respawn="false" output="screen"/>
+
+
+</launch>

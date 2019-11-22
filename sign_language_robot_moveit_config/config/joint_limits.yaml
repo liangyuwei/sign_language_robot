@@ -1,0 +1,313 @@
+# joint_limits.yaml allows the dynamics properties specified in the URDF to be overwritten or augmented as needed
+# Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
+# Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits]
+joint_limits:
+
+  # Left arm's joint limits
+  left_shoulder_pan_joint: # offset: 0deg
+    has_position_limits: true
+    min_position: -6.28
+    max_position: 6.28 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  left_shoulder_lift_joint: # offset: -45deg
+    has_position_limits: true
+    min_position: -5.498
+    max_position: 7.069 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  left_elbow_joint: # offset: +90deg
+    has_position_limits: true
+    min_position: -7.854 # *** The actual range is +/- 360 deg, but +/- 180 deg is good for planning ***
+    max_position: 4.712 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  left_wrist_1_joint: # offset: 0deg
+    has_position_limits: true
+    min_position: -6.28
+    max_position: 6.28 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  left_wrist_2_joint: # offset: +90deg
+    has_position_limits: true
+    min_position: -7.854
+    max_position: 4.712 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  left_wrist_3_joint: # offset: 0deg
+    has_position_limits: true
+    min_position: -6.28
+    max_position: 6.28 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  # Right arm's joint limits
+  right_shoulder_pan_joint: # offset: +180deg
+    has_position_limits: true
+    min_position: -9.425
+    max_position: 3.142 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  right_shoulder_lift_joint: # offset: -135deg
+    has_position_limits: true
+    min_position: -3.927
+    max_position: 8.639 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  right_elbow_joint: # offset: -90deg
+    has_position_limits: true
+    min_position: -4.712
+    max_position:  7.854 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  right_wrist_1_joint: # offset: -180deg
+    has_position_limits: true
+    min_position: -3.141
+    max_position: 9.425 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  right_wrist_2_joint: # offset: -90deg
+    has_position_limits: true
+    min_position: -4.712
+    max_position: 7.854 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  right_wrist_3_joint: # offset: 0deg
+    has_position_limits: true
+    min_position: -6.28
+    max_position: 6.28 # newly added, checked with user manual by LYW, 2019/07/07
+    has_velocity_limits: true
+    max_velocity: 3.15 # velocity limits are all correct, checked with user manual by LYW, 2019/07/07
+    has_acceleration_limits: true
+    max_acceleration: 10.0
+
+  # Left hand's joint limits
+  link1:
+    has_position_limits: true
+    min_position: -1
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link11:
+    has_position_limits: true
+    min_position: -2
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link2:
+    has_position_limits: true
+    min_position: -1
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link22:
+    has_position_limits: true
+    min_position: -2
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link3:
+    has_position_limits: true
+    min_position: -1
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link33:
+    has_position_limits: true
+    min_position: -2
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link4:
+    has_position_limits: true
+    min_position: -1
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link44:
+    has_position_limits: true
+    min_position: -2
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link5:
+    has_position_limits: true
+    min_position: 0
+    max_position: 1
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link51:
+    has_position_limits: true
+    min_position: 0
+    max_position: 1
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link52:
+    has_position_limits: true
+    min_position: -1
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  link53:
+    has_position_limits: true
+    min_position: -1
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+
+  # Right hand's joint limits
+  Link1:
+    has_position_limits: true
+    min_position: -1.6
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link11:
+    has_position_limits: true
+    min_position: -1.7
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link2:
+    has_position_limits: true
+    min_position: -1.6
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link22:
+    has_position_limits: true
+    min_position: -1.7
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link3:
+    has_position_limits: true
+    min_position: -1.6
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link33:
+    has_position_limits: true
+    min_position: -1.7
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link4:
+    has_position_limits: true
+    min_position: -1.6
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link44:
+    has_position_limits: true
+    min_position: -1.7
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link5:
+    has_position_limits: true
+    min_position: -1
+    max_position: 0.3
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link51:
+    has_position_limits: true
+    min_position: 0
+    max_position: 0.4
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link52:
+    has_position_limits: true
+    min_position: -0.4
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+  Link53:
+    has_position_limits: true
+    min_position: -1
+    max_position: 0
+    has_velocity_limits: true
+    max_velocity: 1
+    has_acceleration_limits: false
+    max_acceleration: 0
+
+
+
