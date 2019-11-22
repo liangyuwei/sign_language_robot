@@ -61,7 +61,7 @@
 
 
     <!-- Added by LYW, 20:32 2019/11/22, for motion synchronization between Gazebo and RViz -->
-    <remap from="joint_states" to="sign_language_robot/joint_states"/>
+    <!--remap from="joint_states" to="sign_language_robot/joint_states"/-->
 
 
     <!-- Set the display variable, in case OpenGL code is used internally -->

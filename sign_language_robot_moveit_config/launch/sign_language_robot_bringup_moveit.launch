@@ -3,7 +3,7 @@
 <launch>
 
   <!-- Launch Gazebo -->
-  <include file="$(find ur_gazebo)/launch/sign_language_robot_world.launch" />
+  <!--include file="$(find ur_gazebo)/launch/sign_language_robot_world.launch" /-->
 
   <!-- Launch RViz with MoveIt -->
   <include file="$(find sign_language_robot_moveit_config)/launch/demo.launch" />
