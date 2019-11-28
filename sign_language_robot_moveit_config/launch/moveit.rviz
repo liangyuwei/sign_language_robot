@@ -5,7 +5,9 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /MotionPlanning1
+        - /MotionPlanning1/Scene Robot1
         - /MotionPlanning1/Planning Request1
+        - /MotionPlanning1/Planning Metrics1
         - /MotionPlanning1/Planned Path1
       Splitter Ratio: 0.742560029
     Tree Height: 421
@@ -624,7 +626,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 1.92692602
+      Distance: 1.92171383
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
@@ -639,10 +641,10 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.389796883
+      Pitch: 0.32979688
       Target Frame: world
       Value: XYOrbit (rviz)
-      Yaw: 6.24994946
+      Yaw: 6.20994854
     Saved: ~
 Window Geometry:
   Displays:
