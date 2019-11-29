@@ -19,9 +19,6 @@
 // Eigen
 #include <Eigen/Eigen>
 
-// others
-#include <moveit/geometric_shapes.h>
-
 
 // User defined constraints can also be specified to the PlanningScene
 /*
@@ -223,11 +220,12 @@ int main(int argc, char** argv)
   collision_detection::CollisionWorldFCL collision_world_fcl(world_ptr);
 
   // Add object to the world 
+  /*
   std::string id = "box1";   
   Eigen::Affine3d pose = Eigen::Affine3d::Identity();
   shapes::ShapeConstPtr shapre_ptr = new &shapes::BOX(0.5, 0.3, 0.6);
   world_ptr->addToObject(id, shapre_ptr, pose); // WorldPtr to the current planning scene
-
+  */
 
   // Call distanceRobot to compute collision with the environment
   collision_world_fcl.distanceRobot(distance_world_request, distance_world_result, collision_robot_fcl, current_state);
@@ -257,12 +255,13 @@ int main(int argc, char** argv)
   //std::vector<std::string> object_ids;
   //object_ids.push_back(collision_object.id);
   //planning_scene_interface.removeCollisionObjects(object_ids);
+  /*
   planning_scene_msg.world.collision_objects.clear();
   collision_object.operation = collision_object.REMOVE; // Remove operation
   planning_scene_msg.world.collision_objects.push_back(collision_object);
   srv.request.scene = planning_scene_msg;
   planning_scene_diff_client.call(srv);
-  
+  */
 
 
   // Shut down
