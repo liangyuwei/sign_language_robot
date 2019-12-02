@@ -13,6 +13,9 @@
   <build_depend>shape_msgs</build_depend>
   <build_depend>moveit_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
+  <build_depend>kdl_parser</build_depend>
+   
+  <exec_depend>kdl_parser</exec_depend>
   
 
   <buildtool_depend>catkin</buildtool_depend>

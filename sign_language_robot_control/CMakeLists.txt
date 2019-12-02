@@ -149,6 +149,10 @@ include_directories(
 add_executable(collision_computation src/collision_computation.cpp)
 target_link_libraries(collision_computation ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
+add_executable(ik_optim_with_kdl src/ik_optim_with_kdl.cpp)
+target_link_libraries(ik_optim_with_kdl ${catkin_LIBRARIES})
+
+
 #add_executable(use_nlopt src/use_nlopt.cpp)
 #target_link_libraries(use_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES})
 
