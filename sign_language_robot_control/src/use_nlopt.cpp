@@ -7,11 +7,32 @@ int count = 0;
 
 typedef struct {
 
-  std::vector<double> qlb, qub;
+  // Cost func related
   std::vector<double> q_previous;
+  std::vector<double> exp_elbow_pos(3);
+  KDL::FRAME exp_wrist_conf;
+  
+  // Constraint func related
+  std::vector<double> qlb, qub;
 
-} my_constraint_data;
+  // KDL FK related
+  KDL::ChainFkSolverPos_recursive fk_solver;
+  KDL::Chain kdl_chain;
+  unsigned int num_wrist_seg;
+  unsigned int num_elbow_seg;
 
+
+  
+
+} my_constraint_struct;
+
+
+typedef struct {
+
+  std::vector<double> elbow_pos(3);
+  KDL::Frame wrist_conf;
+
+} wrist_elbow_struct;
 
 
 // Loss function
@@ -24,18 +45,27 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
 
   // Get additional information by typecasting void* f_data(user-defined data)
-  //
-
+  my_constraint_struct *d = (my_constraint_struct *) f_data;
+  
 
   // Compute the configurations of elbow and wrist links
-  
+  unsigned int n = x.size();
+  KDL::JntArray q_in(n); // initialize a JntArray for KDL FK computation
+  for (unsigned int i = 0; i < n; ++i)
+  {
+    q_in(i) = x[i];
+  }
+  wrist_elbow_struct wrist_elbow_data; // initialize a struct for storing the elbow and wrist configurations
+  wrist_elbow_data = KDL_FK(f_data.fk_solver, q_in, f_data.num_wrist_seg, f_data.num_elbow_seg);
 
 
   // Calculate loss function
+  double cost;
+  exp_elbow_pos
+  exp_wrist_conf
 
 
-
-  // Compute gradient using CppAD
+  // Compute gradient using numeric differentiation
   // only compute gradient if not NULL(???)
   if(!grad.empty())
   {
@@ -44,6 +74,41 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
   return 
 
+}
+
+
+wrist_elbow_struct KDL_FK(KDL::ChainFkSolverPos_recursive fk_solver, KDL::JntArray q_in, unsigned int num_wrist_seg, unsigned int num_elbow_seg)
+{
+
+  // Compute the configurations of elbow and wrist
+  KDL::Frame elbow_cart_out, wrist_cart_out; // Output homogeneous transformation
+  int result;
+  result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg);
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+    return -1;
+  }
+  else{
+    ROS_INFO_STREAM("FK solver succeeded for elbow link.");
+  }
+  result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg);
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+    return -1;
+  }
+  else{
+    ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+  }
+
+
+  // Construct struct and return
+  wrist_elbow_struct wrist_elbow_data;
+  wrist_elbow_data.elbow_pos[0] = elbow_cart_out.p.data[0];
+  wrist_elbow_data.elbow_pos[1] = elbow_cart_out.p.data[1];
+  wrist_elbow_data.elbow_pos[2] = elbow_cart_out.p.data[2];
+  wrist_elbow_data.wrist_conf = wrist_cart_out;
+
+  return wrist_elbow_data;
 
 }
 
@@ -54,7 +119,7 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
                              void *f_data)
 {
   // m-dim vector-valued constraints, n-dim joints
-  my_constraint_data *d = (my_constraint_data *) data;
+  my_constraint_struct *d = (my_constraint_struct *) f_data;
 
 
   // Compute gradients of constraint functions(if non-NULL, it points to an array with the size of m*n; access through)
@@ -80,6 +145,8 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
 
 }
 
+double q_pos_constraint()
+
 
 
 int main(int argc, char **argv[])
@@ -92,9 +159,9 @@ int main(int argc, char **argv[])
   const unsigned int joint_value_dim = 6; 
   unsigned int num_datapoints = 1000;
 
-  my_constraint_data constraint_data;
-  constraint_data.qlb = {};
-  constraint_data.qub = {};
+  my_constraint_struct constraint_data;
+  constraint_data.qlb = {-6.28, -5.498, -7.854, -6.28, -7.854, -6.28};
+  constraint_data.qub = {6.28, 7.069, 4.712, 6.28, 4.712, 6.28};
 
 
   std::vector<double> x(joint_value_dim); // optimization variables, default initialized to zeros

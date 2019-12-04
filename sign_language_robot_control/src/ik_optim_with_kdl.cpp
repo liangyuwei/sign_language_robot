@@ -58,6 +58,12 @@ int main(int argc, char** argv){
   KDL::ChainFkSolverPos_recursive fk_solver(kdl_chain);
   KDL::JntArray q_in(kdl_chain.getNrOfJoints()); // Input joint angles
   KDL::SetToZero(q_in);
+  ROS_INFO_STREAM("Joint dimension is: " << kdl_chain.getNrOfJoints()); // 6 joints, 8 segments, checked!
+  ROS_INFO_STREAM("Joint angles:");
+  for (unsigned int i = 0; i < kdl_chain.getNrOfJoints(); ++i)
+  {
+    ROS_INFO("%f ", q_in(i));
+  }
   // q_in(i) = xx, assignment
   KDL::Frame elbow_cart_out, wrist_cart_out; // Output homogeneous transformation
   int result;

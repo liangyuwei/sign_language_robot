@@ -8,6 +8,7 @@ add_compile_options(-std=c++11)
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIRS})
 
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   moveit_ros_planning_interface
@@ -152,8 +153,9 @@ target_link_libraries(collision_computation ${catkin_LIBRARIES} ${Boost_LIBRARIE
 add_executable(ik_optim_with_kdl src/ik_optim_with_kdl.cpp)
 target_link_libraries(ik_optim_with_kdl ${catkin_LIBRARIES})
 
-add_executable(use_nlopt src/use_nlopt.cpp)
-target_link_libraries(use_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES})
+#add_executable(use_nlopt src/use_nlopt.cpp)
+#target_link_libraries(use_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES})
+
 
 
 ## Rename C++ executable without prefix
