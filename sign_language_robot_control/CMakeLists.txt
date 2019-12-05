@@ -9,6 +9,10 @@ find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIRS})
 
 
+find_package(HDF5 REQUIRED COMPONENTS C CXX HL) # this works...
+include_directories(${HDF5_INCLUDE_DIRS})
+
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   moveit_ros_planning_interface
@@ -17,7 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
   shape_msgs
   moveit_msgs	
   geometry_msgs
-  nlopt
+  NLopt # mind the capital
 )
 
 include_directories(${catkin_INCLUDE_DIRS})
@@ -154,7 +158,11 @@ add_executable(ik_optim_with_kdl src/ik_optim_with_kdl.cpp)
 target_link_libraries(ik_optim_with_kdl ${catkin_LIBRARIES})
 
 add_executable(use_nlopt src/use_nlopt.cpp)
-target_link_libraries(use_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES})
+target_link_libraries(use_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+
+
+add_executable(use_hdf5 src/use_hdf5.cpp)
+target_link_libraries(use_hdf5 ${catkin_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 
 
