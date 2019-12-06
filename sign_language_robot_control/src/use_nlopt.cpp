@@ -389,6 +389,8 @@ int main(int argc, char **argv)
   std::vector<std::vector<double>> read_wrist_elbow_traj = read_h5(in_file_name, in_dataset_name); 
   // using read_h5() does not need to specify the size!!!
   // elbow pos(3) + wrist pos(3) + wrist rot(9) = 15-dim
+
+  // display a few examples???
   
 
   // Parameters setting
