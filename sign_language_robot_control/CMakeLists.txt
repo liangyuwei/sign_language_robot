@@ -12,6 +12,7 @@ include_directories(${EIGEN3_INCLUDE_DIRS})
 find_package(HDF5 REQUIRED COMPONENTS C CXX HL) # this works...
 include_directories(${HDF5_INCLUDE_DIRS})
 
+find_package(NLopt REQUIRED)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp
@@ -21,7 +22,6 @@ find_package(catkin REQUIRED COMPONENTS
   shape_msgs
   moveit_msgs	
   geometry_msgs
-  NLopt # mind the capital
 )
 
 include_directories(${catkin_INCLUDE_DIRS})
@@ -165,8 +165,8 @@ target_link_libraries(use_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_
 add_executable(use_hdf5 src/use_hdf5.cpp)
 target_link_libraries(use_hdf5 ${catkin_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
-add_executable(generate_fake_elbow_wrist_path src/generate_fake_elbow_wrist_path.cpp)
-target_link_libraries(generate_fake_elbow_wrist_path ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+#add_executable(generate_fake_elbow_wrist_path src/generate_fake_elbow_wrist_path.cpp)
+#target_link_libraries(generate_fake_elbow_wrist_path ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 
 ## Rename C++ executable without prefix
