@@ -89,19 +89,26 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
   Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
   Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
   Matrix3d wrist_ori_cur = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out.M.data, 3, 3); 
-  double cost = 50.0 * (fdata->elbow_pos_goal - elbow_pos_cur).norm() 
-              + 1000.0 * (fdata->wrist_pos_goal - wrist_pos_cur).norm() \
-              + 1000.0 * std::fabs( std::acos (( (fdata->wrist_ori_goal * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
+  double cost = 1.0 * (fdata->elbow_pos_goal - elbow_pos_cur).norm() 
+              + 20.0 * (fdata->wrist_pos_goal - wrist_pos_cur).norm() \
+              + 10.0 * std::fabs( std::acos (( (fdata->wrist_ori_goal * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
   if (!first_iter)
-    cost += 10.0 * (q_cur - fdata->q_prev).norm();
+    cost += 0.5 * (q_cur - fdata->q_prev).norm();
+
+  // Display for debug
   std::cout << "Cost func structure: " << std::endl
             << "elbow pos err = " << (fdata->elbow_pos_goal - elbow_pos_cur).norm() << std::endl
             << "wrist pos err = " << (fdata->wrist_pos_goal - wrist_pos_cur).norm() << std::endl
             << "wrist ori err = " << std::fabs( std::acos (( (fdata->wrist_ori_goal * wrist_ori_cur.transpose()).trace() - 1) / 2.0)) << std::endl
             << "smoothness err = " << (first_iter? 0 : (q_cur - fdata->q_prev).squaredNorm()) << std::endl;
+  std::cout << "Total cost: " << cost << std::endl;
+  //std::cout << "During evaluation, q_prev = " << (fdata->q_prev) << std::endl; // checked
+
 
   // Return cost function value
   return cost;
+
+
 }
 
 
@@ -162,7 +169,7 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
   // Counter information
   ++count;
-  std::cout << "Evaluation " << count << std::endl;
+  //std::cout << "Evaluation " << count << std::endl;
 
 
   // Get additional information by typecasting void* f_data(user-defined data)
@@ -185,7 +192,7 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
   // only compute gradient if not NULL
   if(!grad.empty())
   {
-    double eps = 0.1;
+    double eps = 0.001;
     Matrix<double, 6, 1> q_tmp;
     double cost1, cost2;
     for (unsigned int i = 0; i < q_tmp.size(); ++i)
@@ -392,7 +399,8 @@ int main(int argc, char **argv)
 {
 
   // Input Cartesian trajectories
-  const unsigned int joint_value_dim = 6; 
+  const unsigned int joint_value_dim = 6;   
+  std::vector<double> x(joint_value_dim);
   const std::string in_file_name = "fake_elbow_wrist_path_1.h5";
   const std::string in_dataset_name = "fake_path_1";
   std::vector<std::vector<double>> read_wrist_elbow_traj = read_h5(in_file_name, in_dataset_name); 
@@ -415,14 +423,14 @@ int main(int argc, char **argv)
   // Parameters setting
   std::vector<double> qlb = {-1.0, -1.0, -1.0, -1.57, -1.57, -1.57};//{-6.28, -5.498, -7.854, -6.28, -7.854, -6.28};
   std::vector<double> qub = {1.0, 1.0, 1.0, 1.57, 1.57, 1.57};//{6.28, 7.069, 4.712, 6.28, 4.712, 6.28};
-  std::vector<double> x(joint_value_dim);
+  //std::vector<double> x(joint_value_dim);
   double minf;
   double tol = 1e-4;
   double stopval = 1e-8;
 
 
   // Set up KDL(get solver, wrist ID and elbow ID)
-  my_constraint_struct constraint_data;
+  my_constraint_struct constraint_data; 
   setup_kdl(constraint_data); // set IDs, discard the solver handle
 
   //std::cout << "At Main func, before set up optimizer." << std::endl;
@@ -440,13 +448,13 @@ int main(int argc, char **argv)
 
   opt.set_lower_bounds(qlb); // set lower bounds
   opt.set_upper_bounds(qub); // set upper bounds
-  opt.set_stopval(stopval); // stop value
-  opt.set_ftol_rel(1e-12); // objective function value changes by less than `tol` multiplied by the absolute value of the function value
-  opt.set_ftol_abs(1e-12); // objective function value changes by less than `tol`
-  //opt.set_xtol_rel(1e-12); // optimization parameters' magnitude changes by less than `tol` multiplied by the current magnitude(can set weights for each dimension)
-  //opt.set_xtol_abs(1e-12); // optimization parameters' magnitude changes by less than `tol`
-  opt.set_maxeval(100); // maximum evaluation
-  opt.set_maxtime(3.0); // maximum time
+  opt.set_stopval(1e-6); // stop value
+  opt.set_ftol_rel(1e-8); // objective function value changes by less than `tol` multiplied by the absolute value of the function value
+  //opt.set_ftol_abs(1e-12); // objective function value changes by less than `tol`
+  opt.set_xtol_rel(1e-6); // optimization parameters' magnitude changes by less than `tol` multiplied by the current magnitude(can set weights for each dimension)
+  //opt.set_xtol_abs(1e-8); // optimization parameters' magnitude changes by less than `tol`
+  //opt.set_maxeval(200); // maximum evaluation
+  //opt.set_maxtime(3.0); // maximum time
 
 
   // Start iterations
@@ -469,15 +477,19 @@ int main(int argc, char **argv)
     constraint_data.wrist_ori_goal = wrist_ori_goal;
     constraint_data.elbow_pos_goal = elbow_pos_goal;
     /* Be careful with the data assignment above !!!! 
-    if (it == 10){
+    //if (it == 10){
     std::cout << "Display the goal point: " << std::endl;
     std::cout << "Path point is: ";
     for (int i = 0; i < path_point.size(); ++i) std::cout << path_point[i] << " "; 
-    std::cout << std::endl << "Wrist pos is: " << wrist_pos_goal << std::endl
-                           << "Wrist rot is: " << wrist_ori_goal << std::endl
-                           << "Elbow pos is: " << elbow_pos_goal << std::endl;
-    exit(0);
-    }*/
+    std::cout << std::endl << "Wrist pos is: " << constraint_data.wrist_pos_goal << std::endl
+                           << "Wrist rot is: " << constraint_data.wrist_ori_goal << std::endl
+                           << "Elbow pos is: " << constraint_data.elbow_pos_goal << std::endl;
+    //exit(0);
+    //} */
+    /*std::cout << "q_prev is: " << constraint_data.q_prev.transpose() << std::endl;
+    if (it == 6)
+      exit(0);*/
+
 
     // Set up objective function and additional data to pass in
     my_constraint_struct *f_data = &constraint_data;
@@ -485,16 +497,24 @@ int main(int argc, char **argv)
 
 
     // Start optimization
-    try
-    {
+    /*try
+    {*/
 
       // Display messages
       std::cout << "========== Path point " << it + 1  <<"/" << num_datapoints << " ==========" << std::endl;
       nlopt::result opt_result;
+      //std::cout << "first_iter is " << first_iter << " before optimizing the first point." << std::endl; // ok, checked
       if (first_iter)
         opt_result = opt.optimize(x, minf);
       else
-        opt_result = opt.optimize(q_results[it-1], minf); // use previous result as initial guess
+      {
+        //std::cout << "previous result is: " << constraint_data.q_prev << "." << std::endl; // not changing!!
+        /*std::cout << "previous result is: ";
+        for (int t = 0; t < q_results[it-1].size(); ++t)  std::cout << q_results[it-1][t] << " ";
+        std::cout << std::endl;*/
+        x = q_results[it-1]; // pass the previous result into x, otherwise the previous result would be modified again!!!(passed as reference into opt.optimize())
+        opt_result = opt.optimize(x, minf); // use previous result as initial guess
+      }
 
       switch(opt_result)
       {
@@ -518,16 +538,25 @@ int main(int argc, char **argv)
           break;
       }
       std::cout << "NLopt found minimum f: " << minf << " after " << opt.get_numevals() << " evaluations." << std::endl;
-      std::cout << "========== END ==========" << std::endl;
+
 
       // Store the result(joint values)
       q_results[it] = x;
+      //std::vector<double> q_tmp(x); // copy construct
+      //q_results.push_back(q_tmp);
+
+      // display the current result
+      /*std::cout << "q result is: ";
+      for (int t = 0; t < x.size(); ++t)  std::cout << x[t] << " ";
+      std::cout << std::endl;*/
 
       // Record the current joint as q_prev
+      //Matrix<double, 6, 1> q_prev = Map<Eigen::Matrix<double, 6, 1>>(x.data(), 6, 1);
       constraint_data.q_prev = Map<Eigen::Matrix<double, 6, 1>>(x.data(), 6, 1); // used across optimizations over the whole trajectory  
+      //std::cout << "q_prev is: " << constraint_data.q_prev.transpose() << std::endl;
       first_iter = false;
 
-    }
+    /*}
     catch (std::runtime_error e1){
       std::cout << "Runtime error: " << e1.what() << std::endl;
     }
@@ -536,7 +565,8 @@ int main(int argc, char **argv)
     }
     catch (std::bad_alloc e3){
       std::cout << "Ran out of memory: " << e3.what() << std::endl;    
-    }
+    }*/
+
     /*catch (nlopt::roundoff_limited e4){ // will be caught earlier handler for 'std::runtime_error e1'
       std::cout << "Roundoff errors limited progress: " << e4.what() << std::endl;    
     }
@@ -544,8 +574,20 @@ int main(int argc, char **argv)
       std::cout << "Forced termination: " << e5.what() << std::endl;    
     }*/
 
-
+    //std::cout << "first_iter is " << first_iter << " after optimizing the first point." << std::endl;
+    //exit(0);
   }
+
+
+  // display the results
+  /*
+  std::cout << "q_results is: " << std::endl;
+  for (int i = 0; i < num_datapoints; ++i)
+  {
+    for (int j = 0; j < joint_value_dim; ++j)
+      std::cout << q_results[i][j] << " ";
+    std::cout << std::endl;
+  }*/
 
 
   // Store the results
