@@ -165,8 +165,8 @@ target_link_libraries(use_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_
 add_executable(use_hdf5 src/use_hdf5.cpp)
 target_link_libraries(use_hdf5 ${catkin_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
-#add_executable(generate_fake_elbow_wrist_path src/generate_fake_elbow_wrist_path.cpp)
-#target_link_libraries(generate_fake_elbow_wrist_path ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+add_executable(generate_fake_elbow_wrist_path src/generate_fake_elbow_wrist_path.cpp)
+target_link_libraries(generate_fake_elbow_wrist_path ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 
 ## Rename C++ executable without prefix

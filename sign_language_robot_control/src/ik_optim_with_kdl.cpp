@@ -1,4 +1,5 @@
 #include "ros/ros.h"
+#include <iostream>
 
 // For KDL
 #include <kdl/kdl.hpp>
@@ -46,6 +47,7 @@ int main(int argc, char** argv){
   unsigned int num_elbow_seg = 0;
   ROS_INFO_STREAM("There are " << num_segments << " segments in the kdl_chain");
   for (unsigned int i = 0; i < num_segments; ++i){
+    //std::cout << kdl_chain.getSegment(i).getName() << std::endl;
     if (kdl_chain.getSegment(i).getName() == ELBOW_LINK){
       num_elbow_seg = i;
       ROS_INFO_STREAM("Elbow link found.");
@@ -53,6 +55,7 @@ int main(int argc, char** argv){
     }
   }
 
+  std::cout << "Elbow ID: " << num_elbow_seg << ", Wrist ID: " << num_wrist_seg << "." << std::endl;
 
   // Set up FK solver and compute the homogeneous representations
   KDL::ChainFkSolverPos_recursive fk_solver(kdl_chain);
@@ -67,7 +70,7 @@ int main(int argc, char** argv){
   // q_in(i) = xx, assignment
   KDL::Frame elbow_cart_out, wrist_cart_out; // Output homogeneous transformation
   int result;
-  result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg);
+  result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that this is the number of segments, not the segment ID!!!
   if (result < 0){
     ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
     return -1;
@@ -75,7 +78,7 @@ int main(int argc, char** argv){
   else{
     ROS_INFO_STREAM("FK solver succeeded for elbow link.");
   }
-  result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg);
+  result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1); // notice that this is the number of segments, not the segment ID!!!
   if (result < 0){
     ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
     return -1;
@@ -84,7 +87,15 @@ int main(int argc, char** argv){
     ROS_INFO_STREAM("FK solver succeeded for wrist link.");
   }
 
-
+  // Output rotation matrix information(checked !!! )
+  double x, y, z, w;
+  wrist_cart_out.M.GetQuaternion(x, y, z, w);
+  std::cout << "Wrist position is: " << wrist_cart_out.p.data[0] << " " << wrist_cart_out.p.data[1] << " " << wrist_cart_out.p.data[2] << std::endl;
+  std::cout << "Elbow position is: " << elbow_cart_out.p.data[0] << " " << elbow_cart_out.p.data[1] << " " << elbow_cart_out.p.data[2] << std::endl;
+  std::cout << "Quaternion of left_ee_link under current joint configuration is: " << x << " " << y << " " << z << " " << w << std::endl;
+  std::cout << "Flatten rotation matrix of the left_ee_link under current joint configuration is: ";
+  for (int j = 0; j < 9; ++j)
+    std::cout << wrist_cart_out.M.data[j] << " ";
 
 
   return 0;
