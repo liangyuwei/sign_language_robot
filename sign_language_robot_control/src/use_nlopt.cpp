@@ -96,12 +96,12 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
     cost += 0.5 * (q_cur - fdata->q_prev).norm();
 
   // Display for debug
-  std::cout << "Cost func structure: " << std::endl
+  /*std::cout << "Cost func structure: " << std::endl
             << "elbow pos err = " << (fdata->elbow_pos_goal - elbow_pos_cur).norm() << std::endl
             << "wrist pos err = " << (fdata->wrist_pos_goal - wrist_pos_cur).norm() << std::endl
             << "wrist ori err = " << std::fabs( std::acos (( (fdata->wrist_ori_goal * wrist_ori_cur.transpose()).trace() - 1) / 2.0)) << std::endl
-            << "smoothness err = " << (first_iter? 0 : (q_cur - fdata->q_prev).squaredNorm()) << std::endl;
-  std::cout << "Total cost: " << cost << std::endl;
+            << "smoothness err = " << (first_iter? 0 : (q_cur - fdata->q_prev).squaredNorm()) << std::endl;*/
+  //std::cout << "Total cost: " << cost << std::endl;
   //std::cout << "During evaluation, q_prev = " << (fdata->q_prev) << std::endl; // checked
 
 
@@ -453,7 +453,7 @@ int main(int argc, char **argv)
   //opt.set_ftol_abs(1e-12); // objective function value changes by less than `tol`
   opt.set_xtol_rel(1e-6); // optimization parameters' magnitude changes by less than `tol` multiplied by the current magnitude(can set weights for each dimension)
   //opt.set_xtol_abs(1e-8); // optimization parameters' magnitude changes by less than `tol`
-  //opt.set_maxeval(200); // maximum evaluation
+  opt.set_maxeval(200); // maximum evaluation
   //opt.set_maxtime(3.0); // maximum time
 
 

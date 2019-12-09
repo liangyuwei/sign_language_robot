@@ -812,8 +812,30 @@ def main():
     tutorial = MoveGroupPythonIntefaceTutorial()
 
 
-    ### Go to start position
-    print "============ Go to start position..."
+    ### Go to start position(left_hand)
+    print "============ Go to start position(left hand)..."
+    left_hand_group = moveit_commander.MoveGroupCommander("left_hand")
+    left_hand_start = geometry_msgs.msg.Pose()
+    # Start point: set position
+    left_hand_start.position.x = 0.59467
+    left_hand_start.position.y = 0.269
+    left_hand_start.position.z = 0.3562
+    # Start point: set orientation
+    left_hand_start_pose = tf.transformations.quaternion_from_euler(1.9, 0.0088, -1.5492)
+    left_hand_start.orientation.x = left_hand_start_pose[0]
+    left_hand_start.orientation.y = left_hand_start_pose[1]
+    left_hand_start.orientation.z = left_hand_start_pose[2]
+    left_hand_start.orientation.w = left_hand_start_pose[3]     
+    # set pose target and move to initial state
+    left_arm_group.set_pose_target(left_hand_start, 'left_ee_link')
+    left_arm_group.allow_replanning(True)
+    left_arm_group.go(wait=True)
+    left_arm_group.stop()
+    left_arm_group.clear_pose_targets()
+
+
+    ### Go to start position(left_arm)
+    print "============ Go to start position(left arm)..."
     left_arm_group = moveit_commander.MoveGroupCommander("left_arm")
     left_start = geometry_msgs.msg.Pose()
     # Start point: set position
@@ -832,6 +854,33 @@ def main():
     left_arm_group.go(wait=True)
     left_arm_group.stop()
     left_arm_group.clear_pose_targets()
+    
+
+    ### Go to start position(right_arm)
+    print "============ Go to start position(right arm)..."
+    right_arm_group = moveit_commander.MoveGroupCommander("right_arm")
+    right_start = geometry_msgs.msg.Pose()
+    # Start point: set position
+    right_start.position.x = 0.59467
+    right_start.position.y = 0.269
+    right_start.position.z = 0.3562
+    # Start point: set orientation
+    right_start_pose = tf.transformations.quaternion_from_euler(1.9, 0.0088, -1.5492)
+    right_start.orientation.x = left_start_pose[0]
+    right_start.orientation.y = left_start_pose[1]
+    right_start.orientation.z = left_start_pose[2]
+    right_start.orientation.w = left_start_pose[3]     
+    # set pose target and move to initial state
+    right_arm_group.set_pose_target(right_start, 'right_ee_link')
+    right_arm_group.allow_replanning(True)
+    right_arm_group.go(wait=True)
+    right_arm_group.stop()
+    right_arm_group.clear_pose_targets()
+
+
+
+    
+    
 
     import pdb
     pdb.set_trace()
