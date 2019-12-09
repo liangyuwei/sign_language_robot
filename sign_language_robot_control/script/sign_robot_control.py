@@ -812,9 +812,60 @@ def main():
     tutorial = MoveGroupPythonIntefaceTutorial()
 
 
+    ### Read h5 file for fake path(fake_elbow_wrist_paths.h5)
+    import h5py
+    file_name = "fake_elbow_wrist_paths.h5"
+    l_dataset_name = "fake_path_left_1"
+    r_dataset_name = "fake_path_right_1"
+    f = h5py.File(file_name, "r")
+    path_array = f[dataset_name][:]
+
     ### Go to start position(left_hand)
     print "============ Go to start position(left hand)..."
     left_hand_group = moveit_commander.MoveGroupCommander("left_hand")
+    left_finger_goal = group.get_current_joint_values()
+    left_finger_goal[0] = 
+    left_finger_goal[1] = 
+
+    joint_goal[0] = 0#0.0956#-5.9604 #0 
+    joint_goal[1] = 0#0.3016#-0.2112 #0
+    joint_goal[2] = 0#-0.3907#0.0584 #0
+    joint_goal[3] = 0#0.9673#-1.8980 #0
+    joint_goal[4] = 0#0.7815#2.4066 #0
+    joint_goal[5] = 0#-1.4376#2.0123 # 0
+    ''
+    joint_goal[6] = 0
+    joint_goal[7] = 0
+    joint_goal[8] = 0
+    joint_goal[9] = 0
+    joint_goal[10] = 0
+    joint_goal[11] = 0
+
+    '''
+    joint_goal[0] = 0
+    joint_goal[1] = math.pi/4
+    joint_goal[2] = -math.pi/2
+    joint_goal[3] = 0
+    joint_goal[4] = -math.pi/2
+    joint_goal[5] = 0
+    ''
+    joint_goal[6] = -math.pi
+    joint_goal[7] = math.pi * 0.75
+    joint_goal[8] = math.pi/2
+    joint_goal[9] = math.pi
+    joint_goal[10] = math.pi/2
+    joint_goal[11] = 0
+    '''
+
+    # The go command can be called with joint values, poses, or without any
+    # parameters if you have already set the pose or joint target for the group
+    group.go(joint_goal, wait=True)
+
+    # Calling ``stop()`` ensures that there is no residual movement
+    group.stop()
+
+
+
     left_hand_start = geometry_msgs.msg.Pose()
     # Start point: set position
     left_hand_start.position.x = 0.59467

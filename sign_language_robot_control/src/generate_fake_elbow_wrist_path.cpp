@@ -99,6 +99,7 @@ int main(void)
 
 
   /* For Eigen, Quaterniond is (w,x,y,z); For tf, quaternion is [x,y,z,w] */
+  /** Left arm + hand **
   wrist_pos[0] = Vector3d(0.495918, 0.119251, 0.371701);
   wrist_ori[0] = Quaterniond(-0.079195, 0.600824, -0.465971, 0.644678).normalized(); // positive unit quaternion is unique and has no singularity
   elbow_pos[0] = Vector3d(0.301041, 0.422758, 0.64508);
@@ -144,6 +145,48 @@ int main(void)
   wrist_ori[7] = Quaterniond(0.0497201, 0.65778, -0.587034, 0.469302).normalized(); 
   elbow_pos[7] = Vector3d(0.28595,0.434396,0.664474);
   finger_pos[7] << 0.0, 0.0, -1.0, -2.0, -1.0, -2.0, -1.0, -2.0, 0.38, 0.0, -0.71, -0.52; 
+  */
+  
+  /** Right arm + hand **/
+  wrist_pos[0] = Vector3d(0.459286, -0.17724, 0.338785);
+  wrist_ori[0] = Quaterniond(0.0671244, 0.702087, 0.458296, 0.540864).normalized(); // positive unit quaternion is unique and has no singularity
+  elbow_pos[0] = Vector3d(0.277208, -0.47985, 0.642771);
+  finger_pos[0] << 0.0, 0.0, -1.45, -1.63, -1.5, -1.58, -1.51, -1.64, -0.72, 0.17, -0.29, -0.82;
+
+  wrist_pos[1] = Vector3d(0.515995, -0.131873, 0.356376);
+  wrist_ori[1] = Quaterniond(-0.00511485, 0.676775, 0.53541, 0.505258).normalized();
+  elbow_pos[1] = Vector3d(0.32, -0.42, 0.60);
+  finger_pos[1] << 0.0, 0.0, -1.45, -1.63, -1.5, -1.58, -1.51, -1.64, -0.72, 0.17, -0.29, -0.82;
+
+  wrist_pos[2] = Vector3d(0.620217, -0.102566, 0.329752);
+  wrist_ori[2] = Quaterniond(0.0732544, 0.717278, 0.459966, 0.518245).normalized();
+  elbow_pos[2] = Vector3d(0.344016, -0.36957, 0.570032); 
+  finger_pos[2] << 0.0, 0.0, -1.45, -1.63, -1.5, -1.58, -1.51, -1.64, -0.72, 0.17, -0.29, -0.82;
+
+  wrist_pos[3] = Vector3d(0.682532, -0.182324, 0.329345);
+  wrist_ori[3] = Quaterniond(0.0863313, 0.705692, 0.437065, 0.550926).normalized(); 
+  elbow_pos[3] = Vector3d(0.35206, -0.376849, 0.527919);
+  finger_pos[3] << 0.0, 0.0, -1.45, -1.63, -1.5, -1.58, -1.51, -1.64, -0.72, 0.17, -0.29, -0.82;
+
+  wrist_pos[4] = Vector3d(0.638973, -0.281634, 0.326374);
+  wrist_ori[4] = Quaterniond(0.0264457, 0.735369, 0.462025, 0.495041).normalized(); 
+  elbow_pos[4] = Vector3d(0.32372, -0.456209, 0.550935);
+  finger_pos[4] << 0.0, 0.0, -1.45, -1.63, -1.5, -1.58, -1.51, -1.64, -0.72, 0.17, -0.29, -0.82;
+
+  wrist_pos[5] = Vector3d(0.547948, -0.33214, 0.300531);
+  wrist_ori[5] = Quaterniond(-0.0378739, 0.748082, 0.480499, 0.456136).normalized(); 
+  elbow_pos[5] = Vector3d(0.285922, -0.519192, 0.569029);
+  finger_pos[5] << 0.0, 0.0, -1.45, -1.63, -1.5, -1.58, -1.51, -1.64, -0.72, 0.17, -0.29, -0.82;
+
+  wrist_pos[6] = Vector3d(0.437774, -0.315823, 0.298068);
+  wrist_ori[6] = Quaterniond(-0.112386, 0.777825, 0.507696, 0.35299).normalized(); 
+  elbow_pos[6] = Vector3d(0.250023, -0.551359, 0.601584);
+  finger_pos[6] << 0.0, 0.0, -1.45, -1.63, -1.5, -1.58, -1.51, -1.64, -0.72, 0.17, -0.29, -0.82;
+
+  wrist_pos[7] = Vector3d(0.376681, -0.181348, 0.316947);
+  wrist_ori[7] = Quaterniond(-0.0913673, 0.64774, 0.568812, 0.498535).normalized(); 
+  elbow_pos[7] = Vector3d(0.281622, -0.482747, 0.631438);
+  finger_pos[7] << 0.0, 0.0, -1.45, -1.63, -1.5, -1.58, -1.51, -1.64, -0.72, 0.17, -0.29, -0.82;
 
 
   // Do interpolation on path points
@@ -302,7 +345,7 @@ int main(void)
 
   // Write to h5 file
   std::string file_name = "fake_elbow_wrist_paths.h5";
-  std::string dataset_name = "fake_path_left_1";
+  std::string dataset_name = "fake_path_right_1";
   int ROW =  path.size();
   int COL = path_point_len;
   bool result = write_h5(file_name, dataset_name, ROW, COL, path);
