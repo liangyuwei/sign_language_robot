@@ -815,123 +815,90 @@ def main():
     ### Read h5 file for fake path(fake_elbow_wrist_paths.h5)
     import h5py
     file_name = "fake_elbow_wrist_paths.h5"
-    l_dataset_name = "fake_path_left_1"
-    r_dataset_name = "fake_path_right_1"
     f = h5py.File(file_name, "r")
-    path_array = f[dataset_name][:]
 
-    ### Go to start position(left_hand)
-    print "============ Go to start position(left hand)..."
-    left_hand_group = moveit_commander.MoveGroupCommander("left_hand")
-    left_finger_goal = group.get_current_joint_values()
-    left_finger_goal[0] = 
-    left_finger_goal[1] = 
+    l_dataset_name = "fake_path_left_1"
+    l_path_array = f[l_dataset_name][:]
+    l_finger_pos = l_path_array[0][-12:] # the last 12 digits
 
-    joint_goal[0] = 0#0.0956#-5.9604 #0 
-    joint_goal[1] = 0#0.3016#-0.2112 #0
-    joint_goal[2] = 0#-0.3907#0.0584 #0
-    joint_goal[3] = 0#0.9673#-1.8980 #0
-    joint_goal[4] = 0#0.7815#2.4066 #0
-    joint_goal[5] = 0#-1.4376#2.0123 # 0
-    ''
-    joint_goal[6] = 0
-    joint_goal[7] = 0
-    joint_goal[8] = 0
-    joint_goal[9] = 0
-    joint_goal[10] = 0
-    joint_goal[11] = 0
+    r_dataset_name = "fake_path_right_1"
+    r_path_array = f[r_dataset_name][:]
+    r_finger_pos = r_path_array[0][-12:]
 
-    '''
-    joint_goal[0] = 0
-    joint_goal[1] = math.pi/4
-    joint_goal[2] = -math.pi/2
-    joint_goal[3] = 0
-    joint_goal[4] = -math.pi/2
-    joint_goal[5] = 0
-    ''
-    joint_goal[6] = -math.pi
-    joint_goal[7] = math.pi * 0.75
-    joint_goal[8] = math.pi/2
-    joint_goal[9] = math.pi
-    joint_goal[10] = math.pi/2
-    joint_goal[11] = 0
-    '''
-
-    # The go command can be called with joint values, poses, or without any
-    # parameters if you have already set the pose or joint target for the group
-    group.go(joint_goal, wait=True)
-
-    # Calling ``stop()`` ensures that there is no residual movement
-    group.stop()
+    num_datapoints = l_path_array.shape[0]
 
 
-
-    left_hand_start = geometry_msgs.msg.Pose()
-    # Start point: set position
-    left_hand_start.position.x = 0.59467
-    left_hand_start.position.y = 0.269
-    left_hand_start.position.z = 0.3562
-    # Start point: set orientation
-    left_hand_start_pose = tf.transformations.quaternion_from_euler(1.9, 0.0088, -1.5492)
-    left_hand_start.orientation.x = left_hand_start_pose[0]
-    left_hand_start.orientation.y = left_hand_start_pose[1]
-    left_hand_start.orientation.z = left_hand_start_pose[2]
-    left_hand_start.orientation.w = left_hand_start_pose[3]     
-    # set pose target and move to initial state
-    left_arm_group.set_pose_target(left_hand_start, 'left_ee_link')
-    left_arm_group.allow_replanning(True)
-    left_arm_group.go(wait=True)
-    left_arm_group.stop()
-    left_arm_group.clear_pose_targets()
-
-
-    ### Go to start position(left_arm)
-    print "============ Go to start position(left arm)..."
+    ### Set up groups
     left_arm_group = moveit_commander.MoveGroupCommander("left_arm")
-    left_start = geometry_msgs.msg.Pose()
-    # Start point: set position
-    left_start.position.x = 0.59467
-    left_start.position.y = 0.269
-    left_start.position.z = 0.3562
-    # Start point: set orientation
-    left_start_pose = tf.transformations.quaternion_from_euler(1.9, 0.0088, -1.5492)
-    left_start.orientation.x = left_start_pose[0]
-    left_start.orientation.y = left_start_pose[1]
-    left_start.orientation.z = left_start_pose[2]
-    left_start.orientation.w = left_start_pose[3]     
-    # set pose target and move to initial state
-    left_arm_group.set_pose_target(left_start, 'left_ee_link')
-    left_arm_group.allow_replanning(True)
-    left_arm_group.go(wait=True)
-    left_arm_group.stop()
-    left_arm_group.clear_pose_targets()
+    left_hand_group = moveit_commander.MoveGroupCommander("left_hand")
+    right_hand_group = moveit_commander.MoveGroupCommander("right_hand")
+    right_arm_group = moveit_commander.MoveGroupCommander("right_arm")
     
 
-    ### Go to start position(right_arm)
-    print "============ Go to start position(right arm)..."
-    right_arm_group = moveit_commander.MoveGroupCommander("right_arm")
-    right_start = geometry_msgs.msg.Pose()
+
+    ### Go to start positions
+    print "============ Go to start positions..."
+    ## left hand
+    print "====== Left hand reaching initial position ======"
+    left_finger_goal = l_path_array[0][-12:].tolist()
+    #left_finger_goal = [0.0, 0.0, -0.9, -1.9, -0.9, -1.9, -0.9, -1.9, 0.38, 0.0, -0.71, -0.52]
+    left_hand_group.go(left_finger_goal, wait=True)
+    left_hand_group.stop()
+    #left_hand_group.set_joint_value_target(left_finger_goal)
+    #left_hand_plan = left_hand_group.plan(avoid_collisions=False)
+    #left_hand_group.execute(left_hand_plan, wait=True) 
+
+    ## right hand
+    print "====== Right hand reaching initial position ======"
+    right_finger_goal = r_path_array[0][-12:].tolist()
+    right_hand_group.go(right_finger_goal, wait=True)
+    right_hand_group.stop()
+
+    ## right arm
+    print "====== Right arm reaching initial position ======"
+    right_arm_goal = geometry_msgs.msg.Pose()
     # Start point: set position
-    right_start.position.x = 0.59467
-    right_start.position.y = 0.269
-    right_start.position.z = 0.3562
+    right_arm_goal.position.x = r_path_array[0][0]
+    right_arm_goal.position.y = r_path_array[0][1]
+    right_arm_goal.position.z = r_path_array[0][2]
     # Start point: set orientation
-    right_start_pose = tf.transformations.quaternion_from_euler(1.9, 0.0088, -1.5492)
-    right_start.orientation.x = left_start_pose[0]
-    right_start.orientation.y = left_start_pose[1]
-    right_start.orientation.z = left_start_pose[2]
-    right_start.orientation.w = left_start_pose[3]     
+    tmp_rotm = tf.transformations.identity_matrix()    
+    tmp_rotm[0:3, 0:3] = r_path_array[0][3:12].reshape(3,3)
+    tmp_quat = tf.transformations.quaternion_from_matrix(tmp_rotm)
+    right_arm_goal.orientation.x = tmp_quat[0]
+    right_arm_goal.orientation.y = tmp_quat[1]
+    right_arm_goal.orientation.z = tmp_quat[2]
+    right_arm_goal.orientation.w = tmp_quat[3]      
     # set pose target and move to initial state
-    right_arm_group.set_pose_target(right_start, 'right_ee_link')
+    right_arm_group.set_pose_target(right_arm_goal, 'right_ee_link')
     right_arm_group.allow_replanning(True)
     right_arm_group.go(wait=True)
     right_arm_group.stop()
     right_arm_group.clear_pose_targets()
 
-
-
+    ## left arm
+    print "====== Left arm reaching initial position ======"
+    left_arm_goal = geometry_msgs.msg.Pose()
+    # Start point: set position
+    left_arm_goal.position.x = l_path_array[0][0]
+    left_arm_goal.position.y = l_path_array[0][1]
+    left_arm_goal.position.z = l_path_array[0][2]
+    # Start point: set orientation
+    tmp_rotm = tf.transformations.identity_matrix()    
+    tmp_rotm[0:3, 0:3] = l_path_array[0][3:12].reshape(3,3)
+    tmp_quat = tf.transformations.quaternion_from_matrix(tmp_rotm)
+    left_arm_goal.orientation.x = tmp_quat[0]
+    left_arm_goal.orientation.y = tmp_quat[1]
+    left_arm_goal.orientation.z = tmp_quat[2]
+    left_arm_goal.orientation.w = tmp_quat[3]      
+    # set pose target and move to initial state
+    left_arm_group.set_pose_target(left_arm_goal, 'left_ee_link')
+    left_arm_group.allow_replanning(True)
+    left_arm_group.go(wait=True)
+    left_arm_group.stop()
+    left_arm_group.clear_pose_targets()
     
-    
+
 
     import pdb
     pdb.set_trace()

@@ -812,47 +812,100 @@ def main():
     tutorial = MoveGroupPythonIntefaceTutorial()
 
 
-    ### Read h5 file for joint path(ik_results.h5)
+    ### Set up groups
+    left_arm_group = moveit_commander.MoveGroupCommander("left_arm")
+    left_hand_group = moveit_commander.MoveGroupCommander("left_hand")
+    right_hand_group = moveit_commander.MoveGroupCommander("right_hand")
+    right_arm_group = moveit_commander.MoveGroupCommander("right_arm")
+
+
+    ### Read h5 file for FINGER POS(fake_elbow_wrist_paths.h5)
+    import h5py
+    file_name = "fake_elbow_wrist_paths.h5"
+    f = h5py.File(file_name, "r")
+
+    l_dataset_name = "fake_path_left_1"
+    l_path_array = f[l_dataset_name][:]
+    l_finger_pos = l_path_array[0][-12:] # the last 12 digits
+
+    r_dataset_name = "fake_path_right_1"
+    r_path_array = f[r_dataset_name][:]
+    r_finger_pos = r_path_array[0][-12:]
+
+    f.close()
+
+
+    ### Hands: Go to start positions
+    print "============ Both hands go to initial positions..."
+    '''
+    ## left hand
+    print "====== Left hand reaching initial position..."
+    left_finger_goal = l_finger_pos.tolist()
+    left_hand_group.go(left_finger_goal, wait=True)
+    left_hand_group.stop()
+    ## right hand
+    print "====== Right hand reaching initial position..."
+    right_finger_goal = r_finger_pos.tolist()
+    right_hand_group.go(right_finger_goal, wait=True)
+    right_hand_group.stop()
+    '''
+    import pdb
+    pdb.set_trace()
+    dual_hands_group = moveit_commander.MoveGroupCommander("dual_hands")
+    dual_hands_goal = l_finger_pos.tolist() + r_finger_pos.tolist()
+    dual_hands_group.go(dual_hands_goal, wait=True)
+    dual_hands_group.stop()
+
+
+    ### Read h5 file for `JOINT PATHS`(ik_results.h5)
     import h5py
     file_name = "ik_results.h5"
-    dataset_name = "ik_result_1"
+    l_dataset_name = "ik_result_left_1"
+    r_dataset_name = "ik_result_right_1"
     f = h5py.File(file_name, "r")
-    path_array = f[dataset_name][:]
+    l_path_array = f[l_dataset_name][:]
+    r_path_array = f[r_dataset_name][:]
+    num_datapoints = l_path_array.shape[0]
+    if (num_datapoints != r_path_array.shape[0]):
+        print "Lengths of left and right paths are not consistent!"
+        return False
 
-    ### Create a plan
+
+    ### Construct a plan
+    print "============ Construct a plan of two arms' motion..."
     cartesian_plan = moveit_msgs.msg.RobotTrajectory()
     cartesian_plan.joint_trajectory.header.frame_id = '/world'
-    cartesian_plan.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint']
-    for i in range(path_array.shape[0]):
+    cartesian_plan.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint'] + ['right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
+    for i in range(num_datapoints):
         path_point = trajectory_msgs.msg.JointTrajectoryPoint()
-        path_point.positions = path_array[i].tolist()
+        path_point.positions = l_path_array[i].tolist() + r_path_array[i].tolist()
         t = rospy.Time(i*0.1)
         path_point.time_from_start.secs = t.secs
         path_point.time_from_start.nsecs = t.nsecs        
         cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))
-    #import pdb
-    #pdb.set_trace()
+
 
     ### Execute the plan
+    print "============ Execute the plan..."
     # set up planning group
-    left_arm_group = moveit_commander.MoveGroupCommander("left_arm")
+    dual_arms_group = moveit_commander.MoveGroupCommander("dual_arms")
     # go to start position
     print "============ Go to the start position..."
-    joint_goal = left_arm_group.get_current_joint_values()
-    joint_goal = copy.deepcopy(path_array[0]) # go to the first point
-    left_arm_group.allow_replanning(True)
-    left_arm_group.go(joint_goal, wait=True)
-    left_arm_group.stop()
+    dual_arms_goal = cartesian_plan.joint_trajectory.points[0].positions
+    #dual_arms_group.allow_replanning(True)
+    dual_arms_group.go(dual_arms_goal, wait=True)
+    dual_arms_group.stop()
     # execute the plan
-    import pdb
-    pdb.set_trace()
+#    import pdb
+#    pdb.set_trace()
     print "============ Execute the planned path..."        
-    left_arm_group.execute(cartesian_plan, wait=True)
+    dual_arms_group.execute(cartesian_plan, wait=True)
     
 
     import pdb
     pdb.set_trace();
 
+    f.close()
 
 
   except rospy.ROSInterruptException:

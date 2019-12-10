@@ -118,8 +118,8 @@ KDL::ChainFkSolverPos_recursive setup_kdl(my_constraint_struct &constraint_data)
   // Params
   const std::string URDF_FILE = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
   const std::string BASE_LINK = "world"; // use /world as base_link for convenience in simulation; when transfer across different robot arms, may use mid-point between shoulders as the common base(or world)
-  const std::string ELBOW_LINK = "left_forearm_link";
-  const std::string WRIST_LINK = "left_ee_link";
+  const std::string ELBOW_LINK = "right_forearm_link";
+  const std::string WRIST_LINK = "right_ee_link";
 
   // Get tree
   KDL::Tree kdl_tree; 
@@ -279,7 +279,7 @@ bool write_h5(const std::string file_name, const std::string dataset_name, const
   try
   {
     // Create a file, or earse all data of an existing file
-    H5File file( FILE_NAME, H5F_ACC_TRUNC );
+    H5File file( FILE_NAME, H5F_ACC_RDWR ); // H5F_ACC_TRUNC
       
     // Create data space for fixed size dataset
     hsize_t dimsf[2];              // dataset dimensions
@@ -401,12 +401,12 @@ int main(int argc, char **argv)
   // Input Cartesian trajectories
   const unsigned int joint_value_dim = 6;   
   std::vector<double> x(joint_value_dim);
-  const std::string in_file_name = "fake_elbow_wrist_path_1.h5";
-  const std::string in_dataset_name = "fake_path_1";
+  const std::string in_file_name = "fake_elbow_wrist_paths.h5";
+  const std::string in_dataset_name = "fake_path_right_1";
   std::vector<std::vector<double>> read_wrist_elbow_traj = read_h5(in_file_name, in_dataset_name); 
   // using read_h5() does not need to specify the size!!!
   // elbow pos(3) + wrist pos(3) + wrist rot(9) = 15-dim
-  unsigned int num_datapoints = read_wrist_elbow_traj.size();
+  unsigned int num_datapoints = read_wrist_elbow_traj.size(); 
 
   // display a few examples(debug)
   /*
@@ -467,24 +467,30 @@ int main(int argc, char **argv)
 
     // Set goal point
     std::vector<double> path_point = read_wrist_elbow_traj[it];
-    std::vector<double> wrist_pos(path_point.begin(), path_point.begin()+4); // 3-dim
+    std::vector<double> wrist_pos(path_point.begin(), path_point.begin()+3); // 3-dim
     std::vector<double> wrist_ori(path_point.begin()+3, path_point.begin()+12); // 9-dim
-    std::vector<double> elbow_pos(path_point.begin()+12, path_point.end()); // 3-dim
+    std::vector<double> elbow_pos(path_point.begin()+12, path_point.begin()+15); //end()); // 3-dim
+    /** check the extracted data sizes **
+    std::cout << "wrist_pos.size() = " << wrist_pos.size() << ", ";
+    std::cout << "wrist_ori.size() = " << wrist_ori.size() << ", ";
+    std::cout << "elbow_pos.size() = " << elbow_pos.size() << "." << std::endl; */
+    // convert
     Vector3d wrist_pos_goal = Map<Vector3d>(wrist_pos.data(), 3, 1);
     Matrix3d wrist_ori_goal = Map<Matrix<double, 3, 3, RowMajor>>(wrist_ori.data(), 3, 3);
     Vector3d elbow_pos_goal = Map<Vector3d>(elbow_pos.data(), 3, 1);
     constraint_data.wrist_pos_goal = wrist_pos_goal;
     constraint_data.wrist_ori_goal = wrist_ori_goal;
     constraint_data.elbow_pos_goal = elbow_pos_goal;
-    /* Be careful with the data assignment above !!!! 
+    /** Be careful with the data assignment above !!!! **
     //if (it == 10){
+
     std::cout << "Display the goal point: " << std::endl;
     std::cout << "Path point is: ";
-    for (int i = 0; i < path_point.size(); ++i) std::cout << path_point[i] << " "; 
+    for (int i = 0; i < wrist_pos.size() + wrist_ori.size() + elbow_pos.size(); ++i) std::cout << path_point[i] << " "; 
     std::cout << std::endl << "Wrist pos is: " << constraint_data.wrist_pos_goal << std::endl
                            << "Wrist rot is: " << constraint_data.wrist_ori_goal << std::endl
                            << "Elbow pos is: " << constraint_data.elbow_pos_goal << std::endl;
-    //exit(0);
+    exit(0);
     //} */
     /*std::cout << "q_prev is: " << constraint_data.q_prev.transpose() << std::endl;
     if (it == 6)
@@ -592,7 +598,7 @@ int main(int argc, char **argv)
 
   // Store the results
   const std::string file_name = "ik_results.h5";
-  const std::string dataset_name = "ik_result_1";
+  const std::string dataset_name = "ik_result_right_1";
   bool result = write_h5(file_name, dataset_name, num_datapoints, joint_value_dim, q_results);
   if(result)
     std::cout << "Joint path results successfully stored!" << std::endl;

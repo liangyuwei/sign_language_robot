@@ -5,6 +5,7 @@ Panels:
     Property Tree Widget:
       Expanded:
         - /MotionPlanning1
+        - /MotionPlanning1/Scene Geometry1
         - /MotionPlanning1/Scene Robot1
         - /MotionPlanning1/Planning Request1
         - /MotionPlanning1/Planning Metrics1
@@ -339,7 +340,7 @@ Visualization Manager:
         Goal State Color: 250; 128; 0
         Interactive Marker Size: 0
         Joint Violation Color: 255; 0; 255
-        Planning Group: left_hand
+        Planning Group: Empty
         Query Goal State: true
         Query Start State: false
         Show Workspace: false
@@ -626,25 +627,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/XYOrbit
-      Distance: 1.92171383
+      Distance: 1.40538907
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: 0.232195258
-        Y: 0.156357706
-        Z: 1.04308711e-07
+        X: 0.225499272
+        Y: 0.0382761918
+        Z: 2.23518001e-07
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.32979688
+      Pitch: 0.334796727
       Target Frame: world
       Value: XYOrbit (rviz)
-      Yaw: 6.20994854
+      Yaw: 6.23495436
     Saved: ~
 Window Geometry:
   Displays:

@@ -85,6 +85,9 @@
         <group name="left_hand" />
         <group name="right_hand" />
     </group>
+    <group name="Empty">
+        <link name="world" />
+    </group>
     <!--END EFFECTOR: Purpose: Represent information about an end effector.-->
     <end_effector name="right_hand" parent_link="right_ee_link" group="right_hand" />
     <end_effector name="left_hand" parent_link="left_ee_link" group="left_hand" />

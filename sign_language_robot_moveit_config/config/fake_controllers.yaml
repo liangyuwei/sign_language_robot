@@ -121,3 +121,6 @@ controller_list:
       - Link51
       - Link52
       - Link53
+  - name: fake_Empty_controller
+    joints:
+      []
