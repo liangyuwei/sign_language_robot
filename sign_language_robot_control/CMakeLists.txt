@@ -160,8 +160,8 @@ target_link_libraries(ik_optim_with_kdl ${catkin_LIBRARIES})
 add_executable(use_nlopt src/use_nlopt.cpp)
 target_link_libraries(use_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
-add_executable(use_nlopt_mocap_rot src/use_nlopt_mocap_rot.cpp)
-target_link_libraries(use_nlopt_mocap_rot ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+#add_executable(use_nlopt_mocap_rot src/use_nlopt_mocap_rot.cpp)
+#target_link_libraries(use_nlopt_mocap_rot ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 
 # Test module

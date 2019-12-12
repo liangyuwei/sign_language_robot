@@ -118,8 +118,8 @@ KDL::ChainFkSolverPos_recursive setup_kdl(my_constraint_struct &constraint_data)
   // Params
   const std::string URDF_FILE = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
   const std::string BASE_LINK = "world"; // use /world as base_link for convenience in simulation; when transfer across different robot arms, may use mid-point between shoulders as the common base(or world)
-  const std::string ELBOW_LINK = "right_forearm_link";
-  const std::string WRIST_LINK = "right_ee_link";
+  const std::string ELBOW_LINK = "left_forearm_link";
+  const std::string WRIST_LINK = "left_ee_link";
 
   // Get tree
   KDL::Tree kdl_tree; 
@@ -401,8 +401,8 @@ int main(int argc, char **argv)
   // Input Cartesian trajectories
   const unsigned int joint_value_dim = 6;   
   std::vector<double> x(joint_value_dim);
-  const std::string in_file_name = "fake_elbow_wrist_paths.h5";
-  const std::string in_dataset_name = "fake_path_right_1";
+  const std::string in_file_name = "mocap_wrist_pos_ori_elbow_pos_paths.h5";
+  const std::string in_dataset_name = "left_wrist_pos_ori_elbow_pos_wave_hand_motion";
   std::vector<std::vector<double>> read_wrist_elbow_traj = read_h5(in_file_name, in_dataset_name); 
   // using read_h5() does not need to specify the size!!!
   // elbow pos(3) + wrist pos(3) + wrist rot(9) = 15-dim
@@ -597,8 +597,8 @@ int main(int argc, char **argv)
 
 
   // Store the results
-  const std::string file_name = "ik_results.h5";
-  const std::string dataset_name = "ik_result_right_1";
+  const std::string file_name = "mocap_ik_results.h5";
+  const std::string dataset_name = "mocap_ik_result_left_wave_hand_motion";
   bool result = write_h5(file_name, dataset_name, num_datapoints, joint_value_dim, q_results);
   if(result)
     std::cout << "Joint path results successfully stored!" << std::endl;
