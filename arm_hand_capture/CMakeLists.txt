@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
+  trajectory_msgs
   message_generation
 )
 
@@ -71,6 +72,7 @@ add_message_files(
 generate_messages(
   DEPENDENCIES
   std_msgs  # Or other packages containing msgs
+  trajectory_msgs
 )
 
 ################################################
