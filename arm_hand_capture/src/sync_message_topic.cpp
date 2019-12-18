@@ -7,15 +7,71 @@
 
 // Messages
 #include <arm_hand_capture/GloveState.h>
-#include <.h>
+#include <geometry_msgs/PoseStamped.h>
 
-using namespace sensor_msgs;
 using namespace message_filters;
+using namespace geometry_msgs;
+using namespace arm_hand_capture;
 
-void callback(const ImageConstPtr& image, const CameraInfoConstPtr& cam_info)
+
+class TimeSyncAndPublish
 {
-  // Solve all of perception here...
-}
+
+  public:
+    TimeSyncAndPublish() // Init
+    {
+      // Time synchronizer
+      message_filters::Subscriber<PoseStamped> right_upperarm_sub(n_, "/vrpn_client_node/RightUpperarm/pose", 1);
+      message_filters::Subscriber<PoseStamped> right_forearm_sub(n_, "/vrpn_client_node/RightForearm", 1);
+      message_filters::Subscriber<PoseStamped> right_hand_sub(n_, "/vrpn_client_node/RightHand", 1);
+      message_filters::Subscriber<GloveState> right_finger_sub(n_, "/wiseglove_state_pub", 1);
+      //message_filters::Subscriber<PoseStamped> left_upperarm_sub(n_, "/vrpn_client_node/RightUpperarm/pose", 1);
+      //message_filters::Subscriber<PoseStamped> left_forearm_sub(n_, "/vrpn_client_node/RightForearm", 1);
+      //message_filters::Subscriber<PoseStamped> left_hand_sub(n_, "/vrpn_client_node/RightHand", 1);
+      //message_filters::Subscriber<GloveState> left_finger_sub(n_, "/wiseglove_state_pub", 1);
+
+      message_filters::TimeSynchronizer<PoseStamped, PoseStamped, PoseStamped, GloveState> sync(right_upperarm_sub, right_forearm_sub, right_hand_sub, right_finger_sub, 10);
+
+      sync.registerCallback(&TimeSyncAndPublish::callback);//(;boost::bind(&TimeSyncAndPublish::callback, this, _1, _2));
+
+
+      // Publish to a topic
+      //pub_ = n_.advertise<COMBINED_MESSAGE_TYPE>()
+
+
+    }
+
+
+    void callback(const PoseStampedConstPtr& right_upperarm_pose, \
+                  const PoseStampedConstPtr& right_forearm_pose, \
+                  const PoseStampedConstPtr& right_hand_pose, \
+                  const GloveStateConstPtr& right_finger_state)
+    {
+      // Display the time-synced results
+      ROS_INFO("========== Message Pack ==========\n");
+      ROS_INFO("RightUpperarm: At time %f\n", right_upperarm_pose->header.stamp.toSec());
+      ROS_INFO("RightForearm: At time %f\n", right_forearm_pose->header.stamp.toSec());
+      ROS_INFO("RightHand: At time %f\n", right_hand_pose->header.stamp.toSec());
+      ROS_INFO("RightGlove: At time %f\n", right_finger_state->header.stamp.toSec());      
+
+      // Publish the combined data on a another topic
+      //pub_.publish(output)
+
+
+    }
+
+
+  private:
+    ros::NodeHandle n_;
+    ros::Publisher pub_;
+    ros::Subscriber sub_;
+
+
+};
+
+
+
+
 
 
 int main(int argc, char** argv)
@@ -23,17 +79,8 @@ int main(int argc, char** argv)
 
   // Initialize a ROS node
   ros::init(argc, argv, "sync_message_topic");
-  ros::NodeHandle nh;
-
-  // Time synchronizer
-  message_filters::Subscriber<Image> right_upperarm_sub(nh, "image", 1);
-  message_filters::Subscriber<Image> right_forearm_sub(nh, "image", 1);
-  message_filters::Subscriber<Image> right_hand_sub(nh, "image", 1);
-  message_filters::Subscriber<CameraInfo> right_finger_sub(nh, "camera_info", 1);
 
 
-  message_filters::TimeSynchronizer<Image, CameraInfo> sync(image_sub, info_sub, 10);
-  sync.registerCallback(boost::bind(&callback, _1, _2));
 
   ros::spin();
 
