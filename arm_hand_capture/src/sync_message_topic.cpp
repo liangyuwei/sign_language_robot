@@ -14,6 +14,38 @@ using namespace geometry_msgs;
 using namespace arm_hand_capture;
 
 
+
+void callback(const PoseStampedConstPtr& topic_1_msg,
+              const PoseStampedConstPtr& topic_2_msg)
+{
+    // Display the time-synced results
+      ROS_INFO_STREAM("========== Message Pack ==========");
+      ROS_INFO_STREAM("Topic 1: At time " << topic_1_msg->header.stamp.toSec() << " , with pos = [" << topic_1_msg->pose.position.x << ", " << topic_1_msg->pose.position.y << ", "  << topic_1_msg->pose.position.z << "].");
+      ROS_INFO_STREAM("Topic 2: At time " << topic_2_msg->header.stamp.toSec() << " , with pos = [" << topic_2_msg->pose.position.x << ", " << topic_2_msg->pose.position.y << ", "  << topic_2_msg->pose.position.z << "].");
+
+      // Publish the combined data on a another topic
+      //pub_.publish(output)
+
+}
+
+void callback(const PoseStampedConstPtr& right_upperarm_pose, 
+              const PoseStampedConstPtr& right_forearm_pose, 
+              const PoseStampedConstPtr& right_hand_pose, 
+              const GloveStateConstPtr& right_finger_state)
+{
+  // Display the time-synced results
+  ROS_INFO_STREAM("========== Message Pack ==========\n");
+  ROS_INFO_STREAM("RightUpperarm: At time " << right_upperarm_pose->header.stamp.toSec());
+  ROS_INFO_STREAM("RightForearm: At time " << right_forearm_pose->header.stamp.toSec());
+  ROS_INFO_STREAM("RightHand: At time " << right_hand_pose->header.stamp.toSec());
+  ROS_INFO_STREAM("RightGlove: At time " << right_finger_state->header.stamp.toSec());      
+
+  // Publish the combined data on a another topic
+  //pub_.publish(output)
+
+}
+
+
 class TimeSyncAndPublish
 {
 
@@ -42,23 +74,7 @@ class TimeSyncAndPublish
     }
 
 
-    void callback(const PoseStampedConstPtr& right_upperarm_pose, \
-                  const PoseStampedConstPtr& right_forearm_pose, \
-                  const PoseStampedConstPtr& right_hand_pose, \
-                  const GloveStateConstPtr& right_finger_state)
-    {
-      // Display the time-synced results
-      ROS_INFO("========== Message Pack ==========\n");
-      ROS_INFO("RightUpperarm: At time %f\n", right_upperarm_pose->header.stamp.toSec());
-      ROS_INFO("RightForearm: At time %f\n", right_forearm_pose->header.stamp.toSec());
-      ROS_INFO("RightHand: At time %f\n", right_hand_pose->header.stamp.toSec());
-      ROS_INFO("RightGlove: At time %f\n", right_finger_state->header.stamp.toSec());      
 
-      // Publish the combined data on a another topic
-      //pub_.publish(output)
-
-
-    }
 
 
   private:
@@ -79,6 +95,9 @@ int main(int argc, char** argv)
 
   // Initialize a ROS node
   ros::init(argc, argv, "sync_message_topic");
+
+
+  // Set up Approximate Time Synchronizer
 
 
 

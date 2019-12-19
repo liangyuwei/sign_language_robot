@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- Run publishers to be sync-ed -->
+  <node name="topic_to_sync_1_node" pkg="arm_hand_capture" type="topic_to_sync_1" />
+  <node name="topic_to_sync_2_node" pkg="arm_hand_capture" type="topic_to_sync_2" />
+  <node name="topic_to_sync_3_node" pkg="arm_hand_capture" type="topic_to_sync_3" />
+
+
+  <!-- Run test_message_filter to see the performance -->
+  <!--node name="test_message_filter_node" pkg="arm_hand_capture" type="test_message_filter" output="screen"/-->
+
+  <!-- Time Synchronizer encapsulated as a class -->
+  <node name="test_message_filter_class_node" pkg="arm_hand_capture" type="test_message_filter_class" output="screen"/>
+
+
+</launch>
