@@ -262,11 +262,12 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
 }
 
 
-bool write_h5(const std::string file_name, const std::string dataset_name, const int ROW, const int COL, std::vector<std::vector<double>> data_vector)
+bool write_h5(const std::string file_name, const std::string group_name, const std::string dataset_name, const int ROW, const int COL, std::vector<std::vector<double>> data_vector)
 {
   // Set up file name and dataset name
-  const H5std_string  FILE_NAME(file_name);
-  const H5std_string  DATASET_NAME(dataset_name);
+  const H5std_string FILE_NAME(file_name);
+  const H5std_string GROUP_NAME(group_name);
+  const H5std_string DATASET_NAME(dataset_name);
 
   // Convert 2-dim std::vector to 2-dim raw buffer(array)
   double data[ROW][COL];
@@ -278,26 +279,35 @@ bool write_h5(const std::string file_name, const std::string dataset_name, const
 
   try
   {
-    // Create a file, or earse all data of an existing file
-    H5File file( FILE_NAME, H5F_ACC_RDWR ); // H5F_ACC_TRUNC
-      
-    // Create data space for fixed size dataset
+    // Create a file (must be an existing file)
+    H5File file( FILE_NAME, H5F_ACC_RDWR );
+
+    // Create a group (create and open?)
+    Group group(file.createGroup(GROUP_NAME));
+
+  
+    // Set up datatype and dataspace for the dataset to be store
     hsize_t dimsf[2];              // dataset dimensions
     dimsf[0] = ROW;
     dimsf[1] = COL;
     DataSpace dataspace(2, dimsf);
-
-    // Define datatype for the data in the file.
     IntType datatype( PredType::NATIVE_DOUBLE );
     datatype.setOrder( H5T_ORDER_LE );
 
-    // Create a new dataset within the file using defined dataspace and datatype
-    DataSet dataset = file.createDataSet( DATASET_NAME, datatype, dataspace );
+
+    // Way 1 - Create a dataset within a 'group'
+    DataSet dataset1 = group.createDataSet(DATASET_NAME, datatype, dataspace);
+
+    // Way 2 - Create a new dataset within the 'file'
+    DataSet dataset2 = file.createDataSet( DATASET_NAME, datatype, dataspace );
+
 
     //Write the data to the dataset using default memory space, file space, and transfer properties.
-    dataset.write( data, PredType::NATIVE_DOUBLE );
+    dataset1.write( data, PredType::NATIVE_DOUBLE );
+    dataset2.write( data, PredType::NATIVE_DOUBLE );
 
-  } 
+  } // File and group will be closed as their instances go out of scope
+
   // catch failure caused by the H5File operations
   catch( FileIException error )
   {
@@ -330,17 +340,22 @@ bool write_h5(const std::string file_name, const std::string dataset_name, const
 
 
 // Read h5 file for joint path
-std::vector<std::vector<double>> read_h5(const std::string file_name, const std::string dataset_name)
+std::vector<std::vector<double>> read_h5(const std::string file_name, const std::string group_name, const std::string dataset_name)
 {
   // Set up file name and dataset name
-  const H5std_string  FILE_NAME(file_name);
-  const H5std_string  DATASET_NAME(dataset_name);
+  const H5std_string FILE_NAME(file_name);
+  const H5std_string DATASET_NAME(dataset_name);
+  const H5std_string GROUP_NAME(group_name);
 
   try
   {
     // Open the specified file and the specified dataset in the file.
     H5File file( FILE_NAME, H5F_ACC_RDONLY );
-    DataSet dataset = file.openDataSet(DATASET_NAME);
+    //DataSet dataset = file.openDataSet(DATASET_NAME)
+
+    // Open a group 
+    Group group = file.openGroup(GROUP_NAME);
+    DataSet dataset = group.openDataSet(DATASET_NAME);
 
     // Get the class of the datatype that is used by the dataset.
     H5T_class_t type_class = dataset.getTypeClass();
@@ -402,11 +417,15 @@ int main(int argc, char **argv)
   const unsigned int joint_value_dim = 6;   
   std::vector<double> x(joint_value_dim);
   const std::string in_file_name = "mocap_wrist_pos_ori_elbow_pos_paths.h5";
-  const std::string in_dataset_name = "left_wrist_pos_ori_elbow_pos_wave_hand_motion";
-  std::vector<std::vector<double>> read_wrist_elbow_traj = read_h5(in_file_name, in_dataset_name); 
+  const std::string in_group_name = "xx_motion";
+  const std::string in_dataset_name = "l_wrist_pos/l_wrist_ori/l_elbow_pos";
+  std::vector<std::vector<double>> read_wrist_pos_traj = read_h5(in_file_name, in_group_name, "l_wrist_pos"); 
+  std::vector<std::vector<double>> read_wrist_ori_traj = read_h5(in_file_name, in_group_name, "l_wrist_ori"); 
+  std::vector<std::vector<double>> read_elbow_pos_traj = read_h5(in_file_name, in_group_name, "l_elbow_pos"); 
+
   // using read_h5() does not need to specify the size!!!
   // elbow pos(3) + wrist pos(3) + wrist rot(9) = 15-dim
-  unsigned int num_datapoints = read_wrist_elbow_traj.size(); 
+  unsigned int num_datapoints = read_wrist_pos_traj.size(); 
 
   // display a few examples(debug)
   /*
@@ -466,10 +485,15 @@ int main(int argc, char **argv)
     count = 0; 
 
     // Set goal point
-    std::vector<double> path_point = read_wrist_elbow_traj[it];
-    std::vector<double> wrist_pos(path_point.begin(), path_point.begin()+3); // 3-dim
+    //std::vector<double> path_point = read_wrist_elbow_traj[it];
+    /*std::vector<double> wrist_pos(path_point.begin(), path_point.begin()+3); // 3-dim
     std::vector<double> wrist_ori(path_point.begin()+3, path_point.begin()+12); // 9-dim
-    std::vector<double> elbow_pos(path_point.begin()+12, path_point.begin()+15); //end()); // 3-dim
+    std::vector<double> elbow_pos(path_point.begin()+12, path_point.begin()+15); //end()); // 3-dim */
+  
+    std::vector<double> wrist_pos = read_wrist_pos_traj[it]; // 3-dim
+    std::vector<double> wrist_ori = read_wrist_ori_traj[it]; // 9-dim
+    std::vector<double> elbow_pos = read_elbow_pos_traj[it]; //end()); // 3-dim
+
     /** check the extracted data sizes **
     std::cout << "wrist_pos.size() = " << wrist_pos.size() << ", ";
     std::cout << "wrist_ori.size() = " << wrist_ori.size() << ", ";
@@ -598,8 +622,9 @@ int main(int argc, char **argv)
 
   // Store the results
   const std::string file_name = "mocap_ik_results.h5";
-  const std::string dataset_name = "mocap_ik_result_left_wave_hand_motion";
-  bool result = write_h5(file_name, dataset_name, num_datapoints, joint_value_dim, q_results);
+  const std::string group_name = "xx_motion";
+  const std::string dataset_name = "left_or_right_angles";
+  bool result = write_h5(file_name, group_name, dataset_name, num_datapoints, joint_value_dim, q_results);
   if(result)
     std::cout << "Joint path results successfully stored!" << std::endl;
 

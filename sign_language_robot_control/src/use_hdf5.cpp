@@ -180,7 +180,7 @@ int main (void)
   std::vector<std::vector<std::vector<double> > > data_multi_array;
   for(int i = 0; i < DEPTH; ++i)
   {
-    std::vector<std::vector<double> > tmp_vec(HEIGHT, std::vector<double>(WIDTH))
+    std::vector<std::vector<double> > tmp_vec(HEIGHT, std::vector<double>(WIDTH));
     for(int j = 0; j < HEIGHT; ++j)
     {
       for(int k = 0; k < WIDTH; ++k)
