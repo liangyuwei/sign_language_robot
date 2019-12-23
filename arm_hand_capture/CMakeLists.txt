@@ -5,9 +5,13 @@ project(arm_hand_capture)
 add_compile_options(-std=c++11)
 
 
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIRS})
+
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
+  tf
   std_msgs
   geometry_msgs
   trajectory_msgs
@@ -36,7 +40,7 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 
 ## For sync-ing arm and hand states and re-publish them
 add_executable(sync_message_topic src/sync_message_topic.cpp)
-target_link_libraries(sync_message_topic ${catkin_LIBRARIES})
+target_link_libraries(sync_message_topic ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 
 
 ## Testing of message_filters using ordinary message types
@@ -54,5 +58,8 @@ add_executable(test_message_filter_class src/test_message_filter_class.cpp)
 target_link_libraries(test_message_filter_class ${catkin_LIBRARIES})
 
 
+## Unpack the sync-ed message and broadcast the transforms of each arm
+add_executable(unpack_synced_message src/unpack_synced_message.cpp)
+target_link_libraries(unpack_synced_message ${catkin_LIBRARIES})
 
 

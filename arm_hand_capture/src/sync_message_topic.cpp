@@ -34,7 +34,7 @@ class TimeSyncAndPublish
                   const PoseStampedConstPtr& left_forearm_msg, 
                   const PoseStampedConstPtr& left_hand_msg, 
                   const GloveStateConstPtr& right_glove_msg);
-    Pose transform_to_z_up_frame(const PoseConstPtr& pose_y_up, Quaterniond quat_shift);
+    Pose transform_to_z_up_frame(const Pose& pose_y_up, Quaterniond quat_shift);
 
   protected:
     ros::NodeHandle n_;
@@ -43,27 +43,27 @@ class TimeSyncAndPublish
 };
 
 
-Pose TimeSyncAndPublish::transform_to_z_up_frame(const PoseConstPtr& pose_y_up, Quaterniond quat_shift)
+Pose TimeSyncAndPublish::transform_to_z_up_frame(const Pose& pose_y_up, Quaterniond quat_shift)
 {
   // Pose msg type is constructed by: position and orientation, both of which require transformation to z-up frame
 
   // Transform orientation
-  Quaterniond quat_y_up = Quaterniond(pose_y_up->orientation.w, pose_y_up->orientation.x, pose_y_up->orientation.y, pose_y_up->orientation.z).normalized();
+  Quaterniond quat_y_up = Quaterniond(pose_y_up.orientation.w, pose_y_up.orientation.x, pose_y_up.orientation.y, pose_y_up.orientation.z).normalized();
   Quaterniond quat_z_up = quat_y_up * quat_shift; // ?
 
   // Transform position
-  Vector3d pos_y_up = {pose_y_up->position.x, pose_y_up->position.y, pose_y_up->position.z};
+  Vector3d pos_y_up = {pose_y_up.position.x, pose_y_up.position.y, pose_y_up.position.z};
   Vector3d pos_z_up = quat_shift * pos_y_up;
 
   // Copy to a new Pose object
   Pose pose_z_up;
-  pose_z_up.position.x = pos_z_up.x;
-  pose_z_up.position.y = pos_z_up.y;
-  pose_z_up.position.z = pos_z_up.z;
-  pose_z_up.orientation.x = quat_z_up.x;
-  pose_z_up.orientation.y = quat_z_up.y;
-  pose_z_up.orientation.z = quat_z_up.z;
-  pose_z_up.orientation.w = quat_z_up.w;
+  pose_z_up.position.x = pos_z_up[0];
+  pose_z_up.position.y = pos_z_up[1];
+  pose_z_up.position.z = pos_z_up[2];
+  pose_z_up.orientation.x = quat_z_up.x();
+  pose_z_up.orientation.y = quat_z_up.y();
+  pose_z_up.orientation.z = quat_z_up.z();
+  pose_z_up.orientation.w = quat_z_up.w();
 
 
   return pose_z_up;
@@ -73,6 +73,9 @@ Pose TimeSyncAndPublish::transform_to_z_up_frame(const PoseConstPtr& pose_y_up, 
 void TimeSyncAndPublish::callback(const PoseStampedConstPtr& right_upperarm_msg, 
                   const PoseStampedConstPtr& right_forearm_msg, 
                   const PoseStampedConstPtr& right_hand_msg, 
+                  const PoseStampedConstPtr& left_upperarm_msg, 
+                  const PoseStampedConstPtr& left_forearm_msg, 
+                  const PoseStampedConstPtr& left_hand_msg, 
                   const GloveStateConstPtr& right_glove_msg)
 {
 
@@ -83,29 +86,32 @@ void TimeSyncAndPublish::callback(const PoseStampedConstPtr& right_upperarm_msg,
 
   // Transform to z-up frame
   Matrix3d rotm_shift;
-  rotm_shift << // from manual calculation...
-  Quaterniond quat_shift(rotation_matrix);
+  rotm_shift << 0.0, 0.0, 1.0,
+             << 1.0, 0.0, 0.0, 
+             << 0.0, 1.0, 0.0; // from manual calculation...
+  Quaterniond quat_shift(rotm_shift);
 
 
 
   // Construct a combined result
   DualArmDualHandState output;
   output.right_upperarm_pose.header = right_upperarm_msg->header;
-  output.right_upperarm_pose.pose = transform_to_z_up_frame(right_upperarm_msg->pose, quat_shift);
-
-
+  output.right_upperarm_pose.pose = this->transform_to_z_up_frame(right_upperarm_msg->pose, quat_shift);
   output.right_forearm_pose.header = right_forearm_msg->header;
-  output.right_forearm_pose.pose = transform_to_z_up_frame(right_forearm_msg->pose, quat_shift);
-
-
+  output.right_forearm_pose.pose = this->transform_to_z_up_frame(right_forearm_msg->pose, quat_shift);
   output.right_hand_pose.header = right_hand_msg->header;
-  output.right_hand_pose.pose = transform_to_z_up_frame(right_hand_msg->pose, quat_shift);
+  output.right_hand_pose.pose = this->transform_to_z_up_frame(right_hand_msg->pose, quat_shift);
+
+  output.left_upperarm_pose.header = left_upperarm_msg->header;
+  output.left_upperarm_pose.pose = this->transform_to_z_up_frame(left_upperarm_msg->pose, quat_shift);
+  output.left_forearm_pose.header = left_forearm_msg->header;
+  output.left_forearm_pose.pose = this->transform_to_z_up_frame(left_forearm_msg->pose, quat_shift);
+  output.left_hand_pose.header = left_hand_msg->header;
+  output.left_hand_pose.pose = this->transform_to_z_up_frame(left_hand_msg->pose, quat_shift);
 
 
   output.right_glove_state.header = right_glove_msg->header;
   output.right_glove_state.point = right_glove_msg->point;
-
-
 
   
 
