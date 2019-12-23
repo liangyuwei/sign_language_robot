@@ -11,7 +11,7 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
-
+using namespace Eigen;
 using namespace geometry_msgs;
 using namespace tf;
 
@@ -46,6 +46,32 @@ class TransformUR5AndRepublish
     ros::NodeHandle n_;
     ros::Subscriber sub_;
     ros::Publisher pub_;
+  
+    // fixed transforms
+    Matrix3d rotm_shift_l_up;
+    
+    Quaterniond quat_shift_l_up = Quaterniond(rotm_shift_l_up);
+    Matrix3d rotm_shift_l_fr << 0.0, -1.0, 0.0,
+                                1.0, 0.0, 0.0, 
+                                0.0, 0.0, 1.0;
+    Quaterniond quat_shift_l_fr = Quaterniond(rotm_shift_l_fr);
+    Matrix3d rotm_shift_l_hd << 0.0, 1.0, 0.0,
+                                0.0, 0.0, 1.0, 
+                                1.0, 0.0, 0.0;
+    Quaterniond quat_shift_l_hd = Quaterniond(rotm_shift_l_hd);
+    Matrix3d rotm_shift_r_up << 0.0, 1.0, 0.0,
+                               -1.0, 0.0, 0.0, 
+                                0.0, 0.0, 1.0;
+    Quaterniond quat_shift_r_up = Quaterniond(rotm_shift_r_up);
+    Matrix3d rotm_shift_r_fr << 0.0, 1.0, 0.0,
+                               -1.0, 0.0, 0.0, 
+                                0.0, 0.0, 1.0;
+    Quaterniond quat_shift_r_fr = Quaterniond(rotm_shift_r_fr);
+    Matrix3d rotm_shift_r_hd << 0.0, 1.0, 0.0,
+                                0.0, 0.0, -1.0, 
+                               -1.0, 0.0, 0.0;
+    Quaterniond quat_shift_r_hd = Quaterniond(rotm_shift_r_hd);
+
 };
 
 
@@ -56,16 +82,18 @@ void TransformUR5AndRepublish::transformCallback(arm_hand_capture::DualArmDualHa
   arm_hand_capture::DualArmDualHandState output = *msg;
   
 
-  // Add all the transform work here
-  Quaterniond quat_shift_l_up = 
-  Quaterniond quat_shift_l_fr = 
-  Quaterniond quat_shift_l_hd = 
-  Quaterniond quat_shift_r_up = 
-  Quaterniond quat_shift_r_fr = 
-  Quaterniond quat_shift_r_hd = 
+  // Transform the local frames
+  output.left_upperarm_pose.pose.orientation = transform_to_ur5(msg->left_upperarm_pose.pose.orientation, quat_shift_l_up);
+  output.left_forearm_pose.pose.orientation = transform_to_ur5(msg->left_forearm_pose.pose.orientation, quat_shift_l_fr);
+  output.left_hand_pose.pose.orientation = transform_to_ur5(msg->left_hand_pose.pose.orientation, quat_shift_l_hd);
+
+  output.right_upperarm_pose.pose.orientation = transform_to_ur5(msg->right_upperarm_pose.pose.orientation, quat_shift_r_up);
+  output.right_forearm_pose.pose.orientation = transform_to_ur5(msg->right_forearm_pose.pose.orientation, quat_shift_r_fr);
+  output.right_hand_pose.pose.orientation = transform_to_ur5(msg->right_hand_pose.pose.orientation, quat_shift_r_hd);
 
 
   // Publish the new results
+  ROS_INFO_STREAM("Republishing the newly transformed message...");
   pub_.publish();
 
 }
@@ -82,43 +110,15 @@ TransformUR5AndRepublish::TransformUR5AndRepublish()
   pub_ = n_.advertise<DualArmDualHandState>("dual_arms_dual_hands_UR5_state", 100);
   ROS_INFO_STREAM("Ready to transform the synced message to UR5 local frames.");
 
+  // Initialize the rotation matrices and quaternions
+  rotm_shift_l_up << 0.0, -1.0, 0.0,
+                       1.0, 0.0, 0.0, 
+                       0.0, 0.0, 1.0; // from manual calculation...
+  .....
+
+
   // Spin, the whole code ends here
   ros::spin();
-}
-
-
-
-
-
-
-
-
-void transformCallback(const arm_hand_capture::DualArmDualHandStateConstPtr& msg){
-
-  // Disp
-  ROS_INFO_STREAM("Get one message, transform and re-publish...");
-
-  // Prepare transform information -
-  static tf::TransformBroadcaster br;
-  tf::Transform r_up_transform = transform_to_ur5(msg->right_upperarm_pose);
-  tf::Transform r_fr_transform = transform_to_ur5(msg->right_forearm_pose);
-  tf::Transform r_hd_transform = transform_to_ur5(msg->right_hand_pose);
-
-  tf::Transform l_up_transform = transform_to_ur5(msg->left_upperarm_pose);
-  tf::Transform l_fr_transform = transform_to_ur5(msg->left_forearm_pose);
-  tf::Transform l_hd_transform = transform_to_ur5(msg->left_hand_pose);
-
-
-  // Broadcast the transforms
-  ros::Time timestamp = msg->right_upperarm_pose.header.stamp;
-  br.sendTransform(tf::StampedTransform(r_up_transform, timestamp, "world", "right_upperarm"));
-  br.sendTransform(tf::StampedTransform(r_fr_transform, timestamp, "world", "right_forearm"));
-  br.sendTransform(tf::StampedTransform(r_hd_transform, timestamp, "world", "right_hand"));
-
-  br.sendTransform(tf::StampedTransform(l_up_transform, timestamp, "world", "left_upperarm"));
-  br.sendTransform(tf::StampedTransform(l_fr_transform, timestamp, "world", "left_forearm"));
-  br.sendTransform(tf::StampedTransform(l_hd_transform, timestamp, "world", "left_hand"));
-
 }
 
 
@@ -126,6 +126,11 @@ int main(int argc, char** argv){
 
   // Initialize a ROS node
   ros::init(argc, argv, "transform_to_ur5_node");
+
+
+  // Instantiate an object of the class to initialize the process
+  TransformUR5AndRepublish transform_ur5_and_republish;
+
 
   return 0;
 }

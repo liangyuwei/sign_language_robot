@@ -63,3 +63,12 @@ add_executable(unpack_synced_message src/unpack_synced_message.cpp)
 target_link_libraries(unpack_synced_message ${catkin_LIBRARIES})
 
 
+## Transform the local frames(upperarm, forearm, hand) to match UR5 configuration
+add_executable(synced_message_to_ur5 src/synced_message_to_ur5.cpp)
+target_link_libraries(synced_message_to_ur5 ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+
+
+
+
+
+

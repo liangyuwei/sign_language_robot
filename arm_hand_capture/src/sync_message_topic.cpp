@@ -87,8 +87,8 @@ void TimeSyncAndPublish::callback(const PoseStampedConstPtr& right_upperarm_msg,
   // Transform to z-up frame
   Matrix3d rotm_shift;
   rotm_shift << 0.0, 0.0, 1.0,
-             << 1.0, 0.0, 0.0, 
-             << 0.0, 1.0, 0.0; // from manual calculation...
+                1.0, 0.0, 0.0,
+                0.0, 1.0, 0.0; // from manual calculation...
   Quaterniond quat_shift(rotm_shift);
 
 
