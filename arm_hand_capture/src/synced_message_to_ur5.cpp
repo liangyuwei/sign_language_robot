@@ -11,8 +11,12 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
 
+// boost::bind
+#include <boost/bind.hpp>
+
 using namespace Eigen;
 using namespace geometry_msgs;
+using namespace arm_hand_capture;
 using namespace tf;
 
 /* The positions of the origins of all the frames have already been transformed to z-up frame, now the work left is to transform the local frames' orientation. */
@@ -40,7 +44,7 @@ class TransformUR5AndRepublish
   public:
     TransformUR5AndRepublish();
     ~TransformUR5AndRepublish(){};
-    void transformCallback(arm_hand_capture::DualArmDualHandStateConstPtr& msg);
+    void transformCallback(const arm_hand_capture::DualArmDualHandStateConstPtr& msg);
 
   protected:
     ros::NodeHandle n_;
@@ -49,33 +53,23 @@ class TransformUR5AndRepublish
   
     // fixed transforms
     Matrix3d rotm_shift_l_up;
-    
-    Quaterniond quat_shift_l_up = Quaterniond(rotm_shift_l_up);
-    Matrix3d rotm_shift_l_fr << 0.0, -1.0, 0.0,
-                                1.0, 0.0, 0.0, 
-                                0.0, 0.0, 1.0;
-    Quaterniond quat_shift_l_fr = Quaterniond(rotm_shift_l_fr);
-    Matrix3d rotm_shift_l_hd << 0.0, 1.0, 0.0,
-                                0.0, 0.0, 1.0, 
-                                1.0, 0.0, 0.0;
-    Quaterniond quat_shift_l_hd = Quaterniond(rotm_shift_l_hd);
-    Matrix3d rotm_shift_r_up << 0.0, 1.0, 0.0,
-                               -1.0, 0.0, 0.0, 
-                                0.0, 0.0, 1.0;
-    Quaterniond quat_shift_r_up = Quaterniond(rotm_shift_r_up);
-    Matrix3d rotm_shift_r_fr << 0.0, 1.0, 0.0,
-                               -1.0, 0.0, 0.0, 
-                                0.0, 0.0, 1.0;
-    Quaterniond quat_shift_r_fr = Quaterniond(rotm_shift_r_fr);
-    Matrix3d rotm_shift_r_hd << 0.0, 1.0, 0.0,
-                                0.0, 0.0, -1.0, 
-                               -1.0, 0.0, 0.0;
-    Quaterniond quat_shift_r_hd = Quaterniond(rotm_shift_r_hd);
+    Matrix3d rotm_shift_l_fr;
+    Matrix3d rotm_shift_l_hd;
+    Matrix3d rotm_shift_r_up;
+    Matrix3d rotm_shift_r_fr;
+    Matrix3d rotm_shift_r_hd;
+
+    Quaterniond quat_shift_l_up;
+    Quaterniond quat_shift_l_fr;
+    Quaterniond quat_shift_l_hd;
+    Quaterniond quat_shift_r_up;
+    Quaterniond quat_shift_r_fr;
+    Quaterniond quat_shift_r_hd;
 
 };
 
 
-void TransformUR5AndRepublish::transformCallback(arm_hand_capture::DualArmDualHandStateConstPtr& msg)
+void TransformUR5AndRepublish::transformCallback(const arm_hand_capture::DualArmDualHandStateConstPtr& msg)
 {
 
   // Initialize a new combined messge here
@@ -94,7 +88,7 @@ void TransformUR5AndRepublish::transformCallback(arm_hand_capture::DualArmDualHa
 
   // Publish the new results
   ROS_INFO_STREAM("Republishing the newly transformed message...");
-  pub_.publish();
+  pub_.publish(output);
 
 }
 
@@ -103,7 +97,7 @@ TransformUR5AndRepublish::TransformUR5AndRepublish()
 {
   // Initialize a subscriber
   ROS_INFO_STREAM("Waiting for /dual_arms_dual_hands_state to come up...");
-  sub_ = n.subscribe("/dual_arms_dual_hands_state", 100, &TransformUR5AndRepublish::transformCallback);
+  sub_ = n_.subscribe<arm_hand_capture::DualArmDualHandState>("/dual_arms_dual_hands_state", 100, boost::bind(&TransformUR5AndRepublish::transformCallback, this, _1));
 
   // Initialize a publisher
   ROS_INFO_STREAM("Bring up a publisher /dual_arms_dual_hands_state...");  
@@ -112,9 +106,29 @@ TransformUR5AndRepublish::TransformUR5AndRepublish()
 
   // Initialize the rotation matrices and quaternions
   rotm_shift_l_up << 0.0, -1.0, 0.0,
-                       1.0, 0.0, 0.0, 
-                       0.0, 0.0, 1.0; // from manual calculation...
-  .....
+                     1.0, 0.0, 0.0, 
+                     0.0, 0.0, 1.0; // from manual calculation...
+  rotm_shift_l_fr << 0.0, -1.0, 0.0,
+                     1.0, 0.0, 0.0, 
+                     0.0, 0.0, 1.0;
+  rotm_shift_l_hd << 0.0, 1.0, 0.0,
+                     0.0, 0.0, 1.0, 
+                     1.0, 0.0, 0.0;
+  rotm_shift_r_up << 0.0, 1.0, 0.0,
+                    -1.0, 0.0, 0.0, 
+                     0.0, 0.0, 1.0;
+  rotm_shift_r_fr << 0.0, 1.0, 0.0,
+                    -1.0, 0.0, 0.0, 
+                     0.0, 0.0, 1.0;
+  rotm_shift_r_hd << 0.0, 1.0, 0.0,
+                     0.0, 0.0, -1.0, 
+                    -1.0, 0.0, 0.0;
+  quat_shift_l_up = Quaterniond(rotm_shift_l_up);
+  quat_shift_l_fr = Quaterniond(rotm_shift_l_fr);
+  quat_shift_l_hd = Quaterniond(rotm_shift_l_hd);
+  quat_shift_r_up = Quaterniond(rotm_shift_r_up);
+  quat_shift_r_fr = Quaterniond(rotm_shift_r_fr);
+  quat_shift_r_hd = Quaterniond(rotm_shift_r_hd);
 
 
   // Spin, the whole code ends here
