@@ -21,6 +21,8 @@ using namespace tf;
 
 /* The positions of the origins of all the frames have already been transformed to z-up frame, now the work left is to transform the local frames' orientation. */
 
+
+/* Transform local frames to match the configuration of UR5 */
 geometry_msgs::Quaternion transform_to_ur5(geometry_msgs::Quaternion quat_in, Quaterniond quat_shift)
 {
   // Quaternion to shift
@@ -36,6 +38,22 @@ geometry_msgs::Quaternion transform_to_ur5(geometry_msgs::Quaternion quat_in, Qu
   quat_out.z = quat_res.z();
   quat_out.w = quat_res.w();
   return quat_out;
+}
+
+
+/* Translate the positions of shoulders(base) to match that of UR5 world */
+geometry_msgs::Point translate_to_ur5(geometry_msgs::Point pos_in, geometry_msgs::Point cur_base, geometry_msgs::Point new_base)
+{
+  // A new one
+  geometry_msgs::Point pos_out = pos_in;
+
+  // Translate to new base
+  pos_out.x = pos_out.x - cur_base.x + new_base.x;
+  pos_out.y = pos_out.y - cur_base.y + new_base.y;
+  pos_out.z = pos_out.z - cur_base.z + new_base.z;
+  
+  // Return the result
+  return pos_out;
 }
 
 
@@ -84,6 +102,19 @@ void TransformUR5AndRepublish::transformCallback(const arm_hand_capture::DualArm
   output.right_upperarm_pose.pose.orientation = transform_to_ur5(msg->right_upperarm_pose.pose.orientation, quat_shift_r_up);
   output.right_forearm_pose.pose.orientation = transform_to_ur5(msg->right_forearm_pose.pose.orientation, quat_shift_r_fr);
   output.right_hand_pose.pose.orientation = transform_to_ur5(msg->right_hand_pose.pose.orientation, quat_shift_r_hd);
+
+  // Translate to new base to match the UR5 world
+  geometry_msgs::Point left_base, right_base; // locations of shoulders in UR5 world
+  left_base.x = -0.06; left_base.y = 0.235; left_base.z = 0.395;
+  right_base.x = -0.06; right_base.y = -0.235; right_base.z = 0.395;  
+
+  output.left_upperarm_pose.pose.position = translate_to_ur5(msg->left_upperarm_pose.pose.position, msg->left_upperarm_pose.pose.position, left_base);
+  output.left_forearm_pose.pose.position = translate_to_ur5(msg->left_forearm_pose.pose.position, msg->left_upperarm_pose.pose.position, left_base);
+  output.left_hand_pose.pose.position = translate_to_ur5(msg->left_hand_pose.pose.position, msg->left_upperarm_pose.pose.position, left_base);
+
+  output.right_upperarm_pose.pose.position = translate_to_ur5(msg->right_upperarm_pose.pose.position, msg->right_upperarm_pose.pose.position, right_base);
+  output.right_forearm_pose.pose.position = translate_to_ur5(msg->right_forearm_pose.pose.position, msg->right_upperarm_pose.pose.position, right_base);
+  output.right_hand_pose.pose.position = translate_to_ur5(msg->right_hand_pose.pose.position, msg->right_upperarm_pose.pose.position, right_base);
 
 
   // Publish the new results

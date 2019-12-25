@@ -49,7 +49,7 @@ Pose TimeSyncAndPublish::transform_to_z_up_frame(const Pose& pose_y_up, Quaterni
 
   // Transform orientation
   Quaterniond quat_y_up = Quaterniond(pose_y_up.orientation.w, pose_y_up.orientation.x, pose_y_up.orientation.y, pose_y_up.orientation.z).normalized();
-  Quaterniond quat_z_up = quat_y_up * quat_shift; // ?
+  Quaterniond quat_z_up = quat_shift * quat_y_up;//quat_y_up * quat_shift; // ?
 
   // Transform position
   Vector3d pos_y_up = {pose_y_up.position.x, pose_y_up.position.y, pose_y_up.position.z};
