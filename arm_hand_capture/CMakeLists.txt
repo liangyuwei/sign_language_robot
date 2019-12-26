@@ -15,6 +15,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   trajectory_msgs
+  visualization_msgs
   message_generation
   message_filters
 )
@@ -29,6 +30,7 @@ generate_messages(
   DEPENDENCIES
   std_msgs  # Or other packages containing msgs
   geometry_msgs
+  visualization_msgs
   trajectory_msgs
 )
 
@@ -41,6 +43,7 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 ## For sync-ing arm and hand states and re-publish them
 add_executable(sync_message_topic src/sync_message_topic.cpp)
 target_link_libraries(sync_message_topic ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+# make sure messages are generated before compiling nodes
 add_dependencies(sync_message_topic ${PACKAGE_NAME}_generate_messages_cpp)
 
 
@@ -68,6 +71,10 @@ target_link_libraries(unpack_synced_message ${catkin_LIBRARIES})
 add_executable(synced_message_to_ur5 src/synced_message_to_ur5.cpp)
 target_link_libraries(synced_message_to_ur5 ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 
+
+## For visualization markers
+add_executable(load_visualization_markers src/load_visualization_markers.cpp)
+target_link_libraries(load_visualization_markers ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 
 
 

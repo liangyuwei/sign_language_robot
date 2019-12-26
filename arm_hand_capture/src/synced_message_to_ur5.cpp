@@ -131,7 +131,7 @@ TransformUR5AndRepublish::TransformUR5AndRepublish()
   sub_ = n_.subscribe<arm_hand_capture::DualArmDualHandState>("/dual_arms_dual_hands_state", 100, boost::bind(&TransformUR5AndRepublish::transformCallback, this, _1));
 
   // Initialize a publisher
-  ROS_INFO_STREAM("Bring up a publisher /dual_arms_dual_hands_state...");  
+  ROS_INFO_STREAM("Bring up a publisher /dual_arms_dual_hands_UR5_state...");  
   pub_ = n_.advertise<DualArmDualHandState>("dual_arms_dual_hands_UR5_state", 100);
   ROS_INFO_STREAM("Ready to transform the synced message to UR5 local frames.");
 
