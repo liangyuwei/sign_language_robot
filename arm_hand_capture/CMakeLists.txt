@@ -41,6 +41,7 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 ## For sync-ing arm and hand states and re-publish them
 add_executable(sync_message_topic src/sync_message_topic.cpp)
 target_link_libraries(sync_message_topic ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+add_dependencies(sync_message_topic ${PACKAGE_NAME}_generate_messages_cpp)
 
 
 ## Testing of message_filters using ordinary message types
