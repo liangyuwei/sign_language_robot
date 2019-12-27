@@ -84,7 +84,8 @@ target_link_libraries(load_visualization_markers ${catkin_LIBRARIES} ${EIGEN3_LI
 add_executable(sync_state_with_image src/sync_state_with_image.cpp)
 target_link_libraries(sync_state_with_image ${catkin_LIBRARIES})
 
-
+add_executable(unpack_synced_message_with_image src/unpack_synced_message_with_image.cpp)
+target_link_libraries(unpack_synced_message_with_image ${catkin_LIBRARIES})
 
 
 
