@@ -1,3 +1,7 @@
 [submodule "vrpn_client_ros"]
 	path = vrpn_client_ros
 	url = https://github.com/ros-drivers/vrpn_client_ros.git
+[submodule "usb_cam"]
+	path = usb_cam
+	url = https://github.com/ros-drivers/usb_cam.git
+

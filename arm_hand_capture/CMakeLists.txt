@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   tf
   std_msgs
+  sensor_msgs
   geometry_msgs
   trajectory_msgs
   visualization_msgs
@@ -24,11 +25,13 @@ add_message_files(
   FILES
   GloveState.msg
   DualArmDualHandState.msg
+  DualArmDualHandStateWithImage.msg # good for visualization, should always use this to get a well-formatted dataset
 )
 
 generate_messages(
   DEPENDENCIES
   std_msgs  # Or other packages containing msgs
+  sensor_msgs
   geometry_msgs
   visualization_msgs
   trajectory_msgs
@@ -75,6 +78,14 @@ target_link_libraries(synced_message_to_ur5 ${catkin_LIBRARIES} ${EIGEN3_LIBRARI
 ## For visualization markers
 add_executable(load_visualization_markers src/load_visualization_markers.cpp)
 target_link_libraries(load_visualization_markers ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+
+
+## Sync the arm-hand state with the corresponding image
+add_executable(sync_state_with_image src/sync_state_with_image.cpp)
+target_link_libraries(sync_state_with_image ${catkin_LIBRARIES})
+
+
+
 
 
 
