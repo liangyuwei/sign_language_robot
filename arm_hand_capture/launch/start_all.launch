@@ -3,12 +3,15 @@
 <launch>
 
   <!-- Start Mocap system transmission -->
-  <include file="$(find vrpn_client_ros)/launch/sample.launch">
+  <include file="$(find arm_hand_capture)/launch/load_vrpn.launch">
     <arg name="server" value="192.168.66.1" />
   </include>
 
   <include file="$(find rosserial_server)/launch/socket.launch" />
 
+
+  <!-- Start camera streaming -->
+  <include file="$(find arm_hand_capture)/launch/load_camera.launch">
 
   <!-- Synchronize the mocap data and glove data(and transform to z-up frames) -->
   <node name="sync_message_topic" pkg="arm_hand_capture" type="sync_message_topic" output="screen" />
@@ -24,6 +27,7 @@
 
   <!-- Start Rviz for visualization -->
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find arm_hand_capture)/rviz/mocap_tf.rviz" />
+
 
 
 </launch>
