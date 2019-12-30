@@ -117,7 +117,15 @@ void TimeSyncWithImageAndPublish::callback(const PoseStampedConstPtr& right_uppe
   output.right_glove_state.header = right_glove_msg->header;
   output.right_glove_state.point = right_glove_msg->point;
 
-  
+
+  output.image.header = image->header;
+  output.image.height = image->height;
+  output.image.width = image->width;
+  output.image.encoding = image->encoding;
+  output.image.is_bigendian = image->is_bigendian;
+  output.image.step = image->step;  
+  output.image.data = image->data;
+
 
   // Publish the combined data
   pub_.publish(output);
