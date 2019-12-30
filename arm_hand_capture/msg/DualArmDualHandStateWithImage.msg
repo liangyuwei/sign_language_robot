@@ -11,7 +11,7 @@ arm_hand_capture/GloveState left_glove_state
 geometry_msgs/PoseStamped right_upperarm_pose
 geometry_msgs/PoseStamped right_forearm_pose
 geometry_msgs/PoseStamped right_hand_pose
-arm_hand_capture/GloveState right_glove_state
+arm_hand_capture/GloveState glove_state
 
 # Corresponding image
 sensor_msgs/Image image
