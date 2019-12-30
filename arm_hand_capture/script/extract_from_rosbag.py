@@ -55,6 +55,9 @@ def bag_to_h5_video(bag_name, h5_name, fps=15.0):
   r_hd_pos = np.zeros([count, 3])
   r_hd_quat = np.zeros([count, 4])
 
+  l_glove_angle = np.zeros([count, 14])
+  r_glove_angle = np.zeros([count, 14])
+
 
   for topic, msg, t in bag_file.read_messages():
     ## topic name
@@ -79,7 +82,10 @@ def bag_to_h5_video(bag_name, h5_name, fps=15.0):
     r_fr_pos[idx, :] = pos_to_ndarray(msg.right_forearm_pose.pose.position)
     r_fr_quat[idx, :] = quat_to_ndarray(msg.right_forearm_pose.pose.orientation)
     r_hd_pos[idx, :] = pos_to_ndarray(msg.right_hand_pose.pose.position)
-    r_hd_quat[idx, :] = quat_to_ndarray(msg.right_hand_pose.pose.orientation)   
+    r_hd_quat[idx, :] = quat_to_ndarray(msg.right_hand_pose.pose.orientation)  
+
+    l_glove_angle[idx, :] = np.array(msg.glove_state.left_glove_state)
+    r_glove_angle[idx, :] = np.array(msg.glove_state.right_glove_state)
 
     #import pdb
     #pdb.set_trace()
@@ -89,10 +95,10 @@ def bag_to_h5_video(bag_name, h5_name, fps=15.0):
     cv2_img = bridge.imgmsg_to_cv2(msg.image, 'bgr8') # shape is (480, 640, 3), type is ndarray, encoding is 'rgb8'
     (rows, cols, channels) = cv2_img.shape
     if idx == 0:
-      video = cv2.VideoCapture(bag_name+'.mp4')
       #fps = 15.0
       size = (cols, rows)
-      video_writer = cv2.VideoWriter(bag_name+'.mp4', cv2.VideoWriter_fourcc('X', 'V', 'I', 'D'), fps, size) # 'M', 'J', 'P', 'G'
+      fourcc = cv2.VideoWriter_fourcc(*"XVID")
+      video_writer = cv2.VideoWriter(bag_name+'.avi', fourcc, fps, size) 
     video_writer.write(cv2_img)
 
     ## Set counter
@@ -104,7 +110,6 @@ def bag_to_h5_video(bag_name, h5_name, fps=15.0):
   # to construct a dataset for release, the data content must be complete!!!
   # l_hand_pos/l_hand_quat, l_forearm_pos/l_forearm_quat, l_upperarm_pos/l_upperarm_quat; after this, do an extraction to get wrist, elbow information for use in sign language robot!!!
   # store each part separately!!!  
-  h5_name = 'synced_results'
   group_name = bag_name
 
   f = h5py.File(h5_name+".h5", "a") # open in append mode
@@ -123,20 +128,67 @@ def bag_to_h5_video(bag_name, h5_name, fps=15.0):
   group.create_dataset("r_hd_pos", data=r_hd_pos, dtype=float)
   group.create_dataset("r_hd_quat", data=r_hd_quat, dtype=float)
 
+  group.create_dataset("l_glove_angle", data=l_glove_angle, dtype=float)
+  group.create_dataset("r_glove_angle", data=r_glove_angle, dtype=float)
+
   group.create_dataset("time", data=time, dtype=float)
 
   f.close()
 
 
 
-#def h5_to_wrist_elbow(in_h5_name, out_h5_name):
+def h5_to_wrist_elbow(in_h5_name, out_h5_name, group_name):
+  ### Extract needed information from the dataset(mocap) for learning 
+  
+  ## Read needed data from mocap file
+  f = h5py.File(in_h5_name+".h5", "r")
+
+  l_wrist_pos = f[group_name + '/l_hd_pos'][:]
+  l_wrist_quat = f[group_name + '/l_hd_quat'][:]
+  l_elbow_pos = f[group_name + '/l_fr_pos'][:]
+
+  r_wrist_pos = f[group_name + '/r_hd_pos'][:]
+  r_wrist_quat = f[group_name + '/r_hd_quat'][:]
+  r_elbow_pos = f[group_name + '/r_fr_pos'][:]  
+
+  l_glove_angle = f[group_name + '/l_glove_angle'][:]
+  r_glove_angle = f[group_name + '/r_glove_angle'][:]
+
+  f.close()
+
+  ## Convert quaternions to rotation matrices
+  length = l_wrist_pos.shape[0]
+  l_wrist_ori = np.zeros([length, 9])
+  r_wrist_ori = np.zeros([length, 9])
+  for i in range(length):
+    # tmp rotation matrix  
+    l_wri_rotm = tf.transformations.quaternion_matrix([l_wrist_quat[i, 0],l_wrist_quat[i, 1], l_wrist_quat[i, 2], l_wrist_quat[i, 3]])
+    r_wri_rotm = tf.transformations.quaternion_matrix([r_wrist_quat[i, 0],r_wrist_quat[i, 1], r_wrist_quat[i, 2], r_wrist_quat[i, 3]])    
+    # assign
+    l_wrist_ori[i, :] = l_wri_rotm[:3, :3].reshape(9)
+    r_wrist_ori[i, :] = r_wri_rotm[:3, :3].reshape(9)
 
 
+  ## Write to a new h5 file
+  f = h5py.File(out_h5_name+'.h5', "a")
+  group = f.create_group(group_name)
+  group.create_dataset("l_wrist_pos", data=l_wrist_pos, dtype=float)
+  group.create_dataset("l_wrist_ori", data=l_wrist_ori, dtype=float)
+  group.create_dataset("l_elbow_pos", data=l_elbow_pos, dtype=float)
+
+  group.create_dataset("r_wrist_pos", data=r_wrist_pos, dtype=float)
+  group.create_dataset("r_wrist_ori", data=r_wrist_ori, dtype=float)
+  group.create_dataset("r_elbow_pos", data=r_elbow_pos, dtype=float)
+
+  group.create_dataset("l_glove_angle", data=l_glove_angle, dtype=float)
+  group.create_dataset("r_glove_angle", data=r_glove_angle, dtype=float)
+
+  f.close()
 
 
 def read_video(video_name):
 
-  video = cv2.VideoCapture(video_name+'.mp4')
+  video = cv2.VideoCapture(video_name+'.avi')
   success, frame = video.read()  
   if not success:
     print("Failed to read the video!")
@@ -155,7 +207,7 @@ if __name__ == '__main__':
 
   ### Set up parameters
   bag_name = 'second' # no `.bag` here
-  h5_name = 'second'
+  h5_name = 'synced_results'
 
   
   ### Export *** EVERYTHING *** from rosbag file into h5 file and a video!!
@@ -167,8 +219,11 @@ if __name__ == '__main__':
   read_video(video_name)
     
 
-
-
+  ### Extract necessary information for learning
+  in_h5_name = h5_name
+  out_h5_name = in_h5_name + '_wrist_pos_ori_elbow_pos'
+  group_name = bag_name
+  h5_to_wrist_elbow(in_h5_name, out_h5_name, group_name)
 
 
 
