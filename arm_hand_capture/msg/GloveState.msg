@@ -1,3 +1,3 @@
 std_msgs/Header header
-bool left_or_right
-float64[] point
+float64[] left_glove_state
+float64[] right_glove_state

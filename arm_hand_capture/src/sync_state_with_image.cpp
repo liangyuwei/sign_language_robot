@@ -35,7 +35,7 @@ class TimeSyncWithImageAndPublish
                   const PoseStampedConstPtr& left_upperarm_msg, 
                   const PoseStampedConstPtr& left_forearm_msg, 
                   const PoseStampedConstPtr& left_hand_msg, 
-                  const GloveStateConstPtr& right_glove_msg,
+                  const GloveStateConstPtr& glove_msg,
                   const ImageConstPtr& image);
     Pose transform_to_z_up_frame(const Pose& pose_y_up, Quaterniond quat_shift);
 
@@ -79,7 +79,7 @@ void TimeSyncWithImageAndPublish::callback(const PoseStampedConstPtr& right_uppe
                   const PoseStampedConstPtr& left_upperarm_msg, 
                   const PoseStampedConstPtr& left_forearm_msg, 
                   const PoseStampedConstPtr& left_hand_msg, 
-                  const GloveStateConstPtr& right_glove_msg,
+                  const GloveStateConstPtr& glove_msg,
                   const ImageConstPtr& image)
 {
 
@@ -114,8 +114,9 @@ void TimeSyncWithImageAndPublish::callback(const PoseStampedConstPtr& right_uppe
   output.left_hand_pose.pose = this->transform_to_z_up_frame(left_hand_msg->pose, quat_shift);
 
 
-  output.right_glove_state.header = right_glove_msg->header;
-  output.right_glove_state.point = right_glove_msg->point;
+  output.glove_state.header = glove_msg->header;
+  output.glove_state.left_glove_state = glove_msg->left_glove_state;
+  output.glove_state.right_glove_state = glove_msg->right_glove_state;
 
 
   output.image.header = image->header;
