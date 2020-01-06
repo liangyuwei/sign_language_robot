@@ -1,0 +1,131 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://wiki.ros.org/xacro"
+             name="human_hand_model" >
+
+
+  <!-- Set up hyper-parameters -->
+  <xacro:arg name="prefix" default="right" /> 
+  <xacro:property name="palm_length" value="0.1" />
+  <xacro:property name="palm_width" value="0.02" />
+  <xacro:property name="palm_height" value="0.3" />  
+
+
+
+  <xacro:macro name="three_link_finger" params="prefix 
+                                                parent
+                                                origin_x origin_y origin_z
+                                                DP_length DP_width DP_height 
+                                                IP_length IP_width IP_height
+                                                PP_length PP_width PP_height
+                                                ">
+    <!-- Proximal Phalange -->
+    <link name="${prefix}_PP_link">  
+      <visual>
+        <origin xyz="0 0 ${PP_height/2}" rpy="0 0 0" />
+        <geometry>
+          <box size="${PP_width} ${PP_length} ${PP_height}" />
+        </geometry>
+      </visual>
+    </link>
+
+    <!-- a virtual link -->
+    <link name="${prefix}_virtual_link" />
+
+    <!-- Intermediate Phalange -->
+    <link name="${prefix}_IP_link">
+      <visual>
+        <origin xyz="0 0 ${IP_height/2}" rpy="0 0 0" />
+        <geometry>
+          <box size="${IP_width} ${IP_length} ${IP_height}" />
+        </geometry>
+      </visual>
+    </link>
+
+    <!-- Distal Phalange -->
+    <link name="${prefix}_DP_link">
+      <visual>
+        <origin xyz="0 0 ${DP_height/2}" rpy="0 0 0" />
+        <geometry>
+          <box size="${DP_width} ${DP_length} ${DP_height}" />
+        </geometry>
+      </visual>
+    </link>
+
+
+    <!-- Metacarpophalangeal Joint, for abduction/adduction -->
+    <joint name="${prefix}_MCP_abduction_joint" type="revolute">
+      <origin xyz="${origin_x} ${origin_y} ${origin_z}" rpy="0 0 0" />
+      <axis xyz="1 0 0" />
+      <parent link="${parent}" />
+      <child link="${prefix}_virtual_link" />
+      <limit effort="100" velocity="10.0" lower="${-pi/18}" upper="${pi/18}" />
+    </joint>
+
+    <!-- Metacarpophalangeal Joint, for extension/flexion -->
+    <joint name="${prefix}_MCP_flexion_joint" type="revolute">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <axis xyz="0 1 0" />
+      <parent link="${prefix}_virtual_link" />
+      <child link="${prefix}_PP_link" />
+      <limit effort="100" velocity="10.0" lower="0" upper="${pi/2}" />
+    </joint>
+
+    <!-- Proximal Interphalangeal Joint -->
+    <joint name="${prefix}_PIP_joint" type="revolute">
+      <origin xyz="0 0 ${PP_height}" rpy="0 0 0" />
+      <axis xyz="0 1 0" />
+      <parent link="${prefix}_PP_link" />
+      <child link="${prefix}_IP_link" />
+      <limit effort="100" velocity="10.0" lower="0" upper="${pi/2}" />
+    </joint>
+
+    <!-- Distal Interphalangeal Joint -->
+    <joint name="${prefix}_DIP_joint" type="revolute">
+      <origin xyz="0 0 ${IP_height}" rpy="0 0 0" />
+      <axis xyz="0 1 0" />
+      <parent link="${prefix}_IP_link" />
+      <child link="${prefix}_DP_link" />
+      <limit effort="100" velocity="10.0" lower="0" upper="${pi/2}" />
+    </joint>
+
+  </xacro:macro>
+
+
+
+  <!-- Construct the hand model -->
+  <link name="world" />
+
+  <link name="$(arg prefix)_palm">
+    <visual>
+      <origin xyz="0 0 ${palm_height/2}" rpy="0 0 0" />
+      <geometry>
+        <box size="${palm_width} ${palm_length} ${palm_height}" />
+      </geometry>
+      <material name="Cyan">
+        <color rgba="0 1.0 1.0 1.0" />
+      </material>
+    </visual>
+  </link>
+
+  <joint name="$(arg prefix)_palm_joint" type="fixed">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="world" />
+    <child link="$(arg prefix)_palm" />
+  </joint>
+
+
+  <xacro:three_link_finger prefix="$(arg prefix)_little_finger" parent="$(arg prefix)_palm"
+                           origin_x="0.0" origin_y="${-palm_length/2}" origin_z="${palm_height}"
+                           DP_length="0.02" DP_width="0.02" DP_height="0.05"
+                           IP_length="0.02" IP_width="0.02" IP_height="0.05"
+                           PP_length="0.02" PP_width="0.02" PP_height="0.05" />
+
+
+
+</robot>
+
+
+
+
+
