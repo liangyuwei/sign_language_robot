@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- Load both hands -->
+  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find arm_hand_retargeting)/urdf/upload_both_hands.urdf.xacro'" />
+
+
+  <!-- Necessary for displaying the URDF model -->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" /> 
+  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+
+
+</launch>

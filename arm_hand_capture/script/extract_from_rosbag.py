@@ -206,8 +206,8 @@ def read_video(video_name):
 if __name__ == '__main__':
 
   ### Set up parameters
-  bag_name = 'second' # no `.bag` here
-  h5_name = 'synced_results'
+  bag_name = 'right_glove_test_3' # no `.bag` here
+  h5_name = 'glove_test_data'
 
   
   ### Export *** EVERYTHING *** from rosbag file into h5 file and a video!!

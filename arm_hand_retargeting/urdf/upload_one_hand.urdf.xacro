@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://wiki.ros.org/xacro"
+             name="human_hand_model" >
+
+  <xacro:include filename="$(find arm_hand_retargeting)/urdf/human_hand_model.urdf.xacro" />
+  
+
+  <link name="world" />
+
+
+  <xacro:human_hand_model prefix="right" parent="world" />
+
+  <!--xacro:human_hand_model prefix="left" parent="world" /-->
+
+
+</robot>
+
+
+
+
+

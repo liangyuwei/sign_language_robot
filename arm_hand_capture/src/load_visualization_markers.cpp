@@ -6,7 +6,7 @@
 #include <vector>
 
 // Message types
-#include <arm_hand_capture/DualArmDualHandState.h>
+#include <arm_hand_capture/DualArmDualHandStateWithImage.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
@@ -32,8 +32,8 @@ void set_segment(Eigen::Vector3d point_1, Eigen::Vector3d point_2, visualization
   marker.pose.orientation.y = quat_shoulders.y();
   marker.pose.orientation.z = quat_shoulders.z();
   marker.pose.orientation.w = quat_shoulders.w();
-  marker.scale.x = 0.1;
-  marker.scale.y = 0.1;
+  marker.scale.x = 0.04;
+  marker.scale.y = 0.08;
   marker.scale.z = (point_1 - point_2).norm();
 }
 
@@ -44,7 +44,7 @@ class GetPosAndVisualize
   public:
     GetPosAndVisualize();
     ~GetPosAndVisualize(){};
-    void posCallback(const arm_hand_capture::DualArmDualHandStateConstPtr& msg);
+    void posCallback(const arm_hand_capture::DualArmDualHandStateWithImageConstPtr& msg);
 
 
   protected:
@@ -56,7 +56,7 @@ class GetPosAndVisualize
 
 
 /* Get the locations of each frame, and set proper visualization markers */
-void GetPosAndVisualize::posCallback(const arm_hand_capture::DualArmDualHandStateConstPtr& msg)
+void GetPosAndVisualize::posCallback(const arm_hand_capture::DualArmDualHandStateWithImageConstPtr& msg)
 {
 
   // Prepare Marker message
@@ -126,11 +126,11 @@ GetPosAndVisualize::GetPosAndVisualize()
 {
   // Initialize a subscriber
   ROS_INFO_STREAM("Waiting for /dual_arms_dual_hands_state to come up...");
-  pos_sub_ = n_.subscribe<arm_hand_capture::DualArmDualHandState>("/dual_arms_dual_hands_state", 100, boost::bind(&GetPosAndVisualize::posCallback, this, _1));
+  pos_sub_ = n_.subscribe<arm_hand_capture::DualArmDualHandStateWithImage>("/dual_arms_dual_hands_state_with_image", 100, boost::bind(&GetPosAndVisualize::posCallback, this, _1));
 
   // Initialize a publisher
   ROS_INFO_STREAM("Bring up a publisher /visualization_marker_array...");  
-  vis_pub_ = n_.advertise<visualization_msgs::MarkerArray>("/visualization_marker_array", 10);
+  vis_pub_ = n_.advertise<visualization_msgs::MarkerArray>("/visualization_marker_array", 100);
   ROS_INFO_STREAM("Ready to publish visualization markers.");
 
 
@@ -149,7 +149,6 @@ int main(int argc, char** argv){
   // Instantiate an object
   GetPosAndVisualize get_pos_and_visualize;
 
-  ros::spin();
   return 0;
 }
 

@@ -14,7 +14,7 @@
   <include file="$(find arm_hand_capture)/launch/load_camera.launch" />
 
   <!-- Synchronize the mocap data and glove data(and transform to z-up frames) -->
-  <node name="sync_state_with_image_node" pkg="arm_hand_capture" type="sync_state_with_image" output="screen" />
+  <node name="sync_state_with_image_node" pkg="arm_hand_capture" type="sync_state_with_image"/><!-- output="screen" /-->
 
 
   <!-- Unpack the synced data and broadcast the tf, for Visualization -->
@@ -28,6 +28,11 @@
   <!-- Start Rviz for visualization -->
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(find arm_hand_capture)/rviz/mocap_tf.rviz" />
 
+
+  <!-- For visualization -->
+  <node name="arm_viz_node" pkg="arm_hand_capture" type="load_visualization_markers" />
+
+  <!--include file="$(find arm_hand_retargeting)/launch/upload_both_hands.launch" /-->
 
 
 </launch>

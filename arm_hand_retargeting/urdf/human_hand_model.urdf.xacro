@@ -221,6 +221,7 @@
 
 
     <!-- Construct the hand model -->
+    <link name="${parent}" />
     <!--xacro:property name="var" value="$(arg parent)" /-->
     <!--xacro:if value="${parent == 'world'}">
       <link name="world" />
