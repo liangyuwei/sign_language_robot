@@ -4,20 +4,6 @@
              name="human_hand_model" >
 
 
-  <!-- Configurable arguments -->
-  <xacro:arg name="prefix" default="right" /> 
-  <xacro:arg name="parent" default="world" />
-
-  <!-- Set up hyper-parameters -->
-  <xacro:property name="palm_length" value="0.1" />
-  <xacro:property name="palm_width" value="0.01" />
-  <xacro:property name="palm_height" value="0.15" />  
-
-
-  <!-- Just for visualiation -->
-  <xacro:property name="finger_width" value="0.01" />
-  <xacro:property name="finger_length" value="0.015" />
-
 
   <!-- Macro for three-link *FINGER* model -->
   <xacro:macro name="three_link_finger" params="prefix 
@@ -212,64 +198,90 @@
 
 
 
-  <!-- Construct the hand model -->
-  <xacro:property name="var" value="$(arg parent)" />
-  <xacro:if value="${var == 'world'}">
-    <link name="world" />
-  </xacro:if>
 
-  <!-- Palm -->
-  <link name="$(arg prefix)_palm">
-    <visual>
-      <origin xyz="0 0 ${palm_height/2}" rpy="0 0 0" />
-      <geometry>
-        <box size="${palm_width} ${palm_length} ${palm_height}" />
-      </geometry>
-      <material name="LightGold">
-        <color rgba="0.933 0.867 0.510 1.0" />
-      </material>
-    </visual>
-  </link>
+  <!-- Construct the human hand model -->
+  <xacro:macro name="human_hand_model" params="prefix:=right parent:=world">
 
-  <joint name="$(arg prefix)_palm_joint" type="fixed">
-    <origin xyz="0 0 0" rpy="0 0 0" />
-    <parent link="$(arg parent)" />
-    <child link="$(arg prefix)_palm" />
-  </joint>
+    <!-- Configurable arguments -->
+    <!--xacro:arg name="prefix" default="right" /--> 
+    <!--xacro:arg name="parent" default="world" /-->
+
+    <!-- Set up hyper-parameters -->
+    <xacro:property name="palm_length" value="0.1" />
+    <xacro:property name="palm_width" value="0.01" />
+    <xacro:property name="palm_height" value="0.15" />  
 
 
-  <!-- Four fingers -->
-  <xacro:three_link_finger prefix="$(arg prefix)_little_finger" parent="$(arg prefix)_palm"
-                           origin_x="0.0" origin_y="${-palm_length/2+finger_length/2}" origin_z="${palm_height}"
-                           DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.01"
-                           IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.02"
-                           PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.03" />
+    <!-- Just for visualiation -->
+    <xacro:property name="finger_width" value="0.01" />
+    <xacro:property name="finger_length" value="0.015" />
 
-  <xacro:three_link_finger prefix="$(arg prefix)_ring_finger" parent="$(arg prefix)_palm"
-                           origin_x="0.0" origin_y="${-finger_length/2-0.01}" origin_z="${palm_height}"
-                           DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.02"
-                           IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.03"
-                           PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.04" />
+    <!-- Interval distance between fingers -->
+    <xacro:property name="interval" value="${(palm_length - 4 * finger_length) / 3}" />
 
-  <xacro:three_link_finger prefix="$(arg prefix)_middle_finger" parent="$(arg prefix)_palm"
-                           origin_x="0.0" origin_y="${finger_length/2 + 0.01}" origin_z="${palm_height}"
-                           DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.021"
-                           IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.032"
-                           PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.043" />
 
-  <xacro:three_link_finger prefix="$(arg prefix)_index_finger" parent="$(arg prefix)_palm"
-                           origin_x="0.0" origin_y="${palm_length/2-finger_length/2}" origin_z="${palm_height}"
-                           DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.02"
-                           IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.03"
-                           PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.04" />
+    <!-- Construct the hand model -->
+    <!--xacro:property name="var" value="$(arg parent)" /-->
+    <!--xacro:if value="${parent == 'world'}">
+      <link name="world" />
+    </xacro:if-->
 
-  <!-- Thumb -->
-  <xacro:three_link_thumb prefix="$(arg prefix)_thumb" parent="$(arg prefix)_palm"
-                           origin_x="0.0" origin_y="${palm_length/2}" origin_z="0.0"
-                           DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.02"
-                           IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.03"
-                           PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.05" />
+    <!-- Palm -->
+    <link name="${prefix}_palm">
+      <visual>
+        <origin xyz="0 0 ${palm_height/2}" rpy="0 0 0" />
+        <geometry>
+          <box size="${palm_width} ${palm_length} ${palm_height}" />
+        </geometry>
+        <material name="LightGold">
+          <color rgba="0.933 0.867 0.510 1.0" />
+        </material>
+      </visual>
+    </link>
+
+    <joint name="${prefix}_palm_joint" type="fixed">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <parent link="${parent}" />
+      <child link="${prefix}_palm" />
+    </joint>
+
+
+    <!-- Four fingers -->
+    <xacro:three_link_finger prefix="${prefix}_little_finger" parent="${prefix}_palm"
+                             origin_x="0.0" origin_y="${-3*(finger_length+interval)/2}" origin_z="${palm_height}"
+                             DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.01"
+                             IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.02"
+                             PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.03" />
+
+    <xacro:three_link_finger prefix="${prefix}_ring_finger" parent="${prefix}_palm"
+                             origin_x="0.0" origin_y="${-(finger_length+interval)/2}" origin_z="${palm_height}"
+                             DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.02"
+                            IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.03"
+                             PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.04" />
+
+    <xacro:three_link_finger prefix="${prefix}_middle_finger" parent="${prefix}_palm"
+                             origin_x="0.0" origin_y="${(finger_length+interval)/2}" origin_z="${palm_height}"
+                             DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.021"
+                             IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.032"
+                             PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.043" />
+
+    <xacro:three_link_finger prefix="${prefix}_index_finger" parent="${prefix}_palm"
+                             origin_x="0.0" origin_y="${3*(finger_length+interval)/2}" origin_z="${palm_height}"
+                             DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.02"
+                             IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.03"
+                             PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.04" />
+
+    <!-- Thumb -->
+    <xacro:three_link_thumb prefix="${prefix}_thumb" parent="${prefix}_palm"
+                            origin_x="0.0" origin_y="${palm_length/2}" origin_z="0.0"
+                            DP_length="${finger_length}" DP_width="${finger_width}" DP_height="0.02"
+                            IP_length="${finger_length}" IP_width="${finger_width}" IP_height="0.03"
+                            PP_length="${finger_length}" PP_width="${finger_width}" PP_height="0.05" />
  
+
+
+  </xacro:macro>
+
 
 </robot>
 

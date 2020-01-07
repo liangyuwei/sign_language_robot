@@ -8,7 +8,7 @@
 
 
   <!-- Load the urdf -->
-  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find arm_hand_retargeting)/urdf/human_hand_model.urdf.xacro' parent:=$(arg parent) prefix:=$(arg prefix)" />
+  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find arm_hand_retargeting)/urdf/upload_both_hands.urdf.xacro'" />
   <param name="use_gui" value="$(arg gui)" />
 
   <!-- Start publishers -->
