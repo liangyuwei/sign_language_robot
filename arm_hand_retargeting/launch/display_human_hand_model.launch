@@ -3,11 +3,12 @@
 <launch>
 
   <arg name="prefix" default="right" />
+  <arg name="parent" default="world" />
   <arg name="gui" default="True" />
 
 
   <!-- Load the urdf -->
-  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find arm_hand_retargeting)/urdf/human_hand_model.urdf.xacro'" />
+  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find arm_hand_retargeting)/urdf/human_hand_model.urdf.xacro' parent:=$(arg parent) prefix:=$(arg prefix)" />
   <param name="use_gui" value="$(arg gui)" />
 
   <!-- Start publishers -->

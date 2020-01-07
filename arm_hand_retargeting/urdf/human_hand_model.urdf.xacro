@@ -4,8 +4,11 @@
              name="human_hand_model" >
 
 
-  <!-- Set up hyper-parameters -->
+  <!-- Configurable arguments -->
   <xacro:arg name="prefix" default="right" /> 
+  <xacro:arg name="parent" default="world" />
+
+  <!-- Set up hyper-parameters -->
   <xacro:property name="palm_length" value="0.1" />
   <xacro:property name="palm_width" value="0.01" />
   <xacro:property name="palm_height" value="0.15" />  
@@ -210,7 +213,10 @@
 
 
   <!-- Construct the hand model -->
-  <link name="world" />
+  <xacro:property name="var" value="$(arg parent)" />
+  <xacro:if value="${var == 'world'}">
+    <link name="world" />
+  </xacro:if>
 
   <!-- Palm -->
   <link name="$(arg prefix)_palm">
@@ -227,7 +233,7 @@
 
   <joint name="$(arg prefix)_palm_joint" type="fixed">
     <origin xyz="0 0 0" rpy="0 0 0" />
-    <parent link="world" />
+    <parent link="$(arg parent)" />
     <child link="$(arg prefix)_palm" />
   </joint>
 
