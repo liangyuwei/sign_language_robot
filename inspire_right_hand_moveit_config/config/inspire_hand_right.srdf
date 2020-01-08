@@ -1,0 +1,95 @@
+<?xml version="1.0" ?>
+<!--This does not replace URDF, and is not an extension of URDF.
+    This is a format for representing semantic information about the robot structure.
+    A URDF file must exist for this robot as well, where the joints and the links that are referenced are defined
+-->
+<robot name="inspire_hand_right">
+    <!--GROUPS: Representation of a set of joints and links. This can be useful for specifying DOF to plan for, defining arms, end effectors, etc-->
+    <!--LINKS: When a link is specified, the parent joint of that link (if it exists) is automatically included-->
+    <!--JOINTS: When a joint is specified, the child link of that joint (which will always exist) is automatically included-->
+    <!--CHAINS: When a chain is specified, all the links along the chain (including endpoints) are included in the group. Additionally, all the joints that are parents to included links are also included. This means that joints along the chain and the parent joint of the base link are included in the group-->
+    <!--SUBGROUPS: Groups can also be formed by referencing to already defined group names-->
+    <group name="right_hand">
+        <joint name="Link1" />
+        <joint name="Link11" />
+        <joint name="Link2" />
+        <joint name="Link22" />
+        <joint name="Link3" />
+        <joint name="Link33" />
+        <joint name="Link4" />
+        <joint name="Link44" />
+        <joint name="Link5" />
+        <joint name="Link51" />
+        <joint name="Link52" />
+        <joint name="Link53" />
+    </group>
+    <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
+    <disable_collisions link1="Link1" link2="Link11" reason="Adjacent" />
+    <disable_collisions link1="Link1" link2="Link111" reason="Adjacent" />
+    <disable_collisions link1="Link1" link2="Link2" reason="Never" />
+    <disable_collisions link1="Link1" link2="Link22" reason="Never" />
+    <disable_collisions link1="Link1" link2="Link3" reason="Never" />
+    <disable_collisions link1="Link1" link2="Link33" reason="Never" />
+    <disable_collisions link1="Link1" link2="Link4" reason="Never" />
+    <disable_collisions link1="Link1" link2="Link44" reason="Never" />
+    <disable_collisions link1="Link1" link2="Link5" reason="Never" />
+    <disable_collisions link1="Link1" link2="Link51" reason="Never" />
+    <disable_collisions link1="Link11" link2="Link2" reason="Never" />
+    <disable_collisions link1="Link11" link2="Link22" reason="Never" />
+    <disable_collisions link1="Link11" link2="Link3" reason="Never" />
+    <disable_collisions link1="Link11" link2="Link33" reason="Never" />
+    <disable_collisions link1="Link11" link2="Link4" reason="Never" />
+    <disable_collisions link1="Link11" link2="Link44" reason="Never" />
+    <disable_collisions link1="Link11" link2="Link5" reason="Never" />
+    <disable_collisions link1="Link111" link2="Link2" reason="Adjacent" />
+    <disable_collisions link1="Link111" link2="Link3" reason="Adjacent" />
+    <disable_collisions link1="Link111" link2="Link4" reason="Adjacent" />
+    <disable_collisions link1="Link111" link2="Link44" reason="Never" />
+    <disable_collisions link1="Link111" link2="Link5" reason="Adjacent" />
+    <disable_collisions link1="Link111" link2="Link52" reason="Never" />
+    <disable_collisions link1="Link111" link2="Link53" reason="Never" />
+    <disable_collisions link1="Link2" link2="Link22" reason="Adjacent" />
+    <disable_collisions link1="Link2" link2="Link3" reason="Never" />
+    <disable_collisions link1="Link2" link2="Link33" reason="Never" />
+    <disable_collisions link1="Link2" link2="Link4" reason="Never" />
+    <disable_collisions link1="Link2" link2="Link44" reason="Never" />
+    <disable_collisions link1="Link2" link2="Link5" reason="Never" />
+    <disable_collisions link1="Link2" link2="Link51" reason="Never" />
+    <disable_collisions link1="Link2" link2="Link52" reason="Never" />
+    <disable_collisions link1="Link22" link2="Link3" reason="Never" />
+    <disable_collisions link1="Link22" link2="Link33" reason="Never" />
+    <disable_collisions link1="Link22" link2="Link4" reason="Never" />
+    <disable_collisions link1="Link22" link2="Link44" reason="Never" />
+    <disable_collisions link1="Link22" link2="Link5" reason="Never" />
+    <disable_collisions link1="Link22" link2="Link51" reason="Never" />
+    <disable_collisions link1="Link22" link2="Link52" reason="Never" />
+    <disable_collisions link1="Link22" link2="Link53" reason="Never" />
+    <disable_collisions link1="Link3" link2="Link33" reason="Adjacent" />
+    <disable_collisions link1="Link3" link2="Link4" reason="Never" />
+    <disable_collisions link1="Link3" link2="Link44" reason="Never" />
+    <disable_collisions link1="Link3" link2="Link5" reason="Never" />
+    <disable_collisions link1="Link3" link2="Link51" reason="Never" />
+    <disable_collisions link1="Link3" link2="Link52" reason="Never" />
+    <disable_collisions link1="Link3" link2="Link53" reason="Never" />
+    <disable_collisions link1="Link33" link2="Link4" reason="Never" />
+    <disable_collisions link1="Link33" link2="Link44" reason="Never" />
+    <disable_collisions link1="Link33" link2="Link5" reason="Never" />
+    <disable_collisions link1="Link33" link2="Link51" reason="Never" />
+    <disable_collisions link1="Link33" link2="Link52" reason="Never" />
+    <disable_collisions link1="Link33" link2="Link53" reason="Never" />
+    <disable_collisions link1="Link4" link2="Link44" reason="Adjacent" />
+    <disable_collisions link1="Link4" link2="Link5" reason="Never" />
+    <disable_collisions link1="Link4" link2="Link51" reason="Never" />
+    <disable_collisions link1="Link4" link2="Link52" reason="Never" />
+    <disable_collisions link1="Link4" link2="Link53" reason="Never" />
+    <disable_collisions link1="Link44" link2="Link5" reason="Never" />
+    <disable_collisions link1="Link44" link2="Link51" reason="Never" />
+    <disable_collisions link1="Link44" link2="Link52" reason="Never" />
+    <disable_collisions link1="Link44" link2="Link53" reason="Never" />
+    <disable_collisions link1="Link5" link2="Link51" reason="Adjacent" />
+    <disable_collisions link1="Link5" link2="Link52" reason="Never" />
+    <disable_collisions link1="Link5" link2="Link53" reason="Never" />
+    <disable_collisions link1="Link51" link2="Link52" reason="Adjacent" />
+    <disable_collisions link1="Link51" link2="Link53" reason="Never" />
+    <disable_collisions link1="Link52" link2="Link53" reason="Adjacent" />
+</robot>

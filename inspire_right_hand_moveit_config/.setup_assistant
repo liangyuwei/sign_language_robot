@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: inspire_hand_description
+    relative_path: robots/inspire_hand_right.urdf
+    xacro_args: "--inorder "
+  SRDF:
+    relative_path: config/inspire_hand_right.srdf
+  CONFIG:
+    author_name: Yuwei Liang
+    author_email: lyw.liangyuwei@gmail.com
+    generated_timestamp: 1578445391
