@@ -817,13 +817,16 @@ def main():
     left_hand_group = moveit_commander.MoveGroupCommander("left_hand")
     right_hand_group = moveit_commander.MoveGroupCommander("right_hand")
     right_arm_group = moveit_commander.MoveGroupCommander("right_arm")
+    dual_arm_dual_hand_group = moveit_commander.MoveGroupCommander("dual_arm_dual_hand")
 
 
     ### Read h5 file for FINGER POS(fake_elbow_wrist_paths.h5)
     import h5py
-    file_name = "fake_elbow_wrist_paths.h5"
+    file_name = "mocap_ik_results.h5"
     f = h5py.File(file_name, "r")
+    group_name = ""
 
+    '''
     l_dataset_name = "fake_path_left_1"
     l_path_array = f[l_dataset_name][:]
     l_finger_pos = l_path_array[0][-12:] # the last 12 digits
@@ -831,6 +834,8 @@ def main():
     r_dataset_name = "fake_path_right_1"
     r_path_array = f[r_dataset_name][:]
     r_finger_pos = r_path_array[0][-12:]
+    '''
+    arm_hand_path_array = f[group_name+"/arm_traj_1"][:]
 
     f.close()
 

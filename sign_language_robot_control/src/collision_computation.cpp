@@ -1,7 +1,12 @@
 #include <ros/ros.h>
 
+#include <vector>
+#include <string>
+#include <fstream>
+
 // MoveIt!
 #include <moveit/robot_model_loader/robot_model_loader.h>
+#include <moveit/rdf_loader/rdf_loader.h>
 #include <moveit/planning_scene/planning_scene.h>
 
 // MoveIt msg and srv for using planning_scene_diff
@@ -42,8 +47,24 @@ int main(int argc, char** argv)
  
 
   // Set up PlanningScene class(from RobotModel or URDF & SRDF; see the constructor in documentation)
-  robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
-  robot_model::RobotModelPtr kinematic_model = robot_model_loader.getModel();
+
+  // way 1(checked): load from robot_description
+  //robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
+
+  // way 2(checked): construct a robot model ptr from URDF and SRDF so that the moveit needs not be launched
+  std::string urdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
+  std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
+  std::ifstream urdf_file(urdf_file_name);
+  std::ifstream srdf_file(srdf_file_name);;
+  std::stringstream urdf_string, srdf_string;
+  urdf_string << urdf_file.rdbuf();
+  srdf_string << srdf_file.rdbuf();
+  robot_model_loader::RobotModelLoader::Options options(urdf_string.str(), srdf_string.str());
+  robot_model_loader::RobotModelLoader robot_model_loader(options);
+  
+
+  // Get robot model from robot_model_loader
+  robot_model::RobotModelPtr kinematic_model = robot_model_loader.getModel(); 
   planning_scene::PlanningScene planning_scene(kinematic_model);
 
 
@@ -58,7 +79,7 @@ int main(int argc, char** argv)
   robot_state::RobotState& current_state = planning_scene.getCurrentStateNonConst();
 
 
-  // Self-collision for a group(In collision), and get contact information
+  // Self-collision for a group(left_hand group; In collision state), and get contact information
   collision_result.clear();
   std::vector<double> joint_values = {-1.0, -1.47, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.62, 0.0, -0.56, -0.3 };
   // {-1.0, -1.47, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.62, 0.0, -0.56, -0.3 } -- one self-collision configuration for left_hand
@@ -81,7 +102,7 @@ int main(int argc, char** argv)
   ROS_INFO_STREAM("Closest distance is " << collision_result.distance);
 
 
-  // Self-collision for a group(No collision)
+  // Self-collision for a group(Not in collision state)
   collision_result.clear();
   collision_request.group_name = "right_hand";
   joint_values = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };

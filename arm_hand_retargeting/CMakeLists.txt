@@ -7,7 +7,25 @@ add_compile_options(-std=c++11)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED)
+
+find_package(Eigen3 REQUIRED)
+include_directories(${EIGEN3_INCLUDE_DIRS})
+
+
+find_package(HDF5 REQUIRED COMPONENTS C CXX HL) # this works...
+include_directories(${HDF5_INCLUDE_DIRS})
+
+find_package(NLopt REQUIRED)
+
+
+find_package(catkin REQUIRED COMPONENTS
+  roscpp
+  kdl_parser
+)
+
+
+include_directories(${catkin_INCLUDE_DIRS})
+
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -136,6 +154,14 @@ include_directories(
 ## target back to the shorter version for ease of user use
 ## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
 # set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
+
+
+add_executable(arm_retarget_nlopt src/arm_retarget_nlopt.cpp)
+target_link_libraries(arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+
+
+
+
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above

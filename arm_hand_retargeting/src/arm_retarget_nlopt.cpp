@@ -39,16 +39,21 @@ using namespace H5;
 
 typedef struct {
   // Cost func related
-  Matrix<double, 6, 1> q_prev; // used across optimizations over the whole trajectory
+  Matrix<double, 12, 1> q_prev; // used across optimizations over the whole trajectory
+
+  // Human motion data
+  Vector3d l_shoulder_pos_goal; // this is human shoulder position
   Vector3d l_elbow_pos_goal;
   Vector3d l_wrist_pos_goal;
   Matrix3d l_wrist_ori_goal;
+
+  Vector3d r_shoulder_pos_goal; // this is human shoulder position
   Vector3d r_elbow_pos_goal;
   Vector3d r_wrist_pos_goal;
   Matrix3d r_wrist_ori_goal;
 
-  // Pre-required
-  Vector3d l_robot_shoulder_pos;  
+  // Pre-required data of robot
+  Vector3d l_robot_shoulder_pos; // this is normally fixed for a non-mobile robot
   Vector3d r_robot_shoulder_pos;
 
   // Constraint func related
@@ -58,14 +63,17 @@ typedef struct {
   //KDL::ChainFkSolverPos_recursive fk_solver;
   unsigned int l_num_wrist_seg = 0;
   unsigned int l_num_elbow_seg = 0; // initialized as flag
+  unsigned int l_num_shoulder_seg = 0;
+
   unsigned int r_num_wrist_seg = 0;
   unsigned int r_num_elbow_seg = 0; // initialized as flag
+  unsigned int r_num_shoulder_seg = 0;
 
 } my_constraint_struct;
 
 
 // Used for computing cost and grad(numeric differentiation) in myfunc()
-double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, my_constraint_struct *fdata)
+double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct *fdata)
 {
   // Get joint angles
   KDL::JntArray q_in(q_cur.size()); 
@@ -74,8 +82,8 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
     q_in(i) = q_cur(i);
   }
 
-  // Do FK using KDL
-  KDL::Frame elbow_cart_out, wrist_cart_out; // Output homogeneous transformation
+  // Do FK using KDL, get the current elbow/wrist/shoulder state
+  KDL::Frame elbow_cart_out, wrist_cart_out, shoulder_cart_out; // Output homogeneous transformation
   int result;
   result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
   if (result < 0){
@@ -93,16 +101,56 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
   else{
     //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
   }
+  result = fk_solver.JntToCart(q_in, shoulder_cart_out, num_shoulder_seg+1);
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+    return -1;
+  }
+  else{
+    //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+  }
 
-  // Compute cost function
+  // Preparations
   Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
   Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
   Matrix3d wrist_ori_cur = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out.M.data, 3, 3); 
-  double cost = 1.0 * (fdata->elbow_pos_goal - elbow_pos_cur).norm() 
-              + 20.0 * (fdata->wrist_pos_goal - wrist_pos_cur).norm() \
-              + 10.0 * std::fabs( std::acos (( (fdata->wrist_ori_goal * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
+  Vector3d shoulder_pos_cur = Map<Vector3d>(shoulder_cart_out.p.data, 3, 1);
+
+  Vector3d shoulder_pos_human, elbow_pos_human, wrist_pos_human;
+  Matrix3d wrist_ori_human;
+  Matrix<double, 12, 1> q_whole = fdata->q_prev;
+  Matrix<double, 6, 1> q_prev;
+  if (left_or_right) // left arm
+  {
+    shoulder_pos_human = fdata->l_shoulder_pos_goal;
+    elbow_pos_human = fdata->l_elbow_pos_goal;
+    wrist_pos_human = fdata->l_wrist_pos_goal;
+    wrist_ori_human = fdata->l_wrist_ori_goal;
+    q_prev << q_whole[0], q_whole[1], q_whole[2], q_whole[3], q_whole[4], q_whole[5];
+  }
+  else // right arm
+  {
+    shoulder_pos_human = fdata->r_shoulder_pos_goal;
+    elbow_pos_human = fdata->r_elbow_pos_goal;
+    wrist_pos_human = fdata->r_wrist_pos_goal;
+    wrist_ori_human = fdata->r_wrist_ori_goal;
+    q_prev << q_whole[6], q_whole[7], q_whole[8], q_whole[9], q_whole[10], q_whole[11];
+  }
+
+  Vector3d shoulder_elbow_vec_human = (elbow_pos_human - shoulder_pos_human).normalized();
+  Vector3d elbow_wrist_vec_human = (wrist_pos_human - elbow_pos_human).normalized();
+
+  Vector3d shoulder_elbow_vec_robot = (elbow_pos_cur - shoulder_pos_cur).normalized();
+  Vector3d elbow_wrist_vec_robot = (wrist_pos_cur - elbow_pos_cur).normalized();
+
+
+  // Compute cost function
+  double cost = 10.0 * (shoulder_elbow_vec_human - shoulder_elbow_vec_robot).norm() 
+              + 10.0 * (elbow_wrist_vec_human - elbow_wrist_vec_robot).norm() \
+              + 10.0 * std::fabs( std::acos (( (wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
+
   if (!first_iter)
-    cost += 0.5 * (q_cur - fdata->q_prev).norm();
+    cost += 0.5 * (q_cur - q_prev).norm();
 
   // Display for debug
   /*std::cout << "Cost func structure: " << std::endl
@@ -122,11 +170,12 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
 
 
 // This function sets elbow ID and wrist ID in constraint_data, and returns the KDL_FK solver 
-KDL::ChainFkSolverPos_recursive setup_kdl(my_constraint_struct &constraint_data)
+KDL::ChainFkSolverPos_recursive setup_left_kdl(my_constraint_struct &constraint_data)
 {
   // Params
   const std::string URDF_FILE = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
   const std::string BASE_LINK = "world"; // use /world as base_link for convenience in simulation; when transfer across different robot arms, may use mid-point between shoulders as the common base(or world)
+  const std::string SHOULDER_LINK = "left_base_link";
   const std::string ELBOW_LINK = "left_forearm_link";
   const std::string WRIST_LINK = "left_ee_link";
 
@@ -148,16 +197,78 @@ KDL::ChainFkSolverPos_recursive setup_kdl(my_constraint_struct &constraint_data)
 
 
   // Find segment number for wrist and elbow links, store in constraint_dat
-  if (constraint_data.num_wrist_seg == 0 || constraint_data.num_elbow_seg == 0) // if the IDs not set
+  if (constraint_data.l_num_wrist_seg == 0 || constraint_data.l_num_elbow_seg == 0 || constraint_data.l_num_shoulder_seg == 0) // if the IDs not set
   {
     unsigned int num_segments = kdl_chain.getNrOfSegments();
-    constraint_data.num_wrist_seg = num_segments - 1;
+    constraint_data.l_num_wrist_seg = num_segments - 1;
     //ROS_INFO_STREAM("There are " << num_segments << " segments in the kdl_chain");
     for (unsigned int i = 0; i < num_segments; ++i){
       if (kdl_chain.getSegment(i).getName() == ELBOW_LINK){
-        constraint_data.num_elbow_seg = i;
+        constraint_data.l_num_elbow_seg = i;
         //ROS_INFO_STREAM("Elbow link found.");
         break;
+      }
+      if (kdl_chain.getSegment(i).getName() == SHOULDER_LINK){
+        constraint_data.l_num_shoulder_seg = i;
+        //ROS_INFO_STREAM("Elbow link found.");
+        //break;
+      }
+    }
+  }
+
+
+  // Set up FK solver and compute the homogeneous representations
+  KDL::ChainFkSolverPos_recursive fk_solver(kdl_chain);
+  //ROS_INFO_STREAM("Joint dimension is: " << kdl_chain.getNrOfJoints()); // 6 joints, 8 segments, checked!
+
+  return fk_solver;
+
+}
+
+
+// This function sets elbow ID and wrist ID in constraint_data, and returns the KDL_FK solver 
+KDL::ChainFkSolverPos_recursive setup_right_kdl(my_constraint_struct &constraint_data)
+{
+  // Params
+  const std::string URDF_FILE = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
+  const std::string BASE_LINK = "world"; // use /world as base_link for convenience in simulation; when transfer across different robot arms, may use mid-point between shoulders as the common base(or world)
+  const std::string SHOULDER_LINK = "right_base_link";
+  const std::string ELBOW_LINK = "right_forearm_link";
+  const std::string WRIST_LINK = "right_ee_link";
+
+  // Get tree
+  KDL::Tree kdl_tree; 
+   if (!kdl_parser::treeFromFile(URDF_FILE, kdl_tree)){ 
+      ROS_ERROR("Failed to construct kdl tree");
+      exit(-1);
+   }
+  //ROS_INFO("Successfully built a KDL tree from URDF file.");
+
+  // Get chain  
+  KDL::Chain kdl_chain; 
+  if(!kdl_tree.getChain(BASE_LINK, WRIST_LINK, kdl_chain)){
+    ROS_INFO("Failed to obtain chain from root to wrist");
+    exit(-1);
+  }
+  //ROS_INFO("Successfully obtained chain from root to wrist.");
+
+
+  // Find segment number for wrist and elbow links, store in constraint_dat
+  if (constraint_data.r_num_wrist_seg == 0 || constraint_data.r_num_elbow_seg == 0 || constraint_data.r_num_shoulder_seg == 0) // if the IDs not set
+  {
+    unsigned int num_segments = kdl_chain.getNrOfSegments();
+    constraint_data.r_num_wrist_seg = num_segments - 1;
+    //ROS_INFO_STREAM("There are " << num_segments << " segments in the kdl_chain");
+    for (unsigned int i = 0; i < num_segments; ++i){
+      if (kdl_chain.getSegment(i).getName() == ELBOW_LINK){
+        constraint_data.r_num_elbow_seg = i;
+        //ROS_INFO_STREAM("Elbow link found.");
+        break;
+      }
+      if (kdl_chain.getSegment(i).getName() == SHOULDER_LINK){
+        constraint_data.r_num_shoulder_seg = i;
+        //ROS_INFO_STREAM("Elbow link found.");
+        //break;
       }
     }
   }
@@ -186,15 +297,19 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
 
   // Get fk solver( and set IDs if first time)
-  KDL::ChainFkSolverPos_recursive fk_solver = setup_kdl(*fdata);
+  KDL::ChainFkSolverPos_recursive left_fk_solver = setup_left_kdl(*fdata);
+  KDL::ChainFkSolverPos_recursive right_fk_solver = setup_right_kdl(*fdata);
+
   //std::cout << "At evaluation of cost func, after setting up kdl solver." << std::endl;
 
 
   // Calculate loss function(tracking performance + continuity)
   //std::vector<double> x_tmp = x;
-  Matrix<double, 6, 1> q_cur;
-  q_cur << x[0], x[1], x[2], x[3], x[4], x[5]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
-  double cost = compute_cost(fk_solver, q_cur, fdata->num_wrist_seg, fdata->num_elbow_seg, fdata);
+  Matrix<double, 6, 1> q_cur_l, q_cur_r;
+  q_cur_l << x[0], x[1], x[2], x[3], x[4], x[5]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
+  q_cur_r << x[6], x[7], x[8], x[9], x[10], x[11]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
+  double cost = compute_cost(left_fk_solver, q_cur_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+  cost += compute_cost(right_fk_solver, q_cur_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
 
 
   // Compute gradient using Numeric Differentiation
@@ -202,21 +317,49 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
   if(!grad.empty())
   {
     double eps = 0.001;
-    Matrix<double, 6, 1> q_tmp;
+    Matrix<double, 6, 1> q_tmp_l, q_tmp_r;
+    
     double cost1, cost2;
-    for (unsigned int i = 0; i < q_tmp.size(); ++i)
+    // gradients on the left arm's joints
+    for (unsigned int i = 0; i < q_tmp_l.size(); ++i)
     {
       // 1
-      q_tmp = q_cur;
-      q_tmp[i] += eps;
-      cost1 = compute_cost(fk_solver, q_tmp, fdata->num_wrist_seg, fdata->num_elbow_seg, fdata);
+      q_tmp_l = q_cur_l;
+      q_tmp_r = q_cur_r;
+      q_tmp_l[i] += eps;
+      cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+      cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       // 2
-      q_tmp = q_cur;
-      q_tmp[i] -= eps;
-      cost2 = compute_cost(fk_solver, q_tmp, fdata->num_wrist_seg, fdata->num_elbow_seg, fdata);
+      q_tmp_l = q_cur_l;
+      q_tmp_r = q_cur_r;
+      q_tmp_l[i] -= eps;
+      cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+      cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       // combine 1 and 2
       grad[i] = (cost1 - cost2) / (2.0 * eps);
     }
+
+    // gradients on the right arm's joints
+    for (unsigned int i = q_tmp_l.size(); i < q_tmp_l.size() + q_tmp_r.size(); ++i)
+    {
+      // 1
+      q_tmp_l = q_cur_l;
+      q_tmp_r = q_cur_r;
+      q_tmp_r[i-q_tmp_l.size()] += eps;
+      cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+      cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      // 2
+      q_tmp_l = q_cur_l;
+      q_tmp_r = q_cur_r;
+      q_tmp_r[i-q_tmp_l.size()] -= eps;
+      cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+      cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      // combine 1 and 2
+      grad[i] = (cost1 - cost2) / (2.0 * eps);
+    }
+
+    // gradients on the hand's joints
+
   }
 
 
@@ -423,18 +566,25 @@ int main(int argc, char **argv)
 {
 
   // Input Cartesian trajectories
-  const unsigned int joint_value_dim = 6;   
+  const unsigned int joint_value_dim = 12; //6;   
   std::vector<double> x(joint_value_dim);
-  const std::string in_file_name = "mocap_wrist_pos_ori_elbow_pos_paths.h5";
-  const std::string in_group_name = "xx_motion";
-  const std::string in_dataset_name = "l_wrist_pos/l_wrist_ori/l_elbow_pos";
-  std::vector<std::vector<double>> read_wrist_pos_traj = read_h5(in_file_name, in_group_name, "l_wrist_pos"); 
-  std::vector<std::vector<double>> read_wrist_ori_traj = read_h5(in_file_name, in_group_name, "l_wrist_ori"); 
-  std::vector<std::vector<double>> read_elbow_pos_traj = read_h5(in_file_name, in_group_name, "l_elbow_pos"); 
+  const std::string in_file_name = "glove_test_data_UR5.h5";
+  const std::string in_group_name = "right_glove_test_1";
+  std::vector<std::vector<double>> read_l_wrist_pos_traj = read_h5(in_file_name, in_group_name, "l_wrist_pos"); 
+  std::vector<std::vector<double>> read_l_wrist_ori_traj = read_h5(in_file_name, in_group_name, "l_wrist_ori"); 
+  std::vector<std::vector<double>> read_l_elbow_pos_traj = read_h5(in_file_name, in_group_name, "l_elbow_pos"); 
+  std::vector<std::vector<double>> read_l_shoulder_pos_traj = read_h5(in_file_name, in_group_name, "l_shoulder_pos"); 
+
+  std::vector<std::vector<double>> read_r_wrist_pos_traj = read_h5(in_file_name, in_group_name, "r_wrist_pos"); 
+  std::vector<std::vector<double>> read_r_wrist_ori_traj = read_h5(in_file_name, in_group_name, "r_wrist_ori"); 
+  std::vector<std::vector<double>> read_r_elbow_pos_traj = read_h5(in_file_name, in_group_name, "r_elbow_pos"); 
+  std::vector<std::vector<double>> read_r_shoulder_pos_traj = read_h5(in_file_name, in_group_name, "r_shoulder_pos"); 
+
+  std::vector<std::vector<double>> read_time_stamps = read_h5(in_file_name, in_group_name, "time"); 
 
   // using read_h5() does not need to specify the size!!!
   // elbow pos(3) + wrist pos(3) + wrist rot(9) = 15-dim
-  unsigned int num_datapoints = read_wrist_pos_traj.size(); 
+  unsigned int num_datapoints = read_l_wrist_pos_traj.size(); 
 
   // display a few examples(debug)
   /*
@@ -449,8 +599,8 @@ int main(int argc, char **argv)
   */
 
   // Parameters setting
-  std::vector<double> qlb = {-1.0, -1.0, -1.0, -1.57, -1.57, -1.57};//{-6.28, -5.498, -7.854, -6.28, -7.854, -6.28};
-  std::vector<double> qub = {1.0, 1.0, 1.0, 1.57, 1.57, 1.57};//{6.28, 7.069, 4.712, 6.28, 4.712, 6.28};
+  std::vector<double> qlb = {-1.0, -1.0, -1.0, -1.57, -1.57, -1.57, -1.0, -1.0, -1.0, -1.57, -1.57, -1.57};//{-6.28, -5.498, -7.854, -6.28, -7.854, -6.28};
+  std::vector<double> qub = {1.0, 1.0, 1.0, 1.57, 1.57, 1.57, 1.0, 1.0, 1.0, 1.57, 1.57, 1.57};//{6.28, 7.069, 4.712, 6.28, 4.712, 6.28};
   //std::vector<double> x(joint_value_dim);
   double minf;
   double tol = 1e-4;
@@ -459,7 +609,8 @@ int main(int argc, char **argv)
 
   // Set up KDL(get solver, wrist ID and elbow ID)
   my_constraint_struct constraint_data; 
-  setup_kdl(constraint_data); // set IDs, discard the solver handle
+  setup_left_kdl(constraint_data); // set IDs, discard the solver handle
+  setup_right_kdl(constraint_data); 
 
   //std::cout << "At Main func, before set up optimizer." << std::endl;
 
@@ -493,30 +644,53 @@ int main(int argc, char **argv)
     // Reset counter.
     count = 0; 
 
-    // Set goal point
+    // Get one point from the path
     //std::vector<double> path_point = read_wrist_elbow_traj[it];
     /*std::vector<double> wrist_pos(path_point.begin(), path_point.begin()+3); // 3-dim
     std::vector<double> wrist_ori(path_point.begin()+3, path_point.begin()+12); // 9-dim
     std::vector<double> elbow_pos(path_point.begin()+12, path_point.begin()+15); //end()); // 3-dim */
+    std::vector<double> l_wrist_pos = read_l_wrist_pos_traj[it]; // 3-dim
+    std::vector<double> l_wrist_ori = read_l_wrist_ori_traj[it]; // 9-dim
+    std::vector<double> l_elbow_pos = read_l_elbow_pos_traj[it]; //end()); // 3-dim
+    std::vector<double> l_shoulder_pos = read_l_shoulder_pos_traj[it]; 
   
-    std::vector<double> wrist_pos = read_wrist_pos_traj[it]; // 3-dim
-    std::vector<double> wrist_ori = read_wrist_ori_traj[it]; // 9-dim
-    std::vector<double> elbow_pos = read_elbow_pos_traj[it]; //end()); // 3-dim
+    std::vector<double> r_wrist_pos = read_r_wrist_pos_traj[it]; // 3-dim
+    std::vector<double> r_wrist_ori = read_r_wrist_ori_traj[it]; // 9-dim
+    std::vector<double> r_elbow_pos = read_r_elbow_pos_traj[it]; //end()); // 3-dim
+    std::vector<double> r_shoulder_pos = read_r_shoulder_pos_traj[it]; 
 
     /** check the extracted data sizes **
     std::cout << "wrist_pos.size() = " << wrist_pos.size() << ", ";
     std::cout << "wrist_ori.size() = " << wrist_ori.size() << ", ";
     std::cout << "elbow_pos.size() = " << elbow_pos.size() << "." << std::endl; */
     // convert
-    Vector3d wrist_pos_goal = Map<Vector3d>(wrist_pos.data(), 3, 1);
-    Matrix3d wrist_ori_goal = Map<Matrix<double, 3, 3, RowMajor>>(wrist_ori.data(), 3, 3);
-    Vector3d elbow_pos_goal = Map<Vector3d>(elbow_pos.data(), 3, 1);
-    constraint_data.wrist_pos_goal = wrist_pos_goal;
-    constraint_data.wrist_ori_goal = wrist_ori_goal;
-    constraint_data.elbow_pos_goal = elbow_pos_goal;
+    Vector3d l_wrist_pos_goal = Map<Vector3d>(l_wrist_pos.data(), 3, 1);
+    Matrix3d l_wrist_ori_goal = Map<Matrix<double, 3, 3, RowMajor>>(l_wrist_ori.data(), 3, 3);
+    Vector3d l_elbow_pos_goal = Map<Vector3d>(l_elbow_pos.data(), 3, 1);
+    Vector3d l_shoulder_pos_goal = Map<Vector3d>(l_shoulder_pos.data(), 3, 1);
+
+    Vector3d r_wrist_pos_goal = Map<Vector3d>(r_wrist_pos.data(), 3, 1);
+    Matrix3d r_wrist_ori_goal = Map<Matrix<double, 3, 3, RowMajor>>(r_wrist_ori.data(), 3, 3);
+    Vector3d r_elbow_pos_goal = Map<Vector3d>(r_elbow_pos.data(), 3, 1);
+    Vector3d r_shoulder_pos_goal = Map<Vector3d>(r_shoulder_pos.data(), 3, 1);
+
+    // Save in constraint_data for use in optimization
+    constraint_data.l_wrist_pos_goal = l_wrist_pos_goal;
+    constraint_data.l_wrist_ori_goal = l_wrist_ori_goal;
+    constraint_data.l_elbow_pos_goal = l_elbow_pos_goal;
+    constraint_data.l_shoulder_pos_goal = l_shoulder_pos_goal;
+    constraint_data.r_wrist_pos_goal = r_wrist_pos_goal;
+    constraint_data.r_wrist_ori_goal = r_wrist_ori_goal;
+    constraint_data.r_elbow_pos_goal = r_elbow_pos_goal;
+    constraint_data.r_shoulder_pos_goal = r_shoulder_pos_goal;
+
+    // robot's shoulder position
+    constraint_data.l_robot_shoulder_pos = Vector3d(-0.06, 0.235, 0.395);
+    constraint_data.r_robot_shoulder_pos = Vector3d(-0.06, -0.235, 0.395);
+
+
     /** Be careful with the data assignment above !!!! **
     //if (it == 10){
-
     std::cout << "Display the goal point: " << std::endl;
     std::cout << "Path point is: ";
     for (int i = 0; i < wrist_pos.size() + wrist_ori.size() + elbow_pos.size(); ++i) std::cout << path_point[i] << " "; 
@@ -591,7 +765,7 @@ int main(int argc, char **argv)
 
       // Record the current joint as q_prev
       //Matrix<double, 6, 1> q_prev = Map<Eigen::Matrix<double, 6, 1>>(x.data(), 6, 1);
-      constraint_data.q_prev = Map<Eigen::Matrix<double, 6, 1>>(x.data(), 6, 1); // used across optimizations over the whole trajectory  
+      constraint_data.q_prev = Map<Eigen::Matrix<double, 12, 1>>(x.data(), 12, 1); // used across optimizations over the whole trajectory  
       //std::cout << "q_prev is: " << constraint_data.q_prev.transpose() << std::endl;
       first_iter = false;
 
@@ -631,10 +805,12 @@ int main(int argc, char **argv)
 
   // Store the results
   const std::string file_name = "mocap_ik_results.h5";
-  const std::string group_name = "xx_motion";
-  const std::string dataset_name = "left_or_right_angles";
-  bool result = write_h5(file_name, group_name, dataset_name, num_datapoints, joint_value_dim, q_results);
-  if(result)
+  const std::string group_name = in_group_name;
+  //const std::string dataset_name = "arm_traj_1";
+  bool result1 = write_h5(file_name, group_name, "arm_traj_1", num_datapoints, joint_value_dim, q_results);
+  bool result2 = write_h5(file_name, group_name, "timestamp_1", num_datapoints, 1, read_time_stamps);  
+
+  if(result1 and result2)
     std::cout << "Joint path results successfully stored!" << std::endl;
 
  

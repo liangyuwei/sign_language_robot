@@ -23,7 +23,7 @@ def pos_to_ndarray(pos):
   return np.array([pos.x, pos.y, pos.z])
 
 def quat_to_ndarray(quat):
-
+  # returned quaternion is (x,y,z,w)
   return np.array([quat.x, quat.y, quat.z, quat.w])
 
 
@@ -137,24 +137,50 @@ def bag_to_h5_video(bag_name, h5_name, fps=15.0):
 
 
 
-def h5_to_wrist_elbow(in_h5_name, out_h5_name, group_name):
+def h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name):
   ### Extract needed information from the dataset(mocap) for learning 
+  # The position data in the exported h5 is already under z-up frame in consistent with the UR5 world.
+  # Yet the orientation data is still not under UR5 local frame, this function should transform the required orientation information from human motion data to match the UR5' local frames.
   
+
   ## Read needed data from mocap file
   f = h5py.File(in_h5_name+".h5", "r")
 
   l_wrist_pos = f[group_name + '/l_hd_pos'][:]
-  l_wrist_quat = f[group_name + '/l_hd_quat'][:]
+  l_wrist_quat = f[group_name + '/l_hd_quat'][:] # quaternion is (x,y,z,w), refer to quat_to_ndarray()
   l_elbow_pos = f[group_name + '/l_fr_pos'][:]
+  l_shoulder_pos = f[group_name + '/l_up_pos'][:]
 
   r_wrist_pos = f[group_name + '/r_hd_pos'][:]
   r_wrist_quat = f[group_name + '/r_hd_quat'][:]
   r_elbow_pos = f[group_name + '/r_fr_pos'][:]  
+  r_shoulder_pos = f[group_name + '/r_up_pos'][:]
 
   l_glove_angle = f[group_name + '/l_glove_angle'][:]
   r_glove_angle = f[group_name + '/r_glove_angle'][:]
 
+  time = f[group_name + '/time'][:] # remember to store the timestamps information
+
   f.close()
+
+
+  ## Transform the orientation to match UR5's local frames
+  rotm_shift_l_hd = np.array([ [0.0, 1.0, 0.0, 0.0],
+                               [0.0, 0.0, 1.0, 0.0],
+                               [1.0, 0.0, 0.0, 0.0],
+                               [0.0, 0.0, 0.0, 1.0] ])
+  rotm_shift_r_hd = np.array([ [0.0, 1.0, 0.0, 0.0],
+                               [0.0, 0.0, -1.0, 0.0],
+                               [-1.0, 0.0, 0.0, 1.0],
+                               [0.0, 0.0, 0.0, 1.0] ])
+  quat_shift_l_hd = tf.transformations.quaternion_from_matrix(rotm_shift_l_hd)
+  quat_shift_r_hd = tf.transformations.quaternion_from_matrix(rotm_shift_r_hd)
+  for i in range(l_wrist_quat.shape[0]):
+    # refer to the following link for the usage of this function:
+    # http://wiki.ros.org/tf2/Tutorials/Quaternions
+    l_wrist_quat[i, :] = tf.transformations.quaternion_multiply(quat_shift_l_hd, l_wrist_quat[i, :])
+    r_wrist_quat[i, :] = tf.transformations.quaternion_multiply(quat_shift_r_hd, r_wrist_quat[i, :])
+
 
   ## Convert quaternions to rotation matrices
   length = l_wrist_pos.shape[0]
@@ -175,13 +201,17 @@ def h5_to_wrist_elbow(in_h5_name, out_h5_name, group_name):
   group.create_dataset("l_wrist_pos", data=l_wrist_pos, dtype=float)
   group.create_dataset("l_wrist_ori", data=l_wrist_ori, dtype=float)
   group.create_dataset("l_elbow_pos", data=l_elbow_pos, dtype=float)
+  group.create_dataset("l_shoulder_pos", data=l_shoulder_pos, dtype=float)
 
   group.create_dataset("r_wrist_pos", data=r_wrist_pos, dtype=float)
   group.create_dataset("r_wrist_ori", data=r_wrist_ori, dtype=float)
   group.create_dataset("r_elbow_pos", data=r_elbow_pos, dtype=float)
+  group.create_dataset("r_shoulder_pos", data=r_shoulder_pos, dtype=float)
 
   group.create_dataset("l_glove_angle", data=l_glove_angle, dtype=float)
   group.create_dataset("r_glove_angle", data=r_glove_angle, dtype=float)
+
+  group.create_dataset("time", data=time, dtype=float)
 
   f.close()
 
@@ -221,9 +251,9 @@ if __name__ == '__main__':
 
   ### Extract necessary information for learning
   in_h5_name = h5_name
-  out_h5_name = in_h5_name + '_wrist_pos_ori_elbow_pos'
+  out_h5_name = in_h5_name + '_UR5'
   group_name = bag_name
-  h5_to_wrist_elbow(in_h5_name, out_h5_name, group_name)
+  h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name)
 
 
 
