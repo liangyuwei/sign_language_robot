@@ -29,7 +29,7 @@ geometry_msgs::Quaternion transform_to_ur5(geometry_msgs::Quaternion quat_in, Qu
   Quaterniond quat_tmp(quat_in.w, quat_in.x, quat_in.y, quat_in.z);
   
   // Resultant quaternion
-  Quaterniond quat_res = quat_shift * quat_tmp;
+  Quaterniond quat_res = quat_tmp * quat_shift;
 
   // Return the result
   geometry_msgs::Quaternion quat_out = quat_in;
@@ -136,24 +136,54 @@ TransformUR5AndRepublish::TransformUR5AndRepublish()
   ROS_INFO_STREAM("Ready to transform the synced message to UR5 local frames.");
 
   // Initialize the rotation matrices and quaternions
-  rotm_shift_l_up << 0.0, -1.0, 0.0,
+  rotm_shift_l_up << 0.0, 1.0, 0.0,
+                    -1.0, 0.0, 0.0,
+                     0.0, 0.0, 1.0;
+                    /*0.0, -1.0, 0.0,
                      1.0, 0.0, 0.0, 
-                     0.0, 0.0, 1.0; // from manual calculation...
-  rotm_shift_l_fr << 0.0, -1.0, 0.0,
+                     0.0, 0.0, 1.0;*/ // from manual calculation...
+  rotm_shift_l_fr << 0.0, 1.0, 0.0,
+                    -1.0, 0.0, 0.0,
+                     0.0, 0.0, 1.0;
+                    /*0.0, -1.0, 0.0,
                      1.0, 0.0, 0.0, 
-                     0.0, 0.0, 1.0;
-  rotm_shift_l_hd << 0.0, 1.0, 0.0,
-                     0.0, 0.0, 1.0, 
-                     1.0, 0.0, 0.0;
-  rotm_shift_r_up << 0.0, 1.0, 0.0,
-                    -1.0, 0.0, 0.0, 
-                     0.0, 0.0, 1.0;
-  rotm_shift_r_fr << 0.0, 1.0, 0.0,
-                    -1.0, 0.0, 0.0, 
-                     0.0, 0.0, 1.0;
-  rotm_shift_r_hd << 0.0, 1.0, 0.0,
+                     0.0, 0.0, 1.0;*/
+
+
+  rotm_shift_l_hd << 0.0, -1.0, 0.0,
                      0.0, 0.0, -1.0, 
-                    -1.0, 0.0, 0.0;
+                     1.0, 0.0, 0.0;
+                    /*0.0, 0.0, 1.0,
+                    -1.0, 0.0, 0.0, 
+                     0.0, -1.0, 0.0;*/
+                    /*0.0, -1.0, 0.0,
+                     0.0, 0.0, -1.0,
+                     1.0, 0.0, 0.0; */
+                    /*0.0, 1.0, 0.0,
+                     0.0, 0.0, 1.0, 
+                     1.0, 0.0, 0.0;*/
+
+
+
+  rotm_shift_r_up << 0.0, -1.0, 0.0,
+                     1.0, 0.0, 0.0,
+                     0.0, 0.0, 1.0;
+                    /*0.0, 1.0, 0.0,
+                    -1.0, 0.0, 0.0, 
+                     0.0, 0.0, 1.0;*/
+  rotm_shift_r_fr << 0.0, -1.0, 0.0,
+                     1.0, 0.0, 0.0,
+                      0.0, 0.0, 1.0;
+
+                     /*0.0, 1.0, 0.0,
+                    -1.0, 0.0, 0.0, 
+                     0.0, 0.0, 1.0;*/
+  rotm_shift_r_hd << 0.0, -1.0, 0.0,
+                     0.0, 0.0, -1.0,
+                     1.0, 0.0, 0.0;
+                     /*0.0, 1.0, 0.0,
+                     0.0, 0.0, -1.0, 
+                    -1.0, 0.0, 0.0;*/
   quat_shift_l_up = Quaterniond(rotm_shift_l_up);
   quat_shift_l_fr = Quaterniond(rotm_shift_l_fr);
   quat_shift_l_hd = Quaterniond(rotm_shift_l_hd);

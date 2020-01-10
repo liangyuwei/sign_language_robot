@@ -9,6 +9,7 @@ find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIRS})
 
 find_package(catkin REQUIRED COMPONENTS
+  genmsg
   roscpp
   rospy
   tf
@@ -43,51 +44,53 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 
 
 
+
+
+
 ## For sync-ing arm and hand states and re-publish them
 add_executable(sync_message_topic src/sync_message_topic.cpp)
-target_link_libraries(sync_message_topic ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 # make sure messages are generated before compiling nodes
+target_link_libraries(sync_message_topic ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 add_dependencies(sync_message_topic ${PACKAGE_NAME}_generate_messages_cpp)
 
-
 ## Testing of message_filters using ordinary message types
-add_executable(topic_to_sync_1 src/topic_to_sync_1.cpp)
-target_link_libraries(topic_to_sync_1 ${catkin_LIBRARIES})
-add_executable(topic_to_sync_2 src/topic_to_sync_2.cpp)
-target_link_libraries(topic_to_sync_2 ${catkin_LIBRARIES})
-add_executable(topic_to_sync_3 src/topic_to_sync_3.cpp)
-target_link_libraries(topic_to_sync_3 ${catkin_LIBRARIES})
+#add_executable(topic_to_sync_1 src/topic_to_sync_1.cpp)
+#target_link_libraries(topic_to_sync_1 ${catkin_LIBRARIES})
+#add_executable(topic_to_sync_2 src/topic_to_sync_2.cpp)
+#target_link_libraries(topic_to_sync_2 ${catkin_LIBRARIES})
+#add_executable(topic_to_sync_3 src/topic_to_sync_3.cpp)
+#target_link_libraries(topic_to_sync_3 ${catkin_LIBRARIES})
 
-add_executable(test_message_filter src/test_message_filter.cpp)
-target_link_libraries(test_message_filter ${catkin_LIBRARIES})
+#add_executable(test_message_filter src/test_message_filter.cpp)
+#target_link_libraries(test_message_filter ${catkin_LIBRARIES})
 
-add_executable(test_message_filter_class src/test_message_filter_class.cpp)
-target_link_libraries(test_message_filter_class ${catkin_LIBRARIES})
+#add_executable(test_message_filter_class src/test_message_filter_class.cpp)
+#target_link_libraries(test_message_filter_class ${catkin_LIBRARIES})
 
 
 ## Unpack the sync-ed message and broadcast the transforms of each arm
 add_executable(unpack_synced_message src/unpack_synced_message.cpp)
 target_link_libraries(unpack_synced_message ${catkin_LIBRARIES})
-
+add_dependencies(unpack_synced_message ${PACKAGE_NAME}_generate_messages_cpp)
 
 ## Transform the local frames(upperarm, forearm, hand) to match UR5 configuration
 add_executable(synced_message_to_ur5 src/synced_message_to_ur5.cpp)
 target_link_libraries(synced_message_to_ur5 ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-
+add_dependencies(synced_message_to_ur5 ${PACKAGE_NAME}_generate_messages_cpp)
 
 ## For visualization markers
 add_executable(load_visualization_markers src/load_visualization_markers.cpp)
 target_link_libraries(load_visualization_markers ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-
+add_dependencies(load_visualization_markers ${PACKAGE_NAME}_generate_messages_cpp)
 
 ## Sync the arm-hand state with the corresponding image
 add_executable(sync_state_with_image src/sync_state_with_image.cpp)
 target_link_libraries(sync_state_with_image ${catkin_LIBRARIES})
+add_dependencies(sync_state_with_image ${PACKAGE_NAME}_generate_messages_cpp)
 
 add_executable(unpack_synced_message_with_image src/unpack_synced_message_with_image.cpp)
 target_link_libraries(unpack_synced_message_with_image ${catkin_LIBRARIES})
-
-
+add_dependencies(unpack_synced_message_with_image ${PACKAGE_NAME}_generate_messages_cpp)
 
 
 

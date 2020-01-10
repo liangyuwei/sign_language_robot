@@ -21,6 +21,15 @@
   <node name="unpack_synced_message_with_image_node" pkg="arm_hand_capture" type="unpack_synced_message_with_image" /> <!-- output="screen" /-->
 
   
+
+
+  <!-- Synchronize the mocap data and glove data(and transform to z-up frames) -->
+  <!--node name="sync_message_topic" pkg="arm_hand_capture" type="sync_message_topic" output="screen" /-->
+   <!-- Transform the synced data to match the configuration of UR5 -->
+  <!--node name="synced_message_to_ur5" pkg="arm_hand_capture" type="synced_message_to_ur5" /-->
+
+
+
   <!-- Transform the synced data to match the configuration of UR5 -->
   <!--node name="synced_message_to_ur5" pkg="arm_hand_capture" type="synced_message_to_ur5" /-->
 

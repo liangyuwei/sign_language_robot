@@ -6,6 +6,8 @@ import numpy as np
 import tf
 
 import sys
+import getopt
+
 import cv2
 import rospy
 from cv_bridge import CvBridge, CvBridgeError
@@ -113,6 +115,9 @@ def bag_to_h5_video(bag_name, h5_name, fps=15.0):
   group_name = bag_name
 
   f = h5py.File(h5_name+".h5", "a") # open in append mode
+  if group_name in f.keys():
+    # the group already exists
+    del f[group_name]
   group = f.create_group(group_name)
   group.create_dataset("l_up_pos", data=l_up_pos, dtype=float)
   group.create_dataset("l_up_quat", data=l_up_quat, dtype=float)
@@ -144,7 +149,7 @@ def h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name):
   
 
   ## Read needed data from mocap file
-  f = h5py.File(in_h5_name+".h5", "r")
+  f = h5py.File(in_h5_name+".h5", "r") 
 
   l_wrist_pos = f[group_name + '/l_hd_pos'][:]
   l_wrist_quat = f[group_name + '/l_hd_quat'][:] # quaternion is (x,y,z,w), refer to quat_to_ndarray()
@@ -165,21 +170,24 @@ def h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name):
 
 
   ## Transform the orientation to match UR5's local frames
-  rotm_shift_l_hd = np.array([ [0.0, 1.0, 0.0, 0.0],
-                               [0.0, 0.0, 1.0, 0.0],
+  rotm_shift_l_hd = np.array([ [0.0, -1.0, 0.0, 0.0],
+                               [0.0, 0.0, -1.0, 0.0],
                                [1.0, 0.0, 0.0, 0.0],
                                [0.0, 0.0, 0.0, 1.0] ])
-  rotm_shift_r_hd = np.array([ [0.0, 1.0, 0.0, 0.0],
+
+  rotm_shift_r_hd = np.array([ [0.0, -1.0, 0.0, 0.0],
                                [0.0, 0.0, -1.0, 0.0],
-                               [-1.0, 0.0, 0.0, 1.0],
+                               [1.0, 0.0, 0.0, 0.0],
                                [0.0, 0.0, 0.0, 1.0] ])
+ 
   quat_shift_l_hd = tf.transformations.quaternion_from_matrix(rotm_shift_l_hd)
   quat_shift_r_hd = tf.transformations.quaternion_from_matrix(rotm_shift_r_hd)
   for i in range(l_wrist_quat.shape[0]):
     # refer to the following link for the usage of this function:
     # http://wiki.ros.org/tf2/Tutorials/Quaternions
-    l_wrist_quat[i, :] = tf.transformations.quaternion_multiply(quat_shift_l_hd, l_wrist_quat[i, :])
-    r_wrist_quat[i, :] = tf.transformations.quaternion_multiply(quat_shift_r_hd, r_wrist_quat[i, :])
+    # tf quaternion is [x,y,z,w]
+    l_wrist_quat[i, :] = tf.transformations.quaternion_multiply(l_wrist_quat[i, :], quat_shift_l_hd)
+    r_wrist_quat[i, :] = tf.transformations.quaternion_multiply(r_wrist_quat[i, :], quat_shift_r_hd)
 
 
   ## Convert quaternions to rotation matrices
@@ -196,7 +204,10 @@ def h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name):
 
 
   ## Write to a new h5 file
-  f = h5py.File(out_h5_name+'.h5', "a")
+  f = h5py.File(out_h5_name+'.h5', "a") # 'a' for read/write/create access
+  if group_name in f.keys():
+    # the group already exists
+    del f[group_name]
   group = f.create_group(group_name)
   group.create_dataset("l_wrist_pos", data=l_wrist_pos, dtype=float)
   group.create_dataset("l_wrist_ori", data=l_wrist_ori, dtype=float)
@@ -235,9 +246,35 @@ def read_video(video_name):
 
 if __name__ == '__main__':
 
+
   ### Set up parameters
-  bag_name = 'right_glove_test_3' # no `.bag` here
+  # export information from bag file
+  bag_name = 'qie' # no `.bag` here
   h5_name = 'glove_test_data'
+  try:
+    options, args = getopt.getopt(sys.argv[1:], "hi:o:", ["help", "bag-name=", "h5-name="])
+  except getopt.GetoptError:
+    sys.exit()
+  for option, value in options:
+    if option in ("-h", "--help"):
+      print("Help:\n")
+      print("   This script exports *EVERYTHING* from rosbag file into h5 file and a video.\n")
+      print("Arguments:\n")
+      print("   -i, --bag-name=, Specify the name of the input bag file, otherwise operate on the bag file with the default name specified inside this script. No suffix is required.\n")
+      print("   -o, --h5-name=, Specify the name of the h5 output file, otherwise the default file name specified inside the script is used.\n")
+      exit(0)
+    if option in ("-i", "--bag-name"):
+      print("Input bag file name: {0}\n".format(value))
+      bag_name = value
+    if option in ("-o", "--h5-name"):
+      print("Output h5 file name: {0}\n".format(value))
+      h5_name = value
+  # export video 
+  video_name = bag_name
+  # extract necessary info for learning
+  in_h5_name = h5_name
+  out_h5_name = in_h5_name + '_UR5'
+  group_name = bag_name
 
   
   ### Export *** EVERYTHING *** from rosbag file into h5 file and a video!!
@@ -245,14 +282,10 @@ if __name__ == '__main__':
 
 
   ### Test the output
-  video_name = bag_name
   read_video(video_name)
     
 
   ### Extract necessary information for learning
-  in_h5_name = h5_name
-  out_h5_name = in_h5_name + '_UR5'
-  group_name = bag_name
   h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name)
 
 

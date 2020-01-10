@@ -14,6 +14,10 @@ import trajectory_msgs.msg
 from math import pi
 from std_msgs.msg import String
 
+import getopt # process the terminal arguments
+
+import h5py
+
 
 def all_close(goal, actual, tolerance):
   """
@@ -804,6 +808,35 @@ def store_h5(cartesian_plan, h5_file_name, path_group_name):
 
 def main():
 
+  file_name = "mocap_ik_results.h5"
+  group_name = "fengren"
+  traj_name = "arm_traj_1"
+  #timestamp_name = "timestamp"
+
+  try:
+    options, args = getopt.getopt(sys.argv[1:], "hf:g:t:", ["help", "file-name=", "group-name=", "traj-name"])
+  except getopt.GetoptError:
+    sys.exit()
+
+  for option, value in options:
+    if option in ("-h", "--help"):
+      print("Help:\n")
+      print("   This script executes the IK results.\n")
+      print("Arguments:\n")
+      print("   -f, --file-name=, specify the name of the h5 file to read joint trajectory from, suffix is required.\n")
+      print("   -g, --group-name=, specify the name of the motion.\n")
+      print("   -t, --traj-name=, specify the name of the trajectory.\n")
+      exit(0)
+    if option in ("-f", "--file-name"):
+      print("Name of the h5 file to read joint trajectory from: {0}\n".format(value))
+      file_name = value
+    if option in ("-g", "--group-name"):
+      print("Name of the motion(group) inside the h5 file: {0}\n".format(value))
+      group_name = value
+    if option in ("-t", "--traj-name"):
+      print("Name of the data to read: {0}\n".format(value))
+      traj_name = value
+
 
   try:
 
@@ -817,14 +850,12 @@ def main():
     left_hand_group = moveit_commander.MoveGroupCommander("left_hand")
     right_hand_group = moveit_commander.MoveGroupCommander("right_hand")
     right_arm_group = moveit_commander.MoveGroupCommander("right_arm")
-    dual_arm_dual_hand_group = moveit_commander.MoveGroupCommander("dual_arm_dual_hand")
+    dual_arms_group = moveit_commander.MoveGroupCommander("dual_arms")
+    dual_arms_dual_hands_group = moveit_commander.MoveGroupCommander("dual_arms_with_hands")
 
 
-    ### Read h5 file for FINGER POS(fake_elbow_wrist_paths.h5)
-    import h5py
-    file_name = "mocap_ik_results.h5"
+    ### Read h5 file for joint paths (arms only for now)
     f = h5py.File(file_name, "r")
-    group_name = ""
 
     '''
     l_dataset_name = "fake_path_left_1"
@@ -835,10 +866,18 @@ def main():
     r_path_array = f[r_dataset_name][:]
     r_finger_pos = r_path_array[0][-12:]
     '''
-    arm_hand_path_array = f[group_name+"/arm_traj_1"][:]
+    arm_path_array = f[group_name + "/" + traj_name][:]
+    #timestamp_array = f[group_name+"/" + timestamp_name][:]
 
     f.close()
 
+
+    ### Arms: Go to start positions
+    print "============ Both arms go to initial positions..."
+    dual_arms_goal = arm_path_array[0, :].tolist()
+    dual_arms_group.allow_replanning(True)
+    dual_arms_group.go(dual_arms_goal, wait=True)
+    dual_arms_group.stop()
 
     ### Hands: Go to start positions
     print "============ Both hands go to initial positions..."
@@ -863,29 +902,16 @@ def main():
     dual_hands_group.stop()
     '''
 
-    ### Read h5 file for `JOINT PATHS`(ik_results.h5)
-    import h5py
-    file_name = "mocap_ik_results.h5"
-    l_dataset_name = "mocap_ik_result_left_wave_hand_motion" # we only have left arm for now
-    #r_dataset_name = "ik_result_right_1"
-    f = h5py.File(file_name, "r")
-    l_path_array = f[l_dataset_name][:]
-    #r_path_array = f[r_dataset_name][:]
-    num_datapoints = l_path_array.shape[0]  
-#    if (num_datapoints != r_path_array.shape[0]):
-#        print "Lengths of left and right paths are not consistent!"
-#        return False
-
 
     ### Construct a plan
     print "============ Construct a plan of two arms' motion..."
     cartesian_plan = moveit_msgs.msg.RobotTrajectory()
     cartesian_plan.joint_trajectory.header.frame_id = '/world'
-    cartesian_plan.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint']# + ['right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
-    for i in range(num_datapoints):
+    cartesian_plan.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint'] + ['right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
+    for i in range(arm_path_array.shape[0]):
         path_point = trajectory_msgs.msg.JointTrajectoryPoint()
-        path_point.positions = l_path_array[i].tolist()# + r_path_array[i].tolist()
-        t = rospy.Time(i*0.1)
+        path_point.positions = arm_path_array[i].tolist()
+        t = rospy.Time(i*1.0/15.0) # rospy.Time(timestamp_array[i]) # 15 Hz
         path_point.time_from_start.secs = t.secs
         path_point.time_from_start.nsecs = t.nsecs        
         cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))
@@ -893,31 +919,11 @@ def main():
 
     ### Execute the plan
     print "============ Execute the plan..."
-    # set up planning group
-    dual_arms_group = moveit_commander.MoveGroupCommander("dual_arms")
-    # go to start position
-    print "============ Go to the start position..."
-    '''
-    dual_arms_goal = cartesian_plan.joint_trajectory.points[0].positions
-    #dual_arms_group.allow_replanning(True)
-    dual_arms_group.go(dual_arms_goal, wait=True)
-    dual_arms_group.stop()
-    '''
-    left_arm_goal = cartesian_plan.joint_trajectory.points[0].positions
-    #left_arm_group.allow_replanning(True)
-    left_arm_group.go(left_arm_goal, wait=True)
-    left_arm_group.stop()
     # execute the plan
     import pdb
     pdb.set_trace()
     print "============ Execute the planned path..."        
-#    dual_arms_group.execute(cartesian_plan, wait=True)
-    left_arm_group.execute(cartesian_plan, wait=True)
-
-    import pdb
-    pdb.set_trace();
-
-    f.close()
+    dual_arms_group.execute(cartesian_plan, wait=True)
 
 
   except rospy.ROSInterruptException:

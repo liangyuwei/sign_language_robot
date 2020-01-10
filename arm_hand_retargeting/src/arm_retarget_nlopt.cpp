@@ -4,7 +4,7 @@
 // NLopt
 #include <nlopt.hpp> // C++ version!!!
 
-// 
+// Common
 #include <vector>
 #include <iostream>
 
@@ -28,6 +28,10 @@
 // For file write and read
 #include <string>
 #include "H5Cpp.h"
+//#include "H5Location.h"
+
+// Process the terminal arguments
+#include <getopt.h>
 
 
 // global flags
@@ -103,7 +107,7 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
   }
   result = fk_solver.JntToCart(q_in, shoulder_cart_out, num_shoulder_seg+1);
   if (result < 0){
-    ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+    ROS_INFO_STREAM("FK solver failed when processing shoulder link, something went wrong");
     return -1;
   }
   else{
@@ -145,12 +149,14 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
 
 
   // Compute cost function
-  double cost = 10.0 * (shoulder_elbow_vec_human - shoulder_elbow_vec_robot).norm() 
-              + 10.0 * (elbow_wrist_vec_human - elbow_wrist_vec_robot).norm() \
-              + 10.0 * std::fabs( std::acos (( (wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
+  double cost = 2.0 * (shoulder_elbow_vec_human - shoulder_elbow_vec_robot).norm() 
+              + 2.0 * (elbow_wrist_vec_human - elbow_wrist_vec_robot).norm() \
+              + 10.0 * std::fabs( std::acos (( (wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0))
+              + 5.0 * (wrist_pos_human - wrist_pos_cur).norm()
+              + 5.0 * (elbow_pos_human - elbow_pos_cur).norm();
 
   if (!first_iter)
-    cost += 0.5 * (q_cur - q_prev).norm();
+    cost += 5.0 * (q_cur - q_prev).norm();
 
   // Display for debug
   /*std::cout << "Cost func structure: " << std::endl
@@ -431,11 +437,29 @@ bool write_h5(const std::string file_name, const std::string group_name, const s
 
   try
   {
+
+    // Shutdown auto-print of error information
+    herr_t status = status = H5Eset_auto(H5E_DEFAULT, NULL, NULL);
+
+    // Create a file(create, fail if it exists)
+    H5Fcreate(FILE_NAME.c_str(), H5F_ACC_EXCL, H5P_DEFAULT, H5P_DEFAULT);
+    
     // Create a file (must be an existing file)
     H5File file( FILE_NAME, H5F_ACC_RDWR );
 
-    // Create a group (create and open?)
-    Group group(file.createGroup(GROUP_NAME));
+    // Create a group (if exists, destroy it, and re-create another)
+    Group group;
+    status = H5Lget_info(file.getId(), GROUP_NAME.c_str(), NULL, H5P_DEFAULT);
+    if (status==0)
+    {
+      std::cout << "The group already exists, open it." << std::endl;
+      group = file.openGroup(GROUP_NAME);
+    }
+    else
+    {
+      std::cout << "The group doesn't exist, create one." << std::endl;
+      group = file.createGroup(GROUP_NAME);
+    }
 
   
     // Set up datatype and dataspace for the dataset to be store
@@ -448,15 +472,26 @@ bool write_h5(const std::string file_name, const std::string group_name, const s
 
 
     // Way 1 - Create a dataset within a 'group'
+    status = H5Lget_info(group.getId(), DATASET_NAME.c_str(), NULL, H5P_DEFAULT);
+    if (status == 0)
+    {
+      std::cout << "The dataset already exists, remove it and re-create another one." << std::endl;
+      group.unlink(DATASET_NAME.c_str());
+    }
+    else
+    {
+      std::cout << "The dataset doesn't exist, create one." << std::endl;
+    }
     DataSet dataset1 = group.createDataSet(DATASET_NAME, datatype, dataspace);
 
+
     // Way 2 - Create a new dataset within the 'file'
-    DataSet dataset2 = file.createDataSet( DATASET_NAME, datatype, dataspace );
+    //DataSet dataset2 = file.createDataSet( DATASET_NAME, datatype, dataspace );
 
 
     //Write the data to the dataset using default memory space, file space, and transfer properties.
     dataset1.write( data, PredType::NATIVE_DOUBLE );
-    dataset2.write( data, PredType::NATIVE_DOUBLE );
+    //dataset2.write( data, PredType::NATIVE_DOUBLE );
 
   } // File and group will be closed as their instances go out of scope
 
@@ -562,14 +597,73 @@ std::vector<std::vector<double>> read_h5(const std::string file_name, const std:
 
 
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
+  
+  // Specify required names
+  std::string in_file_name = "test_imi_data_UR5.h5";
+  std::string in_group_name = "fengren";
+  std::string out_file_name = "mocap_ik_results.h5";
+  
+
+  // Process the terminal arguments
+  static struct option long_options[] = 
+  {
+    {"in-h5-filename", required_argument, NULL, 'i'},
+    {"in-group-name", required_argument, NULL, 'g'},
+    {"out-h5-filename", required_argument, NULL, 'o'},
+    {"help", no_argument, NULL, 'h'},
+    {0, 0, 0, 0}
+  };
+  int c;
+  while(1)
+  {
+    int opt_index = 0;
+    // Get arguments
+    c = getopt_long(argc, argv, "i:g:o:h", long_options, &opt_index);
+    if (c == -1)
+      break;
+
+    // Process
+    switch(c)
+    {
+      case 'h':
+        std::cout << "Help: \n" << std::endl;
+        std::cout << "    This program reads imitation data from h5 file and performs optimization on the joint angles. The results are stored in a h5 file at last.\n" << std::endl; 
+        std::cout << "Arguments:\n" << std::endl;
+        std::cout << "    -i, --in-h5-filename, specify the name of the input h5 file, otherwise a default name specified inside the program will be used. Suffix is required.\n" << std::endl;
+        std::cout << "    -g, --in-group-name, specify the group name in the h5 file, which is actually the motion's name.\n" << std::endl;
+        std::cout << "    -o, --out-h5-name, specify the name of the output h5 file to store the resultant joint trajectory.\n" << std::endl;
+        return 0;
+        break;
+
+      case 'i':
+        in_file_name = optarg;
+        break;
+
+      case 'o':
+        out_file_name = optarg;
+        break;
+
+      case 'g':
+        in_group_name = optarg;
+        break;
+
+      default:
+        break;
+    }
+
+  }
+  
+  std::cout << "The input h5 file name is: " << in_file_name << std::endl;
+  std::cout << "The motion name is: " << in_group_name << std::endl;
+  std::cout << "The output h5 file name is: " << in_group_name << std::endl;
+
 
   // Input Cartesian trajectories
   const unsigned int joint_value_dim = 12; //6;   
   std::vector<double> x(joint_value_dim);
-  const std::string in_file_name = "glove_test_data_UR5.h5";
-  const std::string in_group_name = "right_glove_test_1";
+
   std::vector<std::vector<double>> read_l_wrist_pos_traj = read_h5(in_file_name, in_group_name, "l_wrist_pos"); 
   std::vector<std::vector<double>> read_l_wrist_ori_traj = read_h5(in_file_name, in_group_name, "l_wrist_ori"); 
   std::vector<std::vector<double>> read_l_elbow_pos_traj = read_h5(in_file_name, in_group_name, "l_elbow_pos"); 
@@ -804,13 +898,12 @@ int main(int argc, char **argv)
 
 
   // Store the results
-  const std::string file_name = "mocap_ik_results.h5";
   const std::string group_name = in_group_name;
   //const std::string dataset_name = "arm_traj_1";
-  bool result1 = write_h5(file_name, group_name, "arm_traj_1", num_datapoints, joint_value_dim, q_results);
-  bool result2 = write_h5(file_name, group_name, "timestamp_1", num_datapoints, 1, read_time_stamps);  
+  bool result1 = write_h5(out_file_name, group_name, "arm_traj_1", num_datapoints, joint_value_dim, q_results);
+  bool result2 = write_h5(out_file_name, group_name, "timestamp_1", num_datapoints, 1, read_time_stamps);  
 
-  if(result1 and result2)
+  if(result1 && result2)
     std::cout << "Joint path results successfully stored!" << std::endl;
 
  
