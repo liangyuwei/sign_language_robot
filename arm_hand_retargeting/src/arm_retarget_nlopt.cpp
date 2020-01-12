@@ -88,6 +88,15 @@ typedef struct {
   double total_cost = 0;
 
 
+  double l_r_pos_diff_cost = 0;
+
+
+  // Record information for calculating the cost of dual arm coordination
+  Vector3d l_wrist_cur;
+  Vector3d r_wrist_cur;
+  double l_r_wrist_diff_cost;
+
+
 } my_constraint_struct;
 
 
@@ -146,6 +155,9 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
     wrist_pos_human = fdata->l_wrist_pos_goal;
     wrist_ori_human = fdata->l_wrist_ori_goal;
     q_prev << q_whole[0], q_whole[1], q_whole[2], q_whole[3], q_whole[4], q_whole[5];
+
+    fdata->l_wrist_cur = wrist_pos_cur;
+
   }
   else // right arm
   {
@@ -154,6 +166,9 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
     wrist_pos_human = fdata->r_wrist_pos_goal;
     wrist_ori_human = fdata->r_wrist_ori_goal;
     q_prev << q_whole[6], q_whole[7], q_whole[8], q_whole[9], q_whole[10], q_whole[11];
+
+    fdata->r_wrist_cur = wrist_pos_cur;
+
   }
 
   Vector3d shoulder_elbow_vec_human = (elbow_pos_human - shoulder_pos_human).normalized();
@@ -174,14 +189,25 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
   double elbow_pos_cost = (elbow_pos_human - elbow_pos_cur).norm();
   double smoothness_cost = 0;
 
-  double scaled_wrist_pos_cost = (wrist_pos_cur - (wrist_pos_human - shoulder_pos_human)/(wrist_pos_human - shoulder_pos_human).norm() * (wrist_pos_cur - shoulder_pos_cur).norm() - shoulder_pos_cur).norm(); // written as shoulder-wrist to avoid accumulated error from elbow part
-  //(wrist_pos_cur - (wrist_pos_human - elbow_pos_human)/(wrist_pos_human - elbow_pos_human).norm() * (wrist_pos_cur - elbow_pos_cur).norm() - elbow_pos_cur).norm(); // coordinate difference, not in the way of vector difference
+  double l_r_pos_diff_cost = 0;
+
+  double scaled_wrist_pos_cost = (wrist_pos_cur - (wrist_pos_human - elbow_pos_human)/(wrist_pos_human - elbow_pos_human).norm() * (wrist_pos_cur - elbow_pos_cur).norm() - elbow_pos_cur).norm(); // coordinate difference, not in the way of vector difference // written as elbow-wrist form
+  //(wrist_pos_cur - (wrist_pos_human - shoulder_pos_human)/(wrist_pos_human - shoulder_pos_human).norm() * (wrist_pos_cur - shoulder_pos_cur).norm() - shoulder_pos_cur).norm(); // written as shoulder-wrist to avoid accumulated error from elbow part
+  //
 
   double scaled_elbow_pos_cost = (elbow_pos_cur - (elbow_pos_human - shoulder_pos_human)/(elbow_pos_human - shoulder_pos_human).norm() * (elbow_pos_cur - shoulder_pos_cur).norm() - shoulder_pos_cur).norm();
 
 
   if (!first_iter)
     smoothness_cost = (q_cur - q_prev).norm();    
+
+  if (!left_or_right) // when computing cost of right arm, compute the cost of 
+  {
+    Vector3d l_r_pos_diff_cur = fdata->l_wrist_cur - fdata->r_wrist_cur;
+    Vector3d l_r_pos_diff_human = fdata->l_wrist_pos_goal - fdata->r_wrist_pos_goal;
+    l_r_pos_diff_cost = (l_r_pos_diff_cur - l_r_pos_diff_human).norm();
+    fdata->l_r_pos_diff_cost = l_r_pos_diff_cost;
+  }
 
   double cost = 0.0 * upperarm_direction_cost
               + 0.0 * forearm_direction_cost
@@ -191,7 +217,8 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
               + 0.0 * elbow_pos_cost
               + 1.0 * scaled_wrist_pos_cost
               + 1.0 * scaled_elbow_pos_cost
-              + 1.0 * smoothness_cost;
+              + 1.0 * smoothness_cost
+              + 1.0 * l_r_pos_diff_cost;
 
   // record the costs for display
   fdata->upperarm_direction_cost = upperarm_direction_cost;
@@ -901,6 +928,7 @@ int main(int argc, char *argv[])
       std::cout << "Scaled Wrist Pos Cost: " << f_data->scaled_wrist_pos_cost << std::endl;
       std::cout << "Scaled Elbow Pos Cost: " << f_data->scaled_elbow_pos_cost << std::endl;
       std::cout << "Smoothness Cost: " << f_data->smoothness_cost << std::endl;
+      std::cout << "Two arm's wrist positions difference Cost: " << f_data->l_r_pos_diff_cost << std::endl;
       std::cout << "Total Cost: " << f_data->total_cost << std::endl;
 
       // Store the result(joint values)
