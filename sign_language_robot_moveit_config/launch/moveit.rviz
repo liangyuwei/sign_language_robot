@@ -9,8 +9,7 @@ Panels:
         - /MotionPlanning1/Scene Robot1
         - /MotionPlanning1/Scene Robot1/Links1
         - /MotionPlanning1/Scene Robot1/Links1/left_ee_link1
-        - /MotionPlanning1/Scene Robot1/Links1/left_forearm_link1
-        - /MotionPlanning1/Scene Robot1/Links1/left_upper_arm_link1
+        - /MotionPlanning1/Scene Robot1/Links1/right_ee_link1
         - /MotionPlanning1/Planning Request1
         - /MotionPlanning1/Planning Metrics1
         - /MotionPlanning1/Planned Path1
@@ -453,7 +452,7 @@ Visualization Manager:
             Value: true
           left_forearm_link:
             Alpha: 1
-            Show Axes: true
+            Show Axes: false
             Show Trail: false
             Value: true
           left_hand_base:
@@ -471,7 +470,7 @@ Visualization Manager:
             Show Trail: false
           left_upper_arm_link:
             Alpha: 1
-            Show Axes: true
+            Show Axes: false
             Show Trail: false
             Value: true
           left_wrist_1_link:
@@ -565,7 +564,7 @@ Visualization Manager:
             Value: true
           right_ee_link:
             Alpha: 1
-            Show Axes: false
+            Show Axes: true
             Show Trail: false
             Value: true
           right_forearm_link:
@@ -649,7 +648,7 @@ Visualization Manager:
       Pitch: 0.389796764
       Target Frame: world
       Value: XYOrbit (rviz)
-      Yaw: 0.00858390797
+      Yaw: 0.00358343124
     Saved: ~
 Window Geometry:
   Displays:

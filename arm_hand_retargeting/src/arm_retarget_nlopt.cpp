@@ -73,6 +73,21 @@ typedef struct {
   unsigned int r_num_elbow_seg = 0; // initialized as flag
   unsigned int r_num_shoulder_seg = 0;
 
+  // Record different parts of the cost function
+  double upperarm_direction_cost = 0;
+  double shoulder_wrist_direction_cost = 0; // from shoulder to wrist pos
+  double forearm_direction_cost = 0;
+  double wrist_ori_cost = 0;
+  double wrist_pos_cost = 0;
+  double elbow_pos_cost = 0;
+
+  double scaled_wrist_pos_cost = 0;
+  double scaled_elbow_pos_cost = 0;
+
+  double smoothness_cost = 0;
+  double total_cost = 0;
+
+
 } my_constraint_struct;
 
 
@@ -142,21 +157,53 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
   }
 
   Vector3d shoulder_elbow_vec_human = (elbow_pos_human - shoulder_pos_human).normalized();
+  Vector3d shoulder_wrist_vec_human = (wrist_pos_human - shoulder_pos_human).normalized();
   Vector3d elbow_wrist_vec_human = (wrist_pos_human - elbow_pos_human).normalized();
 
   Vector3d shoulder_elbow_vec_robot = (elbow_pos_cur - shoulder_pos_cur).normalized();
+  Vector3d shoulder_wrist_vec_robot = (wrist_pos_cur- shoulder_pos_cur).normalized();
   Vector3d elbow_wrist_vec_robot = (wrist_pos_cur - elbow_pos_cur).normalized();
 
 
   // Compute cost function
-  double cost = 2.0 * (shoulder_elbow_vec_human - shoulder_elbow_vec_robot).norm() 
-              + 2.0 * (elbow_wrist_vec_human - elbow_wrist_vec_robot).norm() \
-              + 10.0 * std::fabs( std::acos (( (wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0))
-              + 5.0 * (wrist_pos_human - wrist_pos_cur).norm()
-              + 5.0 * (elbow_pos_human - elbow_pos_cur).norm();
+  double upperarm_direction_cost = (shoulder_elbow_vec_human - shoulder_elbow_vec_robot).norm();
+  double forearm_direction_cost = (elbow_wrist_vec_human - elbow_wrist_vec_robot).norm();
+  double shoulder_wrist_direction_cost = (shoulder_wrist_vec_robot - shoulder_wrist_vec_human).norm();
+  double wrist_ori_cost = std::fabs( std::acos (( (wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
+  double wrist_pos_cost = (wrist_pos_human - wrist_pos_cur).norm();
+  double elbow_pos_cost = (elbow_pos_human - elbow_pos_cur).norm();
+  double smoothness_cost = 0;
+
+  double scaled_wrist_pos_cost = (wrist_pos_cur - (wrist_pos_human - shoulder_pos_human)/(wrist_pos_human - shoulder_pos_human).norm() * (wrist_pos_cur - shoulder_pos_cur).norm() - shoulder_pos_cur).norm(); // written as shoulder-wrist to avoid accumulated error from elbow part
+  //(wrist_pos_cur - (wrist_pos_human - elbow_pos_human)/(wrist_pos_human - elbow_pos_human).norm() * (wrist_pos_cur - elbow_pos_cur).norm() - elbow_pos_cur).norm(); // coordinate difference, not in the way of vector difference
+
+  double scaled_elbow_pos_cost = (elbow_pos_cur - (elbow_pos_human - shoulder_pos_human)/(elbow_pos_human - shoulder_pos_human).norm() * (elbow_pos_cur - shoulder_pos_cur).norm() - shoulder_pos_cur).norm();
+
 
   if (!first_iter)
-    cost += 5.0 * (q_cur - q_prev).norm();
+    smoothness_cost = (q_cur - q_prev).norm();    
+
+  double cost = 0.0 * upperarm_direction_cost
+              + 0.0 * forearm_direction_cost
+              + 0.0 * shoulder_wrist_direction_cost
+              + 1.0 * wrist_ori_cost
+              + 0.0 * wrist_pos_cost
+              + 0.0 * elbow_pos_cost
+              + 1.0 * scaled_wrist_pos_cost
+              + 1.0 * scaled_elbow_pos_cost
+              + 1.0 * smoothness_cost;
+
+  // record the costs for display
+  fdata->upperarm_direction_cost = upperarm_direction_cost;
+  fdata->shoulder_wrist_direction_cost = shoulder_wrist_direction_cost;
+  fdata->forearm_direction_cost = forearm_direction_cost;
+  fdata->wrist_ori_cost = wrist_ori_cost;
+  fdata->wrist_pos_cost = wrist_pos_cost;
+  fdata->elbow_pos_cost = elbow_pos_cost;
+  fdata->scaled_wrist_pos_cost = scaled_wrist_pos_cost;
+  fdata->scaled_elbow_pos_cost = scaled_elbow_pos_cost;
+  fdata->smoothness_cost = smoothness_cost;
+  fdata->total_cost = cost;
 
   // Display for debug
   /*std::cout << "Cost func structure: " << std::endl
@@ -845,7 +892,16 @@ int main(int argc, char *argv[])
           break;
       }
       std::cout << "NLopt found minimum f: " << minf << " after " << opt.get_numevals() << " evaluations." << std::endl;
-
+      std::cout << "Upperarm Direction Cost: " << f_data->upperarm_direction_cost << std::endl;
+      std::cout << "Shoulder-Wrist Direction Cost: " << f_data->shoulder_wrist_direction_cost << std::endl;
+      std::cout << "Forearm Direction Cost: " << f_data->forearm_direction_cost << std::endl;
+      std::cout << "Wrist Orientation Cost: " << f_data->wrist_ori_cost << std::endl;
+      std::cout << "Wrist Position Cost: " << f_data->wrist_pos_cost << std::endl;
+      std::cout << "Elbow Position Cost: " << f_data->elbow_pos_cost << std::endl;
+      std::cout << "Scaled Wrist Pos Cost: " << f_data->scaled_wrist_pos_cost << std::endl;
+      std::cout << "Scaled Elbow Pos Cost: " << f_data->scaled_elbow_pos_cost << std::endl;
+      std::cout << "Smoothness Cost: " << f_data->smoothness_cost << std::endl;
+      std::cout << "Total Cost: " << f_data->total_cost << std::endl;
 
       // Store the result(joint values)
       q_results[it] = x;
