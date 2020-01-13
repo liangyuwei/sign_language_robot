@@ -7,6 +7,7 @@
 // Common
 #include <vector>
 #include <iostream>
+#include <math.h>
 
 // For acos, fabs
 #include <cmath>
@@ -43,7 +44,7 @@ using namespace H5;
 
 typedef struct {
   // Cost func related
-  Matrix<double, 12, 1> q_prev; // used across optimizations over the whole trajectory
+  Matrix<double, 36, 1> q_prev; // used across optimizations over the whole trajectory
 
   // Human motion data
   Vector3d l_shoulder_pos_goal; // this is human shoulder position
@@ -56,9 +57,21 @@ typedef struct {
   Vector3d r_wrist_pos_goal;
   Matrix3d r_wrist_ori_goal;
 
+  Matrix<double, 14, 1> l_finger_pos_goal;
+  Matrix<double, 14, 1> r_finger_pos_goal;
+
+
   // Pre-required data of robot
   Vector3d l_robot_shoulder_pos; // this is normally fixed for a non-mobile robot
   Vector3d r_robot_shoulder_pos;
+
+  Matrix<double, 12, 1> l_robot_finger_start; // joint angle range, for direct scaling and linear mapping
+  Matrix<double, 12, 1> l_robot_finger_final;
+  Matrix<double, 12, 1> r_robot_finger_start;
+  Matrix<double, 12, 1> r_robot_finger_final; 
+
+  Matrix<double, 14, 1> glove_start;
+  Matrix<double, 14, 1> glove_final;
 
   // Constraint func related
   //std::vector<double> qlb, qub;
@@ -84,6 +97,10 @@ typedef struct {
   double scaled_wrist_pos_cost = 0;
   double scaled_elbow_pos_cost = 0;
 
+  double scaled_l_finger_pos_cost = 0;
+  double scaled_r_finger_pos_cost = 0;
+
+
   double smoothness_cost = 0;
   double total_cost = 0;
 
@@ -98,6 +115,71 @@ typedef struct {
 
 
 } my_constraint_struct;
+
+
+double linear_map(double x_, double min_, double max_, double min_hat, double max_hat)
+{
+  return (x_ - min_) / (max_ - min_) * (max_hat - min_hat) + min_hat;
+}
+
+
+double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct *fdata)
+{
+  // Obtain required data and parameter settings
+  Matrix<double, 14, 1> q_finger_human;
+  Matrix<double, 14, 1> human_finger_start = fdata->glove_start;
+  Matrix<double, 14, 1> human_finger_final = fdata->glove_final;
+  Matrix<double, 12, 1> robot_finger_start, robot_finger_final;
+  if (left_or_right)
+  {
+    // Get the sensor data
+    q_finger_human = fdata->l_finger_pos_goal;
+    // Get bounds
+    robot_finger_start = fdata->l_robot_finger_start;
+    robot_finger_final = fdata->l_robot_finger_final;
+  }
+  else
+  {
+    // Get the sensor data
+    q_finger_human = fdata->r_finger_pos_goal;    
+    // Get bounds
+    robot_finger_start = fdata->r_robot_finger_start;
+    robot_finger_final = fdata->r_robot_finger_final;
+  }
+
+
+  // Direct mapping and linear scaling
+  Matrix<double, 12, 1> q_finger_robot_goal;
+  q_finger_robot_goal[0] = linear_map(q_finger_human[3], human_finger_start[3], human_finger_final[3], robot_finger_start[0], robot_finger_final[0]);
+  q_finger_robot_goal[1] = linear_map(q_finger_human[4], human_finger_start[4], human_finger_final[4], robot_finger_start[1], robot_finger_final[1]);
+  q_finger_robot_goal[2] = linear_map(q_finger_human[6], human_finger_start[6], human_finger_final[6], robot_finger_start[2], robot_finger_final[2]);
+  q_finger_robot_goal[3] = linear_map(q_finger_human[7], human_finger_start[7], human_finger_final[7], robot_finger_start[3], robot_finger_final[3]);
+  q_finger_robot_goal[4] = linear_map(q_finger_human[9], human_finger_start[9], human_finger_final[9], robot_finger_start[4], robot_finger_final[4]);
+  q_finger_robot_goal[5] = linear_map(q_finger_human[10], human_finger_start[10], human_finger_final[10], robot_finger_start[5], robot_finger_final[5]);
+  q_finger_robot_goal[6] = linear_map(q_finger_human[12], human_finger_start[12], human_finger_final[12], robot_finger_start[6], robot_finger_final[6]);
+  q_finger_robot_goal[7] = linear_map(q_finger_human[13], human_finger_start[13], human_finger_final[13], robot_finger_start[7], robot_finger_final[7]);
+  q_finger_robot_goal[8] = (robot_finger_start[8] + robot_finger_final[8]) / 2.0;
+  q_finger_robot_goal[9] = linear_map(q_finger_human[2], human_finger_start[2], human_finger_final[2], robot_finger_start[9], robot_finger_final[9]);
+  q_finger_robot_goal[10] = linear_map(q_finger_human[0], human_finger_start[0], human_finger_final[0], robot_finger_start[10], robot_finger_final[10]);
+  q_finger_robot_goal[11] = linear_map(q_finger_human[1], human_finger_start[1], human_finger_final[1], robot_finger_start[11], robot_finger_final[11]); 
+
+  
+  // Compute cost
+  double finger_cost = (q_finger_robot_goal - q_finger_robot).norm();
+
+
+  if (left_or_right)
+  {
+    fdata->scaled_l_finger_pos_cost = finger_cost;
+  }
+  else
+  {
+    fdata->scaled_r_finger_pos_cost = finger_cost;
+  }
+
+  return finger_cost;
+
+}
 
 
 // Used for computing cost and grad(numeric differentiation) in myfunc()
@@ -146,15 +228,15 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
 
   Vector3d shoulder_pos_human, elbow_pos_human, wrist_pos_human;
   Matrix3d wrist_ori_human;
-  Matrix<double, 12, 1> q_whole = fdata->q_prev;
-  Matrix<double, 6, 1> q_prev;
+  Matrix<double, 36, 1> q_whole = fdata->q_prev; // the whole structure
+  Matrix<double, 6, 1> q_prev_arm;
   if (left_or_right) // left arm
   {
     shoulder_pos_human = fdata->l_shoulder_pos_goal;
     elbow_pos_human = fdata->l_elbow_pos_goal;
     wrist_pos_human = fdata->l_wrist_pos_goal;
     wrist_ori_human = fdata->l_wrist_ori_goal;
-    q_prev << q_whole[0], q_whole[1], q_whole[2], q_whole[3], q_whole[4], q_whole[5];
+    q_prev_arm << q_whole[0], q_whole[1], q_whole[2], q_whole[3], q_whole[4], q_whole[5];
 
     fdata->l_wrist_cur = wrist_pos_cur;
 
@@ -165,7 +247,7 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
     elbow_pos_human = fdata->r_elbow_pos_goal;
     wrist_pos_human = fdata->r_wrist_pos_goal;
     wrist_ori_human = fdata->r_wrist_ori_goal;
-    q_prev << q_whole[6], q_whole[7], q_whole[8], q_whole[9], q_whole[10], q_whole[11];
+    q_prev_arm << q_whole[6], q_whole[7], q_whole[8], q_whole[9], q_whole[10], q_whole[11];
 
     fdata->r_wrist_cur = wrist_pos_cur;
 
@@ -199,7 +281,7 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
 
 
   if (!first_iter)
-    smoothness_cost = (q_cur - q_prev).norm();    
+    smoothness_cost = (q_cur - q_prev_arm).norm();    
 
   if (!left_or_right) // when computing cost of right arm, compute the cost of 
   {
@@ -384,12 +466,19 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
 
   // Calculate loss function(tracking performance + continuity)
-  //std::vector<double> x_tmp = x;
+  //std::vector<double> xx = x;
+  //Matrix<double, 36, 1> x_tmp = Map<Matrix<double, 36, 1>>(xx.data(), 36, 1);
   Matrix<double, 6, 1> q_cur_l, q_cur_r;
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
   q_cur_l << x[0], x[1], x[2], x[3], x[4], x[5]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
   q_cur_r << x[6], x[7], x[8], x[9], x[10], x[11]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
+  q_cur_finger_l << x[12], x[13], x[14], x[15], x[16], x[17], x[18], x[19], x[20], x[21], x[22], x[23]; //x_tmp.block<12, 1>(12, 0);
+  q_cur_finger_r << x[24], x[25], x[26], x[27], x[28], x[29], x[30], x[31], x[32], x[33], x[34], x[35]; //x_tmp.block<12, 1>(24, 0);
+
   double cost = compute_cost(left_fk_solver, q_cur_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
   cost += compute_cost(right_fk_solver, q_cur_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+  cost += compute_finger_cost(q_cur_finger_l, true, fdata);
+  cost += compute_finger_cost(q_cur_finger_r, false, fdata);
 
 
   // Compute gradient using Numeric Differentiation
@@ -398,7 +487,8 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
   {
     double eps = 0.001;
     Matrix<double, 6, 1> q_tmp_l, q_tmp_r;
-    
+    Matrix<double, 12, 1> q_tmp_finger_l, q_tmp_finger_r;    
+
     double cost1, cost2;
     // gradients on the left arm's joints
     for (unsigned int i = 0; i < q_tmp_l.size(); ++i)
@@ -409,12 +499,17 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
       q_tmp_l[i] += eps;
       cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
       cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      cost1 += compute_finger_cost(q_cur_finger_l, true, fdata);
+      cost1 += compute_finger_cost(q_cur_finger_r, false, fdata);
       // 2
       q_tmp_l = q_cur_l;
       q_tmp_r = q_cur_r;
       q_tmp_l[i] -= eps;
       cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
       cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      cost2 += compute_finger_cost(q_cur_finger_l, true, fdata);
+      cost2 += compute_finger_cost(q_cur_finger_r, false, fdata);
+
       // combine 1 and 2
       grad[i] = (cost1 - cost2) / (2.0 * eps);
     }
@@ -428,20 +523,84 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
       q_tmp_r[i-q_tmp_l.size()] += eps;
       cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
       cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      cost1 += compute_finger_cost(q_cur_finger_l, true, fdata);
+      cost1 += compute_finger_cost(q_cur_finger_r, false, fdata);
       // 2
       q_tmp_l = q_cur_l;
       q_tmp_r = q_cur_r;
       q_tmp_r[i-q_tmp_l.size()] -= eps;
       cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
       cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      cost2 += compute_finger_cost(q_cur_finger_l, true, fdata);
+      cost2 += compute_finger_cost(q_cur_finger_r, false, fdata);
       // combine 1 and 2
       grad[i] = (cost1 - cost2) / (2.0 * eps);
     }
 
-    // gradients on the hand's joints
+    // gradients on the left hand's joints
+    for (unsigned int i = q_tmp_l.size() + q_tmp_r.size(); i < q_tmp_l.size() + q_tmp_r.size() + q_tmp_finger_l.size(); ++i)
+    {
+      // 1
+      q_tmp_l = q_cur_l;
+      q_tmp_r = q_cur_r;
+      q_tmp_finger_l = q_cur_finger_l;
+      q_tmp_finger_r = q_cur_finger_r;
+
+      q_tmp_finger_l[i-q_tmp_l.size()-q_tmp_r.size()] += eps;
+
+      cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+      cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      cost1 += compute_finger_cost(q_tmp_finger_l, true, fdata);
+      cost1 += compute_finger_cost(q_tmp_finger_r, false, fdata);
+      // 2
+      q_tmp_l = q_cur_l;
+      q_tmp_r = q_cur_r;
+      q_tmp_finger_l = q_cur_finger_l;
+      q_tmp_finger_r = q_cur_finger_r;
+
+      q_tmp_finger_l[i-q_tmp_l.size()-q_tmp_r.size()] -= eps;
+
+      cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+      cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      cost2 += compute_finger_cost(q_tmp_finger_l, true, fdata);
+      cost2 += compute_finger_cost(q_tmp_finger_r, false, fdata);
+      // combine 1 and 2
+      grad[i] = (cost1 - cost2) / (2.0 * eps);
+    }    
+
+
+    // gradients on the right hand's joints
+    for (unsigned int i = q_tmp_l.size() + q_tmp_r.size() + q_tmp_finger_l.size(); i < q_tmp_l.size() + q_tmp_r.size() + q_tmp_finger_l.size() + q_tmp_finger_r.size(); ++i)
+    {
+      // 1
+      q_tmp_l = q_cur_l;
+      q_tmp_r = q_cur_r;
+      q_tmp_finger_l = q_cur_finger_l;
+      q_tmp_finger_r = q_cur_finger_r;
+
+      q_tmp_finger_r[i-q_tmp_l.size()-q_tmp_r.size()-q_tmp_finger_l.size()] += eps;
+
+      cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+      cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      cost1 += compute_finger_cost(q_tmp_finger_l, true, fdata);
+      cost1 += compute_finger_cost(q_tmp_finger_r, false, fdata);
+      // 2
+      q_tmp_l = q_cur_l;
+      q_tmp_r = q_cur_r;
+      q_tmp_finger_l = q_cur_finger_l;
+      q_tmp_finger_r = q_cur_finger_r;
+
+      q_tmp_finger_r[i-q_tmp_l.size()-q_tmp_r.size()-q_tmp_finger_l.size()] -= eps;
+
+      cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+      cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+      cost2 += compute_finger_cost(q_tmp_finger_l, true, fdata);
+      cost2 += compute_finger_cost(q_tmp_finger_r, false, fdata);
+      // combine 1 and 2
+      grad[i] = (cost1 - cost2) / (2.0 * eps);
+    }    
 
   }
-
 
   // Return cost function value
   return cost;
@@ -451,21 +610,66 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
 
 // Constraint function; expected to be myconstraint(x)<=0
+//double myconstraint(const std::vector<double> &x, std::vector<double> &grad, void *f_data)
 void myconstraint(unsigned m, double *result, unsigned n, const double *x,
-                             double *grad, /* NULL if not needed */
-                             void *f_data)
+                              double *grad, /* NULL if not needed */
+                              void *f_data)
 {
+  // Constraints: relative position of wrists, collision avoidance
 
-  // No constraints!!! Upper and lower bounds are bounds!!!
+  
+  // Meta-information
+  //my_constraint_struct *fdata = (my_constraint_struct *) f_data;
 
+  // Get angles
   /*
+  Matrix<double, n, 1> q_in = Map<Vector3d>(x, 3, 1);
+  //std::vector<double> q_in << x[0], x[1], x[2]
+  std::vector<double> q_left_arm = 
+  std::vector<double> q_right_arm = 
+  // std::vector<double> q_left_hand = 
+  // std::vector<double> q_right_hand = 
+*/
 
-  // m-dim vector-valued constraints, n-dim joints
-  my_constraint_struct *d = (my_constraint_struct *) f_data;
-  f_data.qlb
-  f_data.qub
+  /** Constraint 1: collision avoidance **/
+  // collision inside one group
+  /*
+  double col_r_hand_r_hand_cost = 0;
+  double col_l_hand_l_hand_cost = 0;
+  double col_r_arm_r_arm_cost = 0;
+  double col_l_arm_l_arm_cost = 0;
+
+  // collision between different groups
+  double col_r_hand_l_hand = 0;
+  double col_r_hand_l_arm = 0;
+  double col_l_hand_r_arm = 0;
+  double col_l_arm_r_arm = 0;
+*/
+  // compute minimum distance (and penetration depth)
+    
+
+   // Get fk solver( and set IDs if first time)
+  //KDL::ChainFkSolverPos_recursive left_fk_solver = setup_left_kdl(*fdata);
+  //KDL::ChainFkSolverPos_recursive right_fk_solver = setup_right_kdl(*fdata);
+
+
+  // Calculate loss function(tracking performance + continuity)
+  //std::vector<double> x_tmp = x;
+  /*
+  Matrix<double, 6, 1> q_cur_l, q_cur_r;
+  q_cur_l << x[0], x[1], x[2], x[3], x[4], x[5]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
+  q_cur_r << x[6], x[7], x[8], x[9], x[10], x[11]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
+  double cost = compute_cost(left_fk_solver, q_cur_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+  cost += compute_cost(right_fk_solver, q_cur_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+  */
+
+
+  /** Constraint 2: relative wrsit position **/
+
+
 
   // Compute gradients of constraint functions(if non-NULL, it points to an array with the size of m*n; access through)
+  /*
   if (grad){
 
     for (unsigned i = 0; i < m; ++i)
@@ -473,7 +677,7 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
       for(unsigned j = 0; j < n; ++j)
       {
 
-        grad[i * n + j] = (i < 6) ? 1 : -1; // 6 upperbounds
+        grad[i * n + j] = 0;//(i < 6) ? 1 : -1; // 6 upperbounds
 
       }
 
@@ -485,11 +689,10 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
   // Compute constraints and store in `result`
   for (unsigned int i = 0; i < m; ++i)
   {
-    result[i] = 
+    result[i] = 0;
   }
-  
-  */
 
+*/
 
 }
 
@@ -735,7 +938,7 @@ int main(int argc, char *argv[])
 
 
   // Input Cartesian trajectories
-  const unsigned int joint_value_dim = 12; //6;   
+  const unsigned int joint_value_dim = 2*6 + 2*12; // dual arm + dual hand = 36 DOF
   std::vector<double> x(joint_value_dim);
 
   std::vector<std::vector<double>> read_l_wrist_pos_traj = read_h5(in_file_name, in_group_name, "l_wrist_pos"); 
@@ -747,6 +950,9 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double>> read_r_wrist_ori_traj = read_h5(in_file_name, in_group_name, "r_wrist_ori"); 
   std::vector<std::vector<double>> read_r_elbow_pos_traj = read_h5(in_file_name, in_group_name, "r_elbow_pos"); 
   std::vector<std::vector<double>> read_r_shoulder_pos_traj = read_h5(in_file_name, in_group_name, "r_shoulder_pos"); 
+
+  std::vector<std::vector<double>> read_l_finger_pos_traj = read_h5(in_file_name, in_group_name, "l_glove_angle"); // N * 14 size
+  std::vector<std::vector<double>> read_r_finger_pos_traj = read_h5(in_file_name, in_group_name, "r_glove_angle"); // N * 14 size  
 
   std::vector<std::vector<double>> read_time_stamps = read_h5(in_file_name, in_group_name, "time"); 
 
@@ -766,9 +972,30 @@ int main(int argc, char *argv[])
   exit(0);
   */
 
+
   // Parameters setting
-  std::vector<double> qlb = {-1.0, -1.0, -1.0, -1.57, -1.57, -1.57, -1.0, -1.0, -1.0, -1.57, -1.57, -1.57};//{-6.28, -5.498, -7.854, -6.28, -7.854, -6.28};
-  std::vector<double> qub = {1.0, 1.0, 1.0, 1.57, 1.57, 1.57, 1.0, 1.0, 1.0, 1.57, 1.57, 1.57};//{6.28, 7.069, 4.712, 6.28, 4.712, 6.28};
+  const std::vector<double> q_l_arm_lb = {-1.0, -1.0, -1.0, -1.57, -1.57, -1.57};
+  const std::vector<double> q_r_arm_lb = {-1.0, -1.0, -1.0, -1.57, -1.57, -1.57};
+  const std::vector<double> q_l_arm_ub = {1.0, 1.0, 1.0, 1.57, 1.57, 1.57};
+  const std::vector<double> q_r_arm_ub = {1.0, 1.0, 1.0, 1.57, 1.57, 1.57};
+  
+  const std::vector<double> q_l_finger_lb = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
+  const std::vector<double> q_l_finger_ub = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
+  const std::vector<double> q_r_finger_lb = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
+  const std::vector<double> q_r_finger_ub = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
+
+  std::vector<double> qlb = q_l_arm_lb;
+  std::vector<double> qub = q_l_arm_ub;
+  qlb.insert(qlb.end(), q_r_arm_lb.cbegin(), q_r_arm_lb.cend());
+  qlb.insert(qlb.end(), q_l_finger_lb.cbegin(), q_l_finger_lb.cend());
+  qlb.insert(qlb.end(), q_r_finger_lb.cbegin(), q_r_finger_lb.cend());
+  qub.insert(qub.end(), q_r_arm_ub.cbegin(), q_r_arm_ub.cend());
+  qub.insert(qub.end(), q_l_finger_ub.cbegin(), q_l_finger_ub.cend());
+  qub.insert(qub.end(), q_r_finger_ub.cbegin(), q_r_finger_ub.cend());
+  // variable structure: l_arm, r_arm, l_finger, r_finger  
+
+
+
   //std::vector<double> x(joint_value_dim);
   double minf;
   double tol = 1e-4;
@@ -779,6 +1006,20 @@ int main(int argc, char *argv[])
   my_constraint_struct constraint_data; 
   setup_left_kdl(constraint_data); // set IDs, discard the solver handle
   setup_right_kdl(constraint_data); 
+
+  // robot's shoulder position
+  constraint_data.l_robot_shoulder_pos = Vector3d(-0.06, 0.235, 0.395);
+  constraint_data.r_robot_shoulder_pos = Vector3d(-0.06, -0.235, 0.395);
+  constraint_data.l_robot_finger_start << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0; 
+  constraint_data.l_robot_finger_final << -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0;
+  constraint_data.r_robot_finger_start << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0;
+  constraint_data.r_robot_finger_final << -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0; // right and left hands' joint ranges are manually set to be the same, but according to Inspire Hand Inc, this will keep changing in the future.
+  constraint_data.glove_start << 0, 0, 53, 0, 0, 22, 0, 0, 22, 0, 0, 35, 0, 0;
+  constraint_data.glove_start = constraint_data.glove_start * M_PI / 180.0; // in radius  
+  constraint_data.glove_final << 45, 100, 0, 90, 120, 0, 90, 120, 0, 90, 120, 0, 90, 120;
+  constraint_data.glove_final = constraint_data.glove_final * M_PI / 180.0; 
+
+
 
   //std::cout << "At Main func, before set up optimizer." << std::endl;
 
@@ -800,7 +1041,7 @@ int main(int argc, char *argv[])
   //opt.set_ftol_abs(1e-12); // objective function value changes by less than `tol`
   opt.set_xtol_rel(1e-6); // optimization parameters' magnitude changes by less than `tol` multiplied by the current magnitude(can set weights for each dimension)
   //opt.set_xtol_abs(1e-8); // optimization parameters' magnitude changes by less than `tol`
-  opt.set_maxeval(200); // maximum evaluation
+  opt.set_maxeval(300); // maximum evaluation
   //opt.set_maxtime(3.0); // maximum time
 
 
@@ -827,6 +1068,9 @@ int main(int argc, char *argv[])
     std::vector<double> r_elbow_pos = read_r_elbow_pos_traj[it]; //end()); // 3-dim
     std::vector<double> r_shoulder_pos = read_r_shoulder_pos_traj[it]; 
 
+    std::vector<double> l_finger_pos = read_l_finger_pos_traj[it];
+    std::vector<double> r_finger_pos = read_r_finger_pos_traj[it];
+
     /** check the extracted data sizes **
     std::cout << "wrist_pos.size() = " << wrist_pos.size() << ", ";
     std::cout << "wrist_ori.size() = " << wrist_ori.size() << ", ";
@@ -842,19 +1086,24 @@ int main(int argc, char *argv[])
     Vector3d r_elbow_pos_goal = Map<Vector3d>(r_elbow_pos.data(), 3, 1);
     Vector3d r_shoulder_pos_goal = Map<Vector3d>(r_shoulder_pos.data(), 3, 1);
 
+    Matrix<double, 14, 1> l_finger_pos_goal = Map<Matrix<double, 14, 1>>(l_finger_pos.data(), 14, 1);
+    Matrix<double, 14, 1> r_finger_pos_goal = Map<Matrix<double, 14, 1>>(r_finger_pos.data(), 14, 1);
+
     // Save in constraint_data for use in optimization
     constraint_data.l_wrist_pos_goal = l_wrist_pos_goal;
     constraint_data.l_wrist_ori_goal = l_wrist_ori_goal;
     constraint_data.l_elbow_pos_goal = l_elbow_pos_goal;
     constraint_data.l_shoulder_pos_goal = l_shoulder_pos_goal;
+
     constraint_data.r_wrist_pos_goal = r_wrist_pos_goal;
     constraint_data.r_wrist_ori_goal = r_wrist_ori_goal;
     constraint_data.r_elbow_pos_goal = r_elbow_pos_goal;
     constraint_data.r_shoulder_pos_goal = r_shoulder_pos_goal;
 
-    // robot's shoulder position
-    constraint_data.l_robot_shoulder_pos = Vector3d(-0.06, 0.235, 0.395);
-    constraint_data.r_robot_shoulder_pos = Vector3d(-0.06, -0.235, 0.395);
+    constraint_data.l_finger_pos_goal = l_finger_pos_goal * M_PI / 180.0; // remember to convert from degree to radius!!!
+    constraint_data.r_finger_pos_goal = r_finger_pos_goal * M_PI / 180.0;
+
+
 
 
     /** Be careful with the data assignment above !!!! **
@@ -876,6 +1125,9 @@ int main(int argc, char *argv[])
     my_constraint_struct *f_data = &constraint_data;
     opt.set_min_objective(myfunc, (void *) f_data); // set objective function to minimize; with no additional information passed(f_data)
 
+    // Set constraints
+    const std::vector<double> tol_vec = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // tol_vec.size() determines the dimensionality m 
+    //opt.add_inequality_mconstraint(myconstraint, (void *) f_data, tol_vec);
 
     // Start optimization
     /*try
@@ -929,6 +1181,8 @@ int main(int argc, char *argv[])
       std::cout << "Scaled Elbow Pos Cost: " << f_data->scaled_elbow_pos_cost << std::endl;
       std::cout << "Smoothness Cost: " << f_data->smoothness_cost << std::endl;
       std::cout << "Two arm's wrist positions difference Cost: " << f_data->l_r_pos_diff_cost << std::endl;
+      std::cout << "Left finger scaled pos Cost: " << f_data->scaled_l_finger_pos_cost << std::endl;
+      std::cout << "Right finger scaled pos Cost: " << f_data->scaled_r_finger_pos_cost << std::endl;
       std::cout << "Total Cost: " << f_data->total_cost << std::endl;
 
       // Store the result(joint values)
@@ -943,7 +1197,7 @@ int main(int argc, char *argv[])
 
       // Record the current joint as q_prev
       //Matrix<double, 6, 1> q_prev = Map<Eigen::Matrix<double, 6, 1>>(x.data(), 6, 1);
-      constraint_data.q_prev = Map<Eigen::Matrix<double, 12, 1>>(x.data(), 12, 1); // used across optimizations over the whole trajectory  
+      constraint_data.q_prev = Map<Eigen::Matrix<double, joint_value_dim, 1>>(x.data(), joint_value_dim, 1); // used across optimizations over the whole trajectory  
       //std::cout << "q_prev is: " << constraint_data.q_prev.transpose() << std::endl;
       first_iter = false;
 

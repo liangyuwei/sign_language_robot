@@ -116,7 +116,7 @@ joint_limits:
   # Left hand's joint limits
   link1:
     has_position_limits: true
-    min_position: -1
+    min_position: -1.6
     max_position: 0
     has_velocity_limits: true
     max_velocity: 1
@@ -124,7 +124,7 @@ joint_limits:
     max_acceleration: 0
   link11:
     has_position_limits: true
-    min_position: -2
+    min_position: -1.7
     max_position: 0
     has_velocity_limits: true
     max_velocity: 1
@@ -132,7 +132,7 @@ joint_limits:
     max_acceleration: 0
   link2:
     has_position_limits: true
-    min_position: -1
+    min_position: -1.6
     max_position: 0
     has_velocity_limits: true
     max_velocity: 1
@@ -140,7 +140,7 @@ joint_limits:
     max_acceleration: 0
   link22:
     has_position_limits: true
-    min_position: -2
+    min_position: -1.7
     max_position: 0
     has_velocity_limits: true
     max_velocity: 1
@@ -148,7 +148,7 @@ joint_limits:
     max_acceleration: 0
   link3:
     has_position_limits: true
-    min_position: -1
+    min_position: -1.6
     max_position: 0
     has_velocity_limits: true
     max_velocity: 1
@@ -156,7 +156,7 @@ joint_limits:
     max_acceleration: 0
   link33:
     has_position_limits: true
-    min_position: -2
+    min_position: -1.7
     max_position: 0
     has_velocity_limits: true
     max_velocity: 1
@@ -164,7 +164,7 @@ joint_limits:
     max_acceleration: 0
   link4:
     has_position_limits: true
-    min_position: -1
+    min_position: -1.6
     max_position: 0
     has_velocity_limits: true
     max_velocity: 1
@@ -172,7 +172,7 @@ joint_limits:
     max_acceleration: 0
   link44:
     has_position_limits: true
-    min_position: -2
+    min_position: -1.7
     max_position: 0
     has_velocity_limits: true
     max_velocity: 1
@@ -180,8 +180,8 @@ joint_limits:
     max_acceleration: 0
   link5:
     has_position_limits: true
-    min_position: 0
-    max_position: 1
+    min_position: -1.0
+    max_position: 0.3
     has_velocity_limits: true
     max_velocity: 1
     has_acceleration_limits: false
@@ -189,14 +189,14 @@ joint_limits:
   link51:
     has_position_limits: true
     min_position: 0
-    max_position: 1
+    max_position: 0.4
     has_velocity_limits: true
     max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
   link52:
     has_position_limits: true
-    min_position: -1
+    min_position: -0.4
     max_position: 0
     has_velocity_limits: true
     max_velocity: 1

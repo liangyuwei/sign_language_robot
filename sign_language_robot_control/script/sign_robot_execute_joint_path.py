@@ -851,7 +851,7 @@ def main():
     right_hand_group = moveit_commander.MoveGroupCommander("right_hand")
     right_arm_group = moveit_commander.MoveGroupCommander("right_arm")
     dual_arms_group = moveit_commander.MoveGroupCommander("dual_arms")
-    dual_arms_dual_hands_group = moveit_commander.MoveGroupCommander("dual_arms_with_hands")
+    dual_arms_with_hands_group = moveit_commander.MoveGroupCommander("dual_arms_with_hands")
 
 
     ### Read h5 file for joint paths (arms only for now)
@@ -874,10 +874,13 @@ def main():
 
     ### Arms: Go to start positions
     print "============ Both arms go to initial positions..."
-    dual_arms_goal = arm_path_array[0, :].tolist()
-    dual_arms_group.allow_replanning(True)
-    dual_arms_group.go(dual_arms_goal, wait=True)
-    dual_arms_group.stop()
+    dual_arms_with_hands_start = arm_path_array[0, :6].tolist() + arm_path_array[0, 12:24].tolist() + arm_path_array[0, 6:12].tolist() + arm_path_array[0, 24:36].tolist()
+    # group joints structure: left arm, left hand, right arm, right hand
+    # IK results structure: left arm, right arm, left hand, right hand
+    dual_arms_with_hands_group.allow_replanning(True)
+    dual_arms_with_hands_group.go(dual_arms_with_hands_start, wait=True)
+    dual_arms_with_hands_group.stop()
+
 
     ### Hands: Go to start positions
     print "============ Both hands go to initial positions..."
@@ -907,10 +910,16 @@ def main():
     print "============ Construct a plan of two arms' motion..."
     cartesian_plan = moveit_msgs.msg.RobotTrajectory()
     cartesian_plan.joint_trajectory.header.frame_id = '/world'
-    cartesian_plan.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint'] + ['right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint']
+    cartesian_plan.joint_trajectory.joint_names = ['left_shoulder_pan_joint', 'left_shoulder_lift_joint', 'left_elbow_joint', 'left_wrist_1_joint', 'left_wrist_2_joint', 'left_wrist_3_joint'] \
+    + ['link1', 'link11', 'link2', 'link22', 'link3', 'link33', 'link4', 'link44', 'link5', 'link51', 'link52', 'link53'] \
+    + ['right_shoulder_pan_joint', 'right_shoulder_lift_joint', 'right_elbow_joint', 'right_wrist_1_joint', 'right_wrist_2_joint', 'right_wrist_3_joint'] \
+    + ['Link1', 'Link11', 'Link2', 'Link22', 'Link3', 'Link33', 'Link4', 'Link44', 'Link5', 'Link51', 'Link52', 'Link53']
+
+    # structure: left arm, left hand, right arm, right hand; different from the result of IK
+
     for i in range(arm_path_array.shape[0]):
         path_point = trajectory_msgs.msg.JointTrajectoryPoint()
-        path_point.positions = arm_path_array[i].tolist()
+        path_point.positions = arm_path_array[i, :6].tolist() + arm_path_array[i, 12:24].tolist() + arm_path_array[i, 6:12].tolist() + arm_path_array[i, 24:36].tolist()
         t = rospy.Time(i*1.0/15.0) # rospy.Time(timestamp_array[i]) # 15 Hz
         path_point.time_from_start.secs = t.secs
         path_point.time_from_start.nsecs = t.nsecs        
@@ -923,7 +932,7 @@ def main():
     import pdb
     pdb.set_trace()
     print "============ Execute the planned path..."        
-    dual_arms_group.execute(cartesian_plan, wait=True)
+    dual_arms_with_hands_group.execute(cartesian_plan, wait=True)
 
 
   except rospy.ROSInterruptException:
