@@ -21,6 +21,9 @@ find_package(NLopt REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   kdl_parser
+  moveit_ros_planning_interface
+  moveit_core
+  moveit_ros_planning
 )
 
 
@@ -160,6 +163,8 @@ add_executable(arm_retarget_nlopt src/arm_retarget_nlopt.cpp)
 target_link_libraries(arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 
+add_executable(distance_computation src/distance_computation.cpp)
+target_link_libraries(distance_computation ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 
 

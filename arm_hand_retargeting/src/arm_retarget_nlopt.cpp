@@ -619,21 +619,19 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
 
   
   // Meta-information
-  //my_constraint_struct *fdata = (my_constraint_struct *) f_data;
+  my_constraint_struct *fdata = (my_constraint_struct *) f_data;
 
   // Get angles
-  /*
-  Matrix<double, n, 1> q_in = Map<Vector3d>(x, 3, 1);
+  //Matrix<double, 36, 1> q_in = Map<Vector3d>(x, 3, 1);
   //std::vector<double> q_in << x[0], x[1], x[2]
-  std::vector<double> q_left_arm = 
-  std::vector<double> q_right_arm = 
+  //std::vector<double> q_left_arm = 
+  //std::vector<double> q_right_arm = 
   // std::vector<double> q_left_hand = 
   // std::vector<double> q_right_hand = 
-*/
 
   /** Constraint 1: collision avoidance **/
   // collision inside one group
-  /*
+
   double col_r_hand_r_hand_cost = 0;
   double col_l_hand_l_hand_cost = 0;
   double col_r_arm_r_arm_cost = 0;
@@ -644,7 +642,7 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
   double col_r_hand_l_arm = 0;
   double col_l_hand_r_arm = 0;
   double col_l_arm_r_arm = 0;
-*/
+
   // compute minimum distance (and penetration depth)
     
 
@@ -655,13 +653,12 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
 
   // Calculate loss function(tracking performance + continuity)
   //std::vector<double> x_tmp = x;
-  /*
   Matrix<double, 6, 1> q_cur_l, q_cur_r;
   q_cur_l << x[0], x[1], x[2], x[3], x[4], x[5]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
   q_cur_r << x[6], x[7], x[8], x[9], x[10], x[11]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
-  double cost = compute_cost(left_fk_solver, q_cur_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
-  cost += compute_cost(right_fk_solver, q_cur_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
-  */
+  //double cost = compute_cost(left_fk_solver, q_cur_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
+  //cost += compute_cost(right_fk_solver, q_cur_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+
 
 
   /** Constraint 2: relative wrsit position **/
@@ -669,15 +666,14 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
 
 
   // Compute gradients of constraint functions(if non-NULL, it points to an array with the size of m*n; access through)
-  /*
   if (grad){
 
-    for (unsigned i = 0; i < m; ++i)
+    for (unsigned i = 0; i < m; ++i) // number of constraints
     {
       for(unsigned j = 0; j < n; ++j)
       {
 
-        grad[i * n + j] = 0;//(i < 6) ? 1 : -1; // 6 upperbounds
+        grad[i * n + j] = 0;
 
       }
 
@@ -692,7 +688,7 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
     result[i] = 0;
   }
 
-*/
+
 
 }
 

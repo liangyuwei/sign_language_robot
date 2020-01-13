@@ -25,14 +25,6 @@
 #include <Eigen/Eigen>
 
 
-// User defined constraints can also be specified to the PlanningScene
-/*
-bool stateFeasibilityTestExample(const robot_state::RobotState& kinematic_state, bool verbose)
-{
-  const double* joint_values = kinematic_state.getJointPositions("panda_joint1");
-  return (joint_values[0] > 0.0);
-}
-*/
 
 int main(int argc, char** argv)
 {
@@ -46,12 +38,7 @@ int main(int argc, char** argv)
   //ros::NodeHandle node_handle;
  
 
-  // Set up PlanningScene class(from RobotModel or URDF & SRDF; see the constructor in documentation)
-
-  // way 1(checked): load from robot_description
-  //robot_model_loader::RobotModelLoader robot_model_loader("robot_description");
-
-  // way 2(checked): construct a robot model ptr from URDF and SRDF so that the moveit needs not be launched
+  // Construct a robot model ptr from URDF and SRDF so that the moveit needs not be launched
   std::string urdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
   std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
   std::ifstream urdf_file(urdf_file_name);
@@ -68,7 +55,22 @@ int main(int argc, char** argv)
   planning_scene::PlanningScene planning_scene(kinematic_model);
 
 
+  // Get current_state 
+  robot_state::RobotState& current_state = planning_scene.getCurrentStateNonConst();
+
+  // set left hand's joint angles
+  const robot_model::JointModelGroup* joint_model_group = current_state.getJointModelGroup("left_hand");
+  std::vector<double> joint_values = {-1.0, -1.47, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.62, 0.0, -0.56, -0.3 };
+  current_state.setJointGroupPositions(joint_model_group, joint_values);
+  // set right hand's joint angles
+  joint_values = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+  const robot_model::JointModelGroup* joint_model_group2 = current_state.getJointModelGroup("right_hand");
+  current_state.setJointGroupPositions(joint_model_group2, joint_values);
+  // update 
+  current_state.update();
+
   // Collision Checking
+  /*
   collision_detection::CollisionRequest collision_request;
   collision_detection::CollisionResult collision_result;
   planning_scene.checkSelfCollision(collision_request, collision_result);
@@ -116,6 +118,7 @@ int main(int argc, char** argv)
   ROS_INFO_STREAM("Manually set state of the right hand is " << (collision_result.collision ? "in" : "not in") << " self collision");
 
   ROS_INFO_STREAM("Closest distance: " << collision_result.distance);
+  */
 
 
   // Self-collision for a group; Use DistanceRequest to compute penetration
@@ -124,7 +127,7 @@ int main(int argc, char** argv)
   distance_request.group_name = "left_hand"; //"right_hand";
   distance_request.enable_signed_distance = true;
   distance_request.type = collision_detection::DistanceRequestType::SINGLE; // global minimum
-  distance_request.enableGroup(kinematic_model); // specify which group to check
+  //distance_request.enableGroup(kinematic_model); // specify which group to check
   const collision_detection::AllowedCollisionMatrix acm = planning_scene.getAllowedCollisionMatrix();
   distance_request.acm = &acm; // specify acm to ignore adjacent links' collision check
   // construct a CollisionRobotFCL for calling distanceSelf function
@@ -133,47 +136,54 @@ int main(int argc, char** argv)
   ROS_INFO_STREAM(">>>> Test 3 on using DistanceSelf to compute penetration/minimum distance:");
   ROS_INFO_STREAM("Left hand is " << (distance_result.collision ? "in" : "not in") << " self collision.");
   ROS_INFO_STREAM("Minimum distance is " << distance_result.minimum_distance.distance << ", between " << distance_result.minimum_distance.link_names[0] << " and " << distance_result.minimum_distance.link_names[1]);
-  // compute for the right hand
   distance_result.clear();
+
+  // compute for the right hand
   distance_request.group_name = "right_hand";
-  distance_request.enableGroup(kinematic_model);
+  //distance_request.enableGroup(kinematic_model);
   collision_robot_fcl.distanceSelf(distance_request, distance_result, current_state);
   ROS_INFO_STREAM("Right hand is " << (distance_result.collision ? "in" : "not in") << " self collision.");
   ROS_INFO_STREAM("Minimum distance is " << distance_result.minimum_distance.distance << ", between " << distance_result.minimum_distance.link_names[0] << " and " << distance_result.minimum_distance.link_names[1]);
+  distance_result.clear();
+
 
 
   // Self-collision between groups(Use DistanceRequest for acquiring penetration/minimum distance information)
   auto new_distance_request = collision_detection::DistanceRequest();
   auto new_distance_result = collision_detection::DistanceResult();
-  new_distance_request.group_name = "left_hand"; //"right_hand";
+  new_distance_request.group_name = ""; //"left_hand"; //"right_hand";
   new_distance_request.enable_signed_distance = true;
   new_distance_request.type = collision_detection::DistanceRequestType::SINGLE; 
   new_distance_request.acm = &acm; // Allowed Collision Matrix
+
+  //new_distance_request.distance_threshold =  // default is std::numeric_limits<double>::max()
+
   // reset left hand's state
+  joint_values = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
   current_state.setJointGroupPositions(joint_model_group, joint_values);
+  // set left arm's position
   std::vector<double> arm_joint_values = {-1.3, 1.05, -1.12, 0.02, 0.0, 0.0}; // set left arm's joint values; for left hand to collide with the right arm(elbow)
   const robot_model::JointModelGroup* arm_joint_model_group = current_state.getJointModelGroup("left_arm");
-  current_state.setJointGroupPositions(arm_joint_model_group, arm_joint_values);
+  //current_state.setJointGroupPositions(arm_joint_model_group, arm_joint_values);
   current_state.update(); // update????
-  new_distance_request.group_name = "left_hand";
-  //distance_request.enableGroup(kinematic_model);
+  //new_distance_request.group_name = "left_hand";
+  //new_distance_request.enableGroup(kinematic_model);
   collision_robot_fcl.distanceSelf(new_distance_request, new_distance_result, current_state);
 
   ROS_INFO_STREAM(">>>> Test 4 on self-collision checking between groups(In collision): ");
   ROS_INFO_STREAM("Manually set state of the left arm is " << (current_state.satisfiesBounds(arm_joint_model_group) ? "within joint limits" : "beyond joint limits"));
-  ROS_INFO_STREAM("Left hand and left arm is " << (new_distance_result.collision ? "in" : "not in") << " self collision");  
+  ROS_INFO_STREAM("Left hand is " << (new_distance_result.collision ? "in" : "not in") << " self collision");  
   ROS_INFO_STREAM("Minimum distance is " << new_distance_result.minimum_distance.distance << ", between " << new_distance_result.minimum_distance.link_names[0] << " and " << new_distance_result.minimum_distance.link_names[1]);
   // set left hand in self-collision state
   new_distance_result.clear();
   joint_values = {-1.0, -1.47, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.62, 0.0, -0.56, -0.3 };
   ROS_INFO_STREAM("Set left hand in self-collision state...");
-  current_state.setJointGroupPositions(joint_model_group, joint_values);
+  //current_state.setJointGroupPositions(joint_model_group, joint_values);
   current_state.update(); // update????
   collision_robot_fcl.distanceSelf(new_distance_request, new_distance_result, current_state);
-  ROS_INFO_STREAM("Left hand and left arm is " << (new_distance_result.collision ? "in" : "not in") << " self collision");  
+  ROS_INFO_STREAM("Left hand arm is " << (new_distance_result.collision ? "in" : "not in") << " self collision");  
   ROS_INFO_STREAM("Minimum distance is " << new_distance_result.minimum_distance.distance << ", between " << new_distance_result.minimum_distance.link_names[0] << " and " << new_distance_result.minimum_distance.link_names[1]);
   // get DistanceMap (a long list of distance information)
-  /*
   ROS_INFO_STREAM("Distance Map:");
   collision_detection::DistanceMap::const_iterator itr;
   int i = 0;
@@ -182,7 +192,7 @@ int main(int argc, char** argv)
     ROS_INFO_STREAM("Distance between " << itr->first.first << " and " << itr->first.second << " is " << itr->second[i].distance);
     i++;
   }
-  */   
+   
 
 
   // Full collision checking: self-collision checking(intra- and inter-group) + collision with the environment
