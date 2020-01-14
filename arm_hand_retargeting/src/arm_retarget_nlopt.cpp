@@ -35,8 +35,14 @@
 #include <getopt.h>
 
 
+// For collision checking
+#include "distance_computation.h"
+#include "collision_checking.h"
+
+
 // global flags
-int count = 0;
+int count = 0; // counter for cost function
+int c_count = 0; // counter for constratint function
 bool first_iter = true;
 
 using namespace Eigen;
@@ -112,6 +118,14 @@ typedef struct {
   Vector3d l_wrist_cur;
   Vector3d r_wrist_cur;
   double l_r_wrist_diff_cost;
+
+
+  // A class for distance computation (collision avoidance)
+  int argc;
+  char **argv;
+  std::string urdf_string;
+  std::string srdf_string;
+  //DualArmDualHandMinDistance dual_arm_dual_hand_min_distance;
 
 
 } my_constraint_struct;
@@ -451,7 +465,7 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
   // Counter information
   ++count;
-  //std::cout << "Evaluation " << count << std::endl;
+  std::cout << "Evaluation " << count << " of cost function. " << std::endl;
 
 
   // Get additional information by typecasting void* f_data(user-defined data)
@@ -609,6 +623,8 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
 
 
+
+
 // Constraint function; expected to be myconstraint(x)<=0
 //double myconstraint(const std::vector<double> &x, std::vector<double> &grad, void *f_data)
 void myconstraint(unsigned m, double *result, unsigned n, const double *x,
@@ -617,9 +633,20 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
 {
   // Constraints: relative position of wrists, collision avoidance
 
+  c_count += 1;
+  std::cout << "Evaluation " << c_count << " of constraints. " << std::endl;
   
   // Meta-information
   my_constraint_struct *fdata = (my_constraint_struct *) f_data;
+  std::vector<double> x_vec(n);
+  //std::cout << "Current joint angles: ";
+  for (int i = 0; i < n; ++i)
+  {
+    x_vec[i] = x[i];
+    //std::cout << x[i] << " ";
+  }
+  //std::cout << std::endl;
+
 
   // Get angles
   //Matrix<double, 36, 1> q_in = Map<Vector3d>(x, 3, 1);
@@ -631,63 +658,223 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
 
   /** Constraint 1: collision avoidance **/
   // collision inside one group
-
+  /*
   double col_r_hand_r_hand_cost = 0;
   double col_l_hand_l_hand_cost = 0;
   double col_r_arm_r_arm_cost = 0;
   double col_l_arm_l_arm_cost = 0;
+  */
 
   // collision between different groups
+  /*
   double col_r_hand_l_hand = 0;
   double col_r_hand_l_arm = 0;
   double col_l_hand_r_arm = 0;
   double col_l_arm_r_arm = 0;
+  */
 
-  // compute minimum distance (and penetration depth)
-    
+  // compute minimum distance (including penetration depth)
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  //DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(fdata->argc, fdata->argv, fdata->urdf_string, fdata->srdf_string);
+  //double min_distance = dual_arm_dual_hand_min_distance.compute_minimum_distance(x_vec);
 
-   // Get fk solver( and set IDs if first time)
-  //KDL::ChainFkSolverPos_recursive left_fk_solver = setup_left_kdl(*fdata);
-  //KDL::ChainFkSolverPos_recursive right_fk_solver = setup_right_kdl(*fdata);
+  DualArmDualHandCollision dual_arm_dual_hand_min_collision(fdata->argc, fdata->argv, fdata->urdf_string, fdata->srdf_string);
+  double min_distance = dual_arm_dual_hand_min_collision.check_collision(x_vec);
 
 
-  // Calculate loss function(tracking performance + continuity)
-  //std::vector<double> x_tmp = x;
-  Matrix<double, 6, 1> q_cur_l, q_cur_r;
-  q_cur_l << x[0], x[1], x[2], x[3], x[4], x[5]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
-  q_cur_r << x[6], x[7], x[8], x[9], x[10], x[11]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
-  //double cost = compute_cost(left_fk_solver, q_cur_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
-  //cost += compute_cost(right_fk_solver, q_cur_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
+  // sometimes at non-colliding state, the min_distance is huge, reaching a maginitude of e+252...
+  if (min_distance > 1.0)
+  {
+    min_distance = 1.0;
+  }
 
+
+  //std::cout << "Computing minimum distance for constraint function value now !" << std::endl;
+  //std::cout << "Current minimum distance is: " << min_distance << std::endl;
+  double threshold = 0.0;
+  result[0] = - (min_distance - threshold); // expected: myconstraint(x) <= 0
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
 
   /** Constraint 2: relative wrsit position **/
+  /*
+  // Get fk solver( and set IDs if first time)
+  KDL::ChainFkSolverPos_recursive left_fk_solver = setup_left_kdl(*fdata);
+  KDL::ChainFkSolverPos_recursive right_fk_solver = setup_right_kdl(*fdata);
 
 
+  // Calculate loss function(tracking performance + continuity)
+  // Get joint angles
+  //Matrix<double, 6, 1> q_cur_l, q_cur_r;
+  //q_cur_l << x[0], x[1], x[2], x[3], x[4], x[5]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
+  //q_cur_r << x[6], x[7], x[8], x[9], x[10], x[11]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
+  KDL::JntArray q_in_l(6), q_in_r(6); 
+  for (unsigned int i = 0; i < 6; ++i)
+  {
+    q_in_l(i) = x_vec[i]; //q_cur_l(i);
+    q_in_r(i) = x_vec[i+6]; //q_cur_r(i);
+  }
+  KDL::Frame l_wrist_cart_out, r_wrist_cart_out; // Output homogeneous transformation
+  int success;
+  success = left_fk_solver.JntToCart(q_in_l, l_wrist_cart_out, fdata->l_num_wrist_seg+1);
+  if (success < 0){
+    ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+    return;
+  }
+  success = right_fk_solver.JntToCart(q_in_r, r_wrist_cart_out, fdata->r_num_wrist_seg+1);
+  if (success < 0){
+    ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+    return;
+  }
+
+  Vector3d l_wrist_pos_cur = Map<Vector3d>(l_wrist_cart_out.p.data, 3, 1);
+  Vector3d r_wrist_pos_cur = Map<Vector3d>(r_wrist_cart_out.p.data, 3, 1);
+
+  for (int i = 0; i < 3; ++i)
+  {
+    result[i+1] = -1.0 * (l_wrist_pos_cur[i] - r_wrist_pos_cur[i]) * (fdata->l_wrist_pos_goal[i] - fdata->r_wrist_pos_goal[i]);
+    //-1.0 * ((l_wrist_pos_cur[i] > r_wrist_pos_cur[i]) ? 1.0 : -1.0) * ((fdata->l_wrist_pos_goal[i] > fdata->r_wrist_pos_goal[i]) ? 1.0 : -1.0); // expected: myconstraint(x) <= 0 // make sure the relative position is the same
+  }  
+  */
+  
 
   // Compute gradients of constraint functions(if non-NULL, it points to an array with the size of m*n; access through)
+  double eps = 0.01;
+  std::vector<double> constraint_val_plus(m);
+  std::vector<double> constraint_val_minus(m);
+  // std::cout << "Number of constraint functions: " << m << std::endl; // m = 4 constraints
+  // std::cout << "Number of control variables: " << n << std::endl; // n = 36 variables
+  std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
   if (grad){
+    for(unsigned j = 0; j < n; ++j)
+    { 
 
-    for (unsigned i = 0; i < m; ++i) // number of constraints
-    {
-      for(unsigned j = 0; j < n; ++j)
+      // copy the current candidate
+      std::vector<double> x_tmp_plus = x_vec;
+      std::vector<double> x_tmp_minus = x_vec;
+      //double *x_tmp_plus = x, *x_tmp_minus = x;
+      x_tmp_plus[j] += eps;
+      x_tmp_minus[j] -= eps;
+
+
+      // Compute the corresponding constraint function values
+      // Constraint 1
+      //std::cout << "Computing minimum distance for constraint function gradients now !" << std::endl;
+      // -- plus --
+      min_distance = dual_arm_dual_hand_min_collision.check_collision(x_tmp_plus);
+      //dual_arm_dual_hand_min_distance.compute_minimum_distance(x_tmp_plus);
+      // sometimes at non-colliding state, the min_distance is huge, reaching a maginitude of e+252...
+      if (min_distance > 1.0)
+        min_distance = 1.0;
+      constraint_val_plus[0] = - (min_distance - threshold); 
+      // -- minus --
+      min_distance = dual_arm_dual_hand_min_collision.check_collision(x_tmp_minus);
+      //dual_arm_dual_hand_min_distance.compute_minimum_distance(x_tmp_minus);
+      // sometimes at non-colliding state, the min_distance is huge, reaching a maginitude of e+252...
+      if (min_distance > 1.0)
+        min_distance = 1.0;
+      constraint_val_minus[0] = - (min_distance - threshold); 
+      
+
+      // Constraint 2
+      /*
+      // -- plus --
+      for (unsigned int i = 0; i < 6; ++i)
       {
+        q_in_l(i) = x_tmp_plus[i]; //q_cur_l(i);
+        q_in_r(i) = x_tmp_plus[i+6]; //q_cur_r(i);
+      }
+      success = left_fk_solver.JntToCart(q_in_l, l_wrist_cart_out, fdata->l_num_wrist_seg+1);
+      if (success < 0){
+        ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+        return;
+      }
+      success = right_fk_solver.JntToCart(q_in_r, r_wrist_cart_out, fdata->r_num_wrist_seg+1);
+      if (success < 0){
+        ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+        return;
+      }
+      l_wrist_pos_cur = Map<Vector3d>(l_wrist_cart_out.p.data, 3, 1);
+      r_wrist_pos_cur = Map<Vector3d>(r_wrist_cart_out.p.data, 3, 1);
+      for (int i = 0; i < 3; ++i)
+      {
+        constraint_val_plus[i+1] = -1 * (l_wrist_pos_cur[i] - r_wrist_pos_cur[i]) * (fdata->l_wrist_pos_goal[i] - fdata->r_wrist_pos_goal[i]); 
+      }  
+      // -- minus --
+      for (unsigned int i = 0; i < 6; ++i)
+      {
+        q_in_l(i) = x_tmp_minus[i]; 
+        q_in_r(i) = x_tmp_minus[i+6]; 
+      }
+      success = left_fk_solver.JntToCart(q_in_l, l_wrist_cart_out, fdata->l_num_wrist_seg+1);
+      if (success < 0){
+        ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+        return;
+      }
+      success = right_fk_solver.JntToCart(q_in_r, r_wrist_cart_out, fdata->r_num_wrist_seg+1);
+      if (success < 0){
+        ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+        return;
+      }
+      l_wrist_pos_cur = Map<Vector3d>(l_wrist_cart_out.p.data, 3, 1);
+      r_wrist_pos_cur = Map<Vector3d>(r_wrist_cart_out.p.data, 3, 1);
+      for (int i = 0; i < 3; ++i)
+      {
+        constraint_val_minus[i+1] = -1.0 * (l_wrist_pos_cur[i] - r_wrist_pos_cur[i]) * (fdata->l_wrist_pos_goal[i] - fdata->r_wrist_pos_goal[i]); 
+      } 
+      */     
 
-        grad[i * n + j] = 0;
-
+      // Assign the gradients
+      for (int k = 0; k < m; ++k)
+      {
+        grad[k * n + j] = 1.0 * (constraint_val_plus[k] - constraint_val_minus[k]) / (2.0 * eps); // min_distance
       }
 
+      // display
+      //std::cout << "Gradients just computed: " << grad[j*n + 0] << " " << grad[j*n + 1] << " " << grad[j*n + 2] << " " << grad[j*n + 3] << std::endl;
+
+ 
+
+    } // END of for
+
+  } // END of if
+  std::chrono::steady_clock::time_point t3 = std::chrono::steady_clock::now();
+
+
+
+  std::chrono::duration<double> t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::chrono::duration<double> t2_3 = std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2);
+  //std::cout << "time used for constructor: " << time_used.count() << " s" << std::endl;
+  std::cout << "[ Time Usage ]" << std::endl;
+  std::cout << "Estimate cost value: " << t0_1.count() << " s" << std::endl;
+  std::cout << "Estimate gradient value: " << t2_3.count() << " s" << std::endl;
+
+
+
+  // Display information for debug
+  /*
+  std::cout << ">>> Debug information <<<" << std::endl;
+  std::cout << "Computed constraint function values: ";
+  for (int i = 0; i < m; ++i)
+    std::cout << result[m] << " ";
+  std::cout << std::endl;
+  
+  std::cout << "Computed constraint function gradients: ";
+  if (grad){
+    for (int i = 0; i < m; ++i)
+    {
+      for (int j = 0; j < n; ++j)
+      {
+        std::cout << grad[i * n + j] << " ";
+      }
+      std::cout << std::endl;
     }
-
   }
-
-
-  // Compute constraints and store in `result`
-  for (unsigned int i = 0; i < m; ++i)
+  else
   {
-    result[i] = 0;
+    std::cout << "grad is empty, no need to compute..." << std::endl;
   }
-
+  */
 
 
 }
@@ -873,6 +1060,22 @@ std::vector<std::vector<double>> read_h5(const std::string file_name, const std:
 int main(int argc, char *argv[])
 {
   
+  // Initialize a ros node, for the calculation of collision distance
+  ros::init(argc, argv, "sign_language_robot_collision_computation");
+
+  // Get URDF and SRDF for distance computation class
+  std::string urdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
+    std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
+  std::ifstream urdf_file(urdf_file_name);
+  std::ifstream srdf_file(srdf_file_name);
+  std::stringstream urdf_string, srdf_string;
+  urdf_string << urdf_file.rdbuf();
+  srdf_string << srdf_file.rdbuf();
+
+  // Set up a class for computing collision distance
+  //DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(argc, argv, urdf_string.str(), srdf_string.str());
+
+
   // Specify required names
   std::string in_file_name = "test_imi_data_UR5.h5";
   std::string in_group_name = "fengren";
@@ -1016,6 +1219,14 @@ int main(int argc, char *argv[])
   constraint_data.glove_final = constraint_data.glove_final * M_PI / 180.0; 
 
 
+  // Set a distance computation class
+  //DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(argc, argv, urdf_string.str(), srdf_string.str());
+  //constraint_data.dual_arm_dual_hand_min_distance = dual_arm_dual_hand_min_distance;
+  constraint_data.argc = argc;
+  constraint_data.argv = argv;
+  constraint_data.urdf_string = urdf_string.str();
+  constraint_data.srdf_string = srdf_string.str();
+
 
   //std::cout << "At Main func, before set up optimizer." << std::endl;
 
@@ -1048,6 +1259,7 @@ int main(int argc, char *argv[])
 
     // Reset counter.
     count = 0; 
+    c_count = 0;
 
     // Get one point from the path
     //std::vector<double> path_point = read_wrist_elbow_traj[it];
@@ -1117,13 +1329,17 @@ int main(int argc, char *argv[])
       exit(0);*/
 
 
-    // Set up objective function and additional data to pass in
+
     my_constraint_struct *f_data = &constraint_data;
-    opt.set_min_objective(myfunc, (void *) f_data); // set objective function to minimize; with no additional information passed(f_data)
+
 
     // Set constraints
-    const std::vector<double> tol_vec = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0}; // tol_vec.size() determines the dimensionality m 
-    //opt.add_inequality_mconstraint(myconstraint, (void *) f_data, tol_vec);
+    const std::vector<double> tol_vec = {0.0}; //{0.0, 0.0, 0.0, 0.0}; // tol_vec.size() determines the dimensionality m 
+    opt.add_inequality_mconstraint(myconstraint, (void *) f_data, tol_vec);
+
+    // Set up objective function and additional data to pass in
+    opt.set_min_objective(myfunc, (void *) f_data); // set objective function to minimize; with no additional information passed(f_data)
+
 
     // Start optimization
     /*try
@@ -1167,6 +1383,12 @@ int main(int argc, char *argv[])
           break;
       }
       std::cout << "NLopt found minimum f: " << minf << " after " << opt.get_numevals() << " evaluations." << std::endl;
+
+      std::cout << "IK result: ";
+      for (int t = 0; t < x.size(); ++t)
+        std::cout << x[t] << " ";
+      std::cout << std::endl;
+
       std::cout << "Upperarm Direction Cost: " << f_data->upperarm_direction_cost << std::endl;
       std::cout << "Shoulder-Wrist Direction Cost: " << f_data->shoulder_wrist_direction_cost << std::endl;
       std::cout << "Forearm Direction Cost: " << f_data->forearm_direction_cost << std::endl;

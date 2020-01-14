@@ -158,13 +158,18 @@ include_directories(
 ## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
 # set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 
+add_library(distance_computation src/distance_computation.cpp)
+
+add_library(collision_checking src/collision_checking.cpp)
 
 add_executable(arm_retarget_nlopt src/arm_retarget_nlopt.cpp)
 target_link_libraries(arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+target_link_libraries(arm_retarget_nlopt distance_computation)
+target_link_libraries(arm_retarget_nlopt collision_checking)
 
 
-add_executable(distance_computation src/distance_computation.cpp)
-target_link_libraries(distance_computation ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+#add_executable(distance_computation src/distance_computation.cpp)
+#target_link_libraries(distance_computation ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 
 

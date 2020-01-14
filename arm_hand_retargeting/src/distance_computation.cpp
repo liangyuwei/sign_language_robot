@@ -1,8 +1,11 @@
+/*
 #include <ros/ros.h>
 
 #include <vector>
 #include <string>
 #include <fstream>
+#include <algorithm>
+#include <chrono>
 
 // MoveIt!
 #include <moveit/robot_model_loader/robot_model_loader.h>
@@ -23,82 +26,138 @@
 
 // Eigen
 #include <Eigen/Eigen>
+*/
 
+// Itself
+#include "distance_computation.h"
 
-
+/*
 class DualArmDualHandMinDistance
 {
 
   public:
     DualArmDualHandMinDistance();
-    ~DualArmDualHandMinDistance(){};
-    std::vector<double> compute_minimum_distance(const std::vector<double>)
+    // Initialization list
+    DualArmDualHandMinDistance(int argc, char **argv, std::string urdf_string, std::string srdf_string);// : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_), collision_robot_fcl_(kinematic_model_);
 
+    ~DualArmDualHandMinDistance(){};
+
+    //std::vector<double> compute_minimum_distance(const std::vector<double> q_in);
+    double compute_minimum_distance(const std::vector<double> q_in);
+    //int assign_link_to_groups(std::string link_name);
 
   private:
-    std::string urdf_file_name_ = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
-    std::string srdf_file_name_ = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
-
-    ros::AsyncSpinner spinner_(1);
-
+    //ros::AsyncSpinner spinner_;
+    robot_model_loader::RobotModelLoader::Options options_;
     robot_model_loader::RobotModelLoader robot_model_loader_;
-    robot_model::RobotModelPtr kinematic_model_;
+    robot_model::RobotModelPtr kinematic_model_ = robot_model_loader_.getModel();
     planning_scene::PlanningScene planning_scene_;
-    robot_state::RobotState& current_state_;
+    robot_state::RobotState& current_state_ = planning_scene_.getCurrentStateNonConst();
+    collision_detection::CollisionRobotFCL collision_robot_fcl_;
 
-    robot_model::JointModelGroup *left_arm_group, *right_arm_group, *left_hand_group, *right_hand_group;
+
+    const robot_model::JointModelGroup *left_arm_group_ = this->current_state_.getJointModelGroup("left_arm");
+    const robot_model::JointModelGroup *right_arm_group_ = this->current_state_.getJointModelGroup("right_arm");
+    const robot_model::JointModelGroup *left_hand_group_ = this->current_state_.getJointModelGroup("left_hand");
+    const robot_model::JointModelGroup *right_hand_group_ = this->current_state_.getJointModelGroup("right_hand");
+    collision_detection::DistanceRequest distance_request_;
+    collision_detection::DistanceResult distance_result_;
+    collision_detection::AllowedCollisionMatrix acm_;
+
+
+    std::vector<std::string> left_arm_link_names_ = this->left_arm_group_->getLinkModelNames();
+    std::vector<std::string> right_arm_link_names_ = this->right_arm_group_->getLinkModelNames();
+    std::vector<std::string> left_hand_link_names_ = this->left_hand_group_->getLinkModelNames();
+    std::vector<std::string> right_hand_link_names_ = this->right_hand_group_->getLinkModelNames();
+
 
 };
+*/
 
 
-DualArmDualHandMinDistance::DualArmDualHandMinDistance()
+DualArmDualHandMinDistance::DualArmDualHandMinDistance(int argc, char** argv, std::string urdf_string, std::string srdf_string) : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_), collision_robot_fcl_(kinematic_model_)
 {
-  // Initialize a ROS node
-  ros::init(argc, argv, "sign_language_robot_collision_computation");
 
-  // Start Async spinner
-  this->spinner.start();
+  //std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
 
-  // Construct a robot model ptr from URDF and SRDF so that the moveit needs not be launched
-  std::ifstream urdf_file(this->urdf_file_name_);
-  std::ifstream srdf_file(this->srdf_file_name_);;
-  std::stringstream urdf_string, srdf_string;
-  urdf_string << urdf_file.rdbuf();
-  srdf_string << srdf_file.rdbuf();
-  robot_model_loader::RobotModelLoader::Options options(urdf_string.str(), srdf_string.str());
-  robot_model_loader::RobotModelLoader robot_model_loader(options); 
-  this->robot_model_loader_ = robot_model_loader;
-
-  // Get robot model and planning scene 
-  this->kinematic_model_ = this->robot_model_loader_.getModel();
-  this->planning_scene_(this->kinematic_model_);
+  // Set up a DistanceRequest and a DistanceResult
+  this->distance_request_ = collision_detection::DistanceRequest();
+  this->distance_result_ = collision_detection::DistanceResult();
+  this->distance_request_.group_name = ""; // no specified group
+  this->distance_request_.enable_signed_distance = true;
+  this->distance_request_.type = collision_detection::DistanceRequestType::SINGLE; // global minimum
+  //distance_request.enableGroup(kinematic_model); // specify which group to check
+  this->acm_ = this->planning_scene_.getAllowedCollisionMatrix();
+  this->distance_request_.acm = &(this->acm_); // specify acm to ignore adjacent links' collision check
 
 
-  // Get current state (a handle)
-  this->current_state_ = this->planning_scene_.getCurrentStateNonConst();
+  // Display link names of each group
+  /*
+  std::cout << "Link names, that are part of a joint group: " << std::endl;
+  std::cout << "Left arm's links: " << std::endl;
+  for (auto it = this->left_arm_link_names_.cbegin(); it != this->left_arm_link_names_.cend(); ++it)
+  {
+    std::cout << *it << " ";
+  }
+  std::cout << std::endl;
 
-  // Get joint group model
-  this->left_arm_group_ = this->current_state_.getJointModelGroup("left_arm");
-  this->right_arm_group_ = this->current_state_.getJointModelGroup("right_arm");
-  this->left_hand_group_ = this->current_state_.getJointModelGroup("left_hand");
-  this->right_hand_group_ = this->current_state_.getJointModelGroup("right_hand");
+  std::cout << "Right arm's links: " << std::endl;
+  for (auto it = this->right_arm_link_names_.cbegin(); it != this->right_arm_link_names_.cend(); ++it)
+  {
+    std::cout << *it << " ";
+  }
+  std::cout << std::endl;
+
+  std::cout << "Left hand's links: " << std::endl;
+  for (auto it = this->left_hand_link_names_.cbegin(); it != this->left_hand_link_names_.cend(); ++it)
+  {
+    std::cout << *it << " ";
+  }
+  std::cout << std::endl;
+
+  std::cout << "Right hand's links: " << std::endl;
+  for (auto it = this->right_hand_link_names_.cbegin(); it != this->right_hand_link_names_.cend(); ++it)
+  {
+    std::cout << *it << " ";
+  }
+  std::cout << std::endl;
+  */
+
+
+  //std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
+  //std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(time_end - time_start);
+
+  //std::cout << "time used for constructor: " << time_used.count() << " s" << std::endl;
+
 
 }
 
 
-std::vector<double> DualArmDualHandMinDistance::compute_minimum_distance(const std::vector<double> q_in)
+/*
+int DualArmDualHandMinDistance::assign_link_to_groups(std::string link_name)
+{
+  return 0;
+}
+*/
+
+double DualArmDualHandMinDistance::compute_minimum_distance(const std::vector<double> q_in)
 {
   /* This function computes the minimum distance between links inside one group or of different groups */
 
+  // Clock
+  //std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
+
+
   // The vector to store the results
-  std::vector<double> min_dist_intra_group = {1.0, 1.0, 1.0, 1.0}; // r_hand, l_hand, r_arm, l_arm
-  std::vector<double> min_dist_inter_group = {1.0, 1.0, 1.0, 1.0}; // rh_lh, rh_la, lh_ra, ra_la
+  std::vector<double> min_dist_intra_group = {10.0, 10.0, 10.0, 10.0}; // r_hand, l_hand, r_arm, l_arm
+  std::vector<double> min_dist_inter_group = {10.0, 10.0, 10.0, 10.0}; // rh_lh, rh_la, lh_ra, ra_la
+  bool groups_in_contact[4] = {false, false, false, false};
 
   // Get the joint angles for each group
   std::vector<double> q_left_arm(q_in.begin(), q_in.begin()+6); //(6); 
   std::vector<double> q_right_arm(q_in.begin()+6, q_in.begin()+12); //(6);
   std::vector<double> q_left_finger(q_in.begin()+12, q_in.begin()+24); //(12); 
-  std::vector<double> q_right_finger((q_in.begin()+24, q_in.begin()+36); //(12);
+  std::vector<double> q_right_finger(q_in.begin()+24, q_in.begin()+36); //(12);
   //std::copy(q_in.begin(), q_in.begin()+6, q_left_arm);
   //std::copy(q_in.begin()+6, q_in.begin()+12, q_right_arm);
   //std::copy(q_in.begin()+12, q_in.begin()+24, q_left_finger);
@@ -112,12 +171,69 @@ std::vector<double> DualArmDualHandMinDistance::compute_minimum_distance(const s
   this->current_state_.setJointGroupPositions(this->right_hand_group_, q_right_finger);
   this->current_state_.update();
 
+  
+  // If distance computation for all groups is too expensive, try to eliminate some by checking collision first
+  // Check if a robot is in collision with itself
+  /*
+  collision_detection::CollisionRequest collision_request;
+  collision_detection::CollisionResult collision_result;
+  collision_request.contacts = true;
+  collision_request.max_contacts = 1000; // overall maximum number of contacts to compute(in contact map?)
+  // collision_request.distance = true;  // set to compute distance
+  this->planning_scene_.checkSelfCollision(collision_request, collision_result);
+  std::cout << "The robot is " << (collision_result.collision ? "in" : "not in") << " collision with other parts." << std::endl;
+  if (! (collision_result.collision)) // if not in collision state
+  {
+    std::vector<double> result;
+    result.insert(result.end(), min_dist_intra_group.begin(), min_dist_intra_group.end());
+    result.insert(result.end(), min_dist_inter_group.begin(), min_dist_inter_group.end());
+    return result;
+  }
+  else // if in collision, check which parts, and compute the corresponding minimum distance
+  {
+
+    // find out which groups are in collision from contact map information
+    collision_detection::CollisionResult::ContactMap::const_iterator it;
+    for (it = collision_result.contacts.begin(); it != collision_result.contacts.end(); ++it)
+    {
+      std::cout << "Contact between: " << it->first.first.c_str() << " and " << it->first.second.c_str() << std::endl;
+    }
+    std::cout << "Closest distance is " << collision_result.distance << std::endl; 
+   
+    collision_result.clear();
+
+   // Check if a group is in collision with other parts
+    collision_request.group_name = "left_arm";
+    this->planning_scene_.checkSelfCollision(collision_request, collision_result);
+    std::cout << collision_request.group_name << "is " << (collision_result.collision ? "in" : "not in") << " collision with other parts." << std::endl;
+    collision_result.clear();
+
+  } 
+  */ 
 
 
+  // Compute all multiple minimum distance between groups
+  /*
+  // Get Distance Map
+  this->collision_robot_fcl_.distanceSelf(this->distance_request_, this->distance_result_, this->current_state_);
+  std::cout << "Distance Map:\n" ;
+  collision_detection::DistanceMap::const_iterator itr;
+  int i = 0;
+  for (itr = this->distance_result_.distances.begin(); itr != this->distance_result_.distances.end(); ++itr)
+  {
+    //assign_link_to_groups
+    //std::find(left_arm_link_names.begin(), left_arm_link_names.end(), itr->first.first)
 
 
+    std::cout << "Distance between " << itr->first.first << " and " << itr->first.second << " is " << itr->second[i].distance << std::endl;
+    i++;
+  }
 
+  std::cout << std::endl;
+  std::cout << "Minimum distance is " << this->distance_result_.minimum_distance.distance << ", between " << this->distance_result_.minimum_distance.link_names[0] << " and " << this->distance_result_.minimum_distance.link_names[1] << std::endl;
 
+  // Clear the results
+  this->distance_result_.clear();
 
 
   // The result
@@ -126,198 +242,81 @@ std::vector<double> DualArmDualHandMinDistance::compute_minimum_distance(const s
   result.insert(result.end(), min_dist_inter_group.begin(), min_dist_inter_group.end());
   return result;
 
+  */
+
+
+
+  // Return just one minimum distance (over all parts, global minimum)
+  this->collision_robot_fcl_.distanceSelf(this->distance_request_, this->distance_result_, this->current_state_);
+  //std::cout << "Minimum distance is " << this->distance_result_.minimum_distance.distance << ", between " << this->distance_result_.minimum_distance.link_names[0] << " and " << this->distance_result_.minimum_distance.link_names[1] << std::endl;
+
+
+
+  //std::chrono::steady_clock::time_point time_end = std::chrono::steady_clock::now();
+  //std::chrono::duration<double> time_used = std::chrono::duration_cast<std::chrono::duration<double>>(time_end - time_start);
+  //std::cout << "time use for computing minimum distance:" << time_used.count() << " s" << std::endl;
+
+
+  return this->distance_result_.minimum_distance.distance;
+
 }
 
 
 
-int main(int argc, char** argv)
+int teset_main(int argc, char** argv)
 {
 
-
-  // Self-collision for a group; Use DistanceRequest to compute penetration
-  auto distance_request = collision_detection::DistanceRequest();
-  auto distance_result = collision_detection::DistanceResult();
-  distance_request.group_name = "left_hand"; //"right_hand";
-  distance_request.enable_signed_distance = true;
-  distance_request.type = collision_detection::DistanceRequestType::SINGLE; // global minimum
-  //distance_request.enableGroup(kinematic_model); // specify which group to check
-  const collision_detection::AllowedCollisionMatrix acm = planning_scene.getAllowedCollisionMatrix();
-  distance_request.acm = &acm; // specify acm to ignore adjacent links' collision check
-  // construct a CollisionRobotFCL for calling distanceSelf function
-  collision_detection::CollisionRobotFCL collision_robot_fcl(kinematic_model); // construct collisionrobot from RobotModelConstPtr
-  collision_robot_fcl.distanceSelf(distance_request, distance_result, current_state);
-  ROS_INFO_STREAM(">>>> Test 3 on using DistanceSelf to compute penetration/minimum distance:");
-  ROS_INFO_STREAM("Left hand is " << (distance_result.collision ? "in" : "not in") << " self collision.");
-
-  //std::cout << "Left hand is " << (distance_result.collision ? "in" : "not in") << " self collision." << std::endl;
-
-  ROS_INFO_STREAM("Minimum distance is " << distance_result.minimum_distance.distance << ", between " << distance_result.minimum_distance.link_names[0] << " and " << distance_result.minimum_distance.link_names[1]);
-  distance_result.clear();
-
-  // compute for the right hand
-  distance_request.group_name = "right_hand";
-  //distance_request.enableGroup(kinematic_model);
-  collision_robot_fcl.distanceSelf(distance_request, distance_result, current_state);
-  ROS_INFO_STREAM("Right hand is " << (distance_result.collision ? "in" : "not in") << " self collision.");
-  ROS_INFO_STREAM("Minimum distance is " << distance_result.minimum_distance.distance << ", between " << distance_result.minimum_distance.link_names[0] << " and " << distance_result.minimum_distance.link_names[1]);
-  distance_result.clear();
-
-  std::cout << "We get here! - 3" << std::endl;
-
-  // Self-collision between groups(Use DistanceRequest for acquiring penetration/minimum distance information)
-  auto new_distance_request = collision_detection::DistanceRequest();
-  auto new_distance_result = collision_detection::DistanceResult();
-  new_distance_request.group_name = ""; //"left_hand"; //"right_hand";
-  new_distance_request.enable_signed_distance = true;
-  new_distance_request.type = collision_detection::DistanceRequestType::SINGLE; 
-  new_distance_request.acm = &acm; // Allowed Collision Matrix
-
-  //new_distance_request.distance_threshold =  // default is std::numeric_limits<double>::max()
-
-  // reset left hand's state
-  joint_values = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
-  current_state.setJointGroupPositions(joint_model_group, joint_values);
-  // set left arm's position
-  std::vector<double> arm_joint_values = {-1.3, 1.05, -1.12, 0.02, 0.0, 0.0}; // set left arm's joint values; for left hand to collide with the right arm(elbow)
-  const robot_model::JointModelGroup* arm_joint_model_group = current_state.getJointModelGroup("left_arm");
-  //current_state.setJointGroupPositions(arm_joint_model_group, arm_joint_values);
-  current_state.update(); // update????
-  //new_distance_request.group_name = "left_hand";
-  //new_distance_request.enableGroup(kinematic_model);
-  collision_robot_fcl.distanceSelf(new_distance_request, new_distance_result, current_state);
+  std::vector<double> q_fengren_start = {0.35301845,  0.99484603, -0.99347436, -0.2162805 ,  0.41034526,
+        0.95757483, -0.33122886, -0.98664004,  0.99919541,  0.00537776,
+       -0.05391638, -0.20172656, -0.07528547, -0.05101342, -0.04827343,
+       -0.30030468, -0.04818042, -0.47510671, -0.07566821, -0.05101342,
+       -0.34908235,  0.22503758, -0.13536288, -0.12736718, -0.11545444,
+       -0.14287161, -0.79437708, -0.91255084, -0.53623023, -1.00002908,
+       -0.54937122, -0.74258424, -0.35016895,  0.21113075, -0.17714353,
+       -0.44359589};
 
 
-  std::cout << "We get here! - 4" << std::endl;
+  // Settings
+  std::string urdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
+    std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
+
+
+  // Set a class
+  std::chrono::steady_clock::time_point time_start1 = std::chrono::steady_clock::now();
+
+  std::ifstream urdf_file(urdf_file_name);
+  std::ifstream srdf_file(srdf_file_name);
+  std::stringstream urdf_string, srdf_string;
+  urdf_string << urdf_file.rdbuf();
+  srdf_string << srdf_file.rdbuf();
+
+  std::chrono::steady_clock::time_point time_end1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> time_used1 = std::chrono::duration_cast<std::chrono::duration<double>>(time_end1 - time_start1);
+  std::cout << "time used for reading URDF and SRDF files:" << time_used1.count() << " s" << std::endl;
 
 
 
-  ROS_INFO_STREAM(">>>> Test 4 on self-collision checking between groups(In collision): ");
-  ROS_INFO_STREAM("Manually set state of the left arm is " << (current_state.satisfiesBounds(arm_joint_model_group) ? "within joint limits" : "beyond joint limits"));
-  ROS_INFO_STREAM("Left hand is " << (new_distance_result.collision ? "in" : "not in") << " self collision");  
-  ROS_INFO_STREAM("Minimum distance is " << new_distance_result.minimum_distance.distance << ", between " << new_distance_result.minimum_distance.link_names[0] << " and " << new_distance_result.minimum_distance.link_names[1]);
-  // set left hand in self-collision state
-  new_distance_result.clear();
-  joint_values = {-1.0, -1.47, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.62, 0.0, -0.56, -0.3 };
-  ROS_INFO_STREAM("Set left hand in self-collision state...");
-  //current_state.setJointGroupPositions(joint_model_group, joint_values);
-  current_state.update(); // update????
-  collision_robot_fcl.distanceSelf(new_distance_request, new_distance_result, current_state);
-  ROS_INFO_STREAM("Left hand arm is " << (new_distance_result.collision ? "in" : "not in") << " self collision");  
-  ROS_INFO_STREAM("Minimum distance is " << new_distance_result.minimum_distance.distance << ", between " << new_distance_result.minimum_distance.link_names[0] << " and " << new_distance_result.minimum_distance.link_names[1]);
-  // get DistanceMap (a long list of distance information)
-  ROS_INFO_STREAM("Distance Map:");
-  collision_detection::DistanceMap::const_iterator itr;
-  int i = 0;
-  for (itr = new_distance_result.distances.begin(); itr != new_distance_result.distances.end(); ++itr)
-  {
-    ROS_INFO_STREAM("Distance between " << itr->first.first << " and " << itr->first.second << " is " << itr->second[i].distance);
-    i++;
-  }
-   
+  //std::vector<double> min_dist_results;
+  double min_dist_results;
 
-  // Full collision checking: self-collision checking(intra- and inter-group) + collision with the environment
-  //moveit::planning_interface::PlanningSceneInterface planning_scene_interface;
-  ros::Duration(2.0).sleep();
-  // Prepare collision objects(size and pose)
- 
+  std::chrono::steady_clock::time_point time_start2 = std::chrono::steady_clock::now();
 
-  /*
-  moveit_msgs::CollisionObject collision_object;
-  collision_object.header.frame_id = "/world";
-  collision_object.id = "box1";
-  shape_msgs::SolidPrimitive primitive;
-  primitive.type = primitive.BOX;
-  primitive.dimensions.resize(3);
-  primitive.dimensions[0] = 0.5;
-  primitive.dimensions[1] = 0.3;
-  primitive.dimensions[2] = 0.6;
-  geometry_msgs::Pose box_pose;
-  box_pose.orientation.w = 1.0;
-  box_pose.position.x = 0.3;
-  box_pose.position.y = 0.4;
-  box_pose.position.z = 0.4;
-  collision_object.primitives.push_back(primitive);
-  collision_object.primitive_poses.push_back(box_pose);
-  collision_object.operation = collision_object.ADD;
-  ROS_INFO_STREAM("Add a box to into the world");
-  */
+  ros::init(argc, argv, "sign_language_robot_collision_computation");
 
-  // add collision object into the environment through planning_scene_diff
-/*  moveit_msgs::PlanningScene planning_scene_msg;
-  planning_scene_msg.world.collision_objects.push_back(collision_object);
-  planning_scene_msg.is_diff = true;
-
-  ros::ServiceClient planning_scene_diff_client = node_handle.serviceClient<moveit_msgs::ApplyPlanningScene>("apply_planning_scene");
-  planning_scene_diff_client.waitForExistence();
-  moveit_msgs::ApplyPlanningScene srv; // synchronous manner, send the diffs to the planning scene via a service call
-  srv.request.scene = planning_scene_msg;
-  planning_scene_diff_client.call(srv);
-*/
-
-  // add collision object through planning scene interface
-  // planning_scene_interface.applyCollisionObject(collision_object); // synchronously, can take action directly after this command, i.e. no need for sleep; collision object is added, yet not used for distanceRobot???
+  std::chrono::steady_clock::time_point time_end2 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> time_used2 = std::chrono::duration_cast<std::chrono::duration<double>>(time_end2 - time_start2);
+  std::cout << "time used for initializing ROS node:" << time_used2.count() << " s" << std::endl;
 
 
-  // Collision checking with the environment
-  //current_state.update();
-  collision_detection::DistanceRequest distance_world_request;
-  collision_detection::DistanceResult distance_world_result;
-  distance_world_request.group_name = "left_arm"; //"right_hand";
-  distance_world_request.enable_signed_distance = true;
-  distance_world_request.type = collision_detection::DistanceRequestType::SINGLE; // global minimum
-  distance_world_request.enableGroup(kinematic_model); // specify which group to check
-  distance_world_request.acm = &acm; // specify acm to ignore adjacent links' collision check
-  // get CollisionWorldFCL from WorldPtr
-  const collision_detection::WorldPtr &world_ptr = planning_scene.getWorldNonConst();
-  collision_detection::CollisionWorldFCL collision_world_fcl(world_ptr);
-
-  // Add object to the world 
-  /*
-  std::string id = "box1";   
-  Eigen::Affine3d pose = Eigen::Affine3d::Identity();
-  shapes::ShapeConstPtr shapre_ptr = new &shapes::BOX(0.5, 0.3, 0.6);
-  world_ptr->addToObject(id, shapre_ptr, pose); // WorldPtr to the current planning scene
-  */
-
-  // Call distanceRobot to compute collision with the environment
-  collision_world_fcl.distanceRobot(distance_world_request, distance_world_result, collision_robot_fcl, current_state);
-  // Display the result
-  ROS_INFO_STREAM(">>>> Test 5 on collision checking with the environment:");
-  ROS_INFO_STREAM("Left arm is " << (distance_world_result.collision ? "in" : "not in") << " collision with the environment");
-  ROS_INFO_STREAM("Minimum distance is " << distance_world_result.minimum_distance.distance << ", between " << distance_world_result.minimum_distance.link_names[0] << " and " << distance_world_result.minimum_distance.link_names[1]);
-  // get DistanceMap
-  ROS_INFO_STREAM("Distance Map:");
-  collision_detection::DistanceMap::const_iterator iter;
-  int ii = 0;
-  for (iter = distance_world_result.distances.begin(); iter != distance_world_result.distances.end(); ++iter)
-  {
-    ROS_INFO_STREAM("Distance between " << iter->first.first << " and " << iter->first.second << " is " << iter->second[ii].distance);
-    ii++;
-  }
+  DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(argc, argv, urdf_string.str(), srdf_string.str());
 
 
-  // Another way to compute
-  //double d = planning_scene.distanceToCollision(current_state);
-  //ROS_INFO_STREAM("The distance between the robot model to the nearest collision is " << d);
+  min_dist_results = dual_arm_dual_hand_min_distance.compute_minimum_distance(q_fengren_start);
 
-
-  // Remove collision objects
-  //ros::Duration(3.0).sleep();
-  ROS_INFO_STREAM("Remove the box from the world");  
-  //std::vector<std::string> object_ids;
-  //object_ids.push_back(collision_object.id);
-  //planning_scene_interface.removeCollisionObjects(object_ids);
-  /*
-  planning_scene_msg.world.collision_objects.clear();
-  collision_object.operation = collision_object.REMOVE; // Remove operation
-  planning_scene_msg.world.collision_objects.push_back(collision_object);
-  srv.request.scene = planning_scene_msg;
-  planning_scene_diff_client.call(srv);
-  */
 
 
   //ros::spin();
-  spinner.stop();
+  //spinner.stop();
 
   // Shut down
   //ros::shutdown();
