@@ -131,13 +131,61 @@ typedef struct {
 } my_constraint_struct;
 
 
-double linear_map(double x_, double min_, double max_, double min_hat, double max_hat)
+
+
+class MyNLopt
+{
+
+  public:
+    MyNLopt();
+
+    // constructor to use
+    MyNLopt(int argc, char **argv, std::string urdf_file_name, std::string srdf_file_name, std::string in_file_name, std::string in_group_name, std::string out_file_name);
+
+    ~MyNLopt(){};
+
+    bool write_h5(const std::string file_name, const std::string group_name, const std::string dataset_name, const int ROW, const int COL, std::vector<std::vector<double>> data_vector);
+    std::vector<std::vector<double>> read_h5(const std::string file_name, const std::string group_name, const std::string dataset_name);
+
+
+  private:
+    // Initialization list
+    DualArmDualHandCollision dual_arm_dual_hand_collision;
+    
+    // Cost-Func 
+    double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
+    double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct *fdata);
+    double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct *fdata);
+    static double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_data);
+
+    // Function for setting up FK solver
+    KDL::ChainFkSolverPos_recursive setup_left_kdl(my_constraint_struct &constraint_data);
+    KDL::ChainFkSolverPos_recursive setup_right_kdl(my_constraint_struct &constraint_data);
+
+    // Constraints
+    static void myconstraint(unsigned m, double *result, unsigned n, const double *x,
+                              double *grad, /* NULL if not needed */
+                              void *f_data);
+
+
+    // NLopt static wrapper functionality for use with class
+    //static double wrap_myfunc(const std::vector<double> &x, std::vector<double> &grad, void *data);// {      return (*reinterpret_cast`<MyNLopt*>`(data))(x, grad); }
+
+};
+
+
+/*static double MyNLopt::wrap_myfunc(const std::vector<double> &x, std::vector<double> &grad, void *data) 
+{
+  return (*reinterpret_cast<MyNLopt*>(data))(x, grad); 
+}*/
+
+double MyNLopt::linear_map(double x_, double min_, double max_, double min_hat, double max_hat)
 {
   return (x_ - min_) / (max_ - min_) * (max_hat - min_hat) + min_hat;
 }
 
 
-double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct *fdata)
+double MyNLopt::compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct *fdata)
 {
   // Obtain required data and parameter settings
   Matrix<double, 14, 1> q_finger_human;
@@ -197,7 +245,7 @@ double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_ri
 
 
 // Used for computing cost and grad(numeric differentiation) in myfunc()
-double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct *fdata)
+double MyNLopt::compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct *fdata)
 {
   // Get joint angles
   KDL::JntArray q_in(q_cur.size()); 
@@ -346,7 +394,7 @@ double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6,
 
 
 // This function sets elbow ID and wrist ID in constraint_data, and returns the KDL_FK solver 
-KDL::ChainFkSolverPos_recursive setup_left_kdl(my_constraint_struct &constraint_data)
+KDL::ChainFkSolverPos_recursive MyNLopt::setup_left_kdl(my_constraint_struct &constraint_data)
 {
   // Params
   const std::string URDF_FILE = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
@@ -403,7 +451,7 @@ KDL::ChainFkSolverPos_recursive setup_left_kdl(my_constraint_struct &constraint_
 
 
 // This function sets elbow ID and wrist ID in constraint_data, and returns the KDL_FK solver 
-KDL::ChainFkSolverPos_recursive setup_right_kdl(my_constraint_struct &constraint_data)
+KDL::ChainFkSolverPos_recursive MyNLopt::setup_right_kdl(my_constraint_struct &constraint_data)
 {
   // Params
   const std::string URDF_FILE = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
@@ -460,7 +508,7 @@ KDL::ChainFkSolverPos_recursive setup_right_kdl(my_constraint_struct &constraint
 
 
 // Loss function
-double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_data)
+double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_data)
 {
 
   // Counter information
@@ -473,8 +521,8 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
 
   // Get fk solver( and set IDs if first time)
-  KDL::ChainFkSolverPos_recursive left_fk_solver = setup_left_kdl(*fdata);
-  KDL::ChainFkSolverPos_recursive right_fk_solver = setup_right_kdl(*fdata);
+  KDL::ChainFkSolverPos_recursive left_fk_solver = this->setup_left_kdl(*fdata);
+  KDL::ChainFkSolverPos_recursive right_fk_solver = this->setup_right_kdl(*fdata);
 
   //std::cout << "At evaluation of cost func, after setting up kdl solver." << std::endl;
 
@@ -627,7 +675,7 @@ double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_d
 
 // Constraint function; expected to be myconstraint(x)<=0
 //double myconstraint(const std::vector<double> &x, std::vector<double> &grad, void *f_data)
-void myconstraint(unsigned m, double *result, unsigned n, const double *x,
+void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double *x,
                               double *grad, /* NULL if not needed */
                               void *f_data)
 {
@@ -880,7 +928,7 @@ void myconstraint(unsigned m, double *result, unsigned n, const double *x,
 }
 
 
-bool write_h5(const std::string file_name, const std::string group_name, const std::string dataset_name, const int ROW, const int COL, std::vector<std::vector<double>> data_vector)
+bool MyNLopt::write_h5(const std::string file_name, const std::string group_name, const std::string dataset_name, const int ROW, const int COL, std::vector<std::vector<double>> data_vector)
 {
   // Set up file name and dataset name
   const H5std_string FILE_NAME(file_name);
@@ -987,7 +1035,7 @@ bool write_h5(const std::string file_name, const std::string group_name, const s
 
 
 // Read h5 file for joint path
-std::vector<std::vector<double>> read_h5(const std::string file_name, const std::string group_name, const std::string dataset_name)
+std::vector<std::vector<double>> MyNLopt::read_h5(const std::string file_name, const std::string group_name, const std::string dataset_name)
 {
   // Set up file name and dataset name
   const H5std_string FILE_NAME(file_name);
@@ -1056,84 +1104,8 @@ std::vector<std::vector<double>> read_h5(const std::string file_name, const std:
 }
 
 
-
-int main(int argc, char *argv[])
+MyNLopt::MyNLopt(int argc, char **argv, std::string urdf_string, std::string srdf_string, std::string in_file_name, std::string in_group_name, std::string out_file_name) : dual_arm_dual_hand_collision(argc, argv, urdf_string, srdf_string)
 {
-  
-  // Initialize a ros node, for the calculation of collision distance
-  ros::init(argc, argv, "sign_language_robot_collision_computation");
-
-  // Get URDF and SRDF for distance computation class
-  std::string urdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
-    std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
-  std::ifstream urdf_file(urdf_file_name);
-  std::ifstream srdf_file(srdf_file_name);
-  std::stringstream urdf_string, srdf_string;
-  urdf_string << urdf_file.rdbuf();
-  srdf_string << srdf_file.rdbuf();
-
-  // Set up a class for computing collision distance
-  //DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(argc, argv, urdf_string.str(), srdf_string.str());
-
-
-  // Specify required names
-  std::string in_file_name = "test_imi_data_UR5.h5";
-  std::string in_group_name = "fengren";
-  std::string out_file_name = "mocap_ik_results.h5";
-  
-
-  // Process the terminal arguments
-  static struct option long_options[] = 
-  {
-    {"in-h5-filename", required_argument, NULL, 'i'},
-    {"in-group-name", required_argument, NULL, 'g'},
-    {"out-h5-filename", required_argument, NULL, 'o'},
-    {"help", no_argument, NULL, 'h'},
-    {0, 0, 0, 0}
-  };
-  int c;
-  while(1)
-  {
-    int opt_index = 0;
-    // Get arguments
-    c = getopt_long(argc, argv, "i:g:o:h", long_options, &opt_index);
-    if (c == -1)
-      break;
-
-    // Process
-    switch(c)
-    {
-      case 'h':
-        std::cout << "Help: \n" << std::endl;
-        std::cout << "    This program reads imitation data from h5 file and performs optimization on the joint angles. The results are stored in a h5 file at last.\n" << std::endl; 
-        std::cout << "Arguments:\n" << std::endl;
-        std::cout << "    -i, --in-h5-filename, specify the name of the input h5 file, otherwise a default name specified inside the program will be used. Suffix is required.\n" << std::endl;
-        std::cout << "    -g, --in-group-name, specify the group name in the h5 file, which is actually the motion's name.\n" << std::endl;
-        std::cout << "    -o, --out-h5-name, specify the name of the output h5 file to store the resultant joint trajectory.\n" << std::endl;
-        return 0;
-        break;
-
-      case 'i':
-        in_file_name = optarg;
-        break;
-
-      case 'o':
-        out_file_name = optarg;
-        break;
-
-      case 'g':
-        in_group_name = optarg;
-        break;
-
-      default:
-        break;
-    }
-
-  }
-  
-  std::cout << "The input h5 file name is: " << in_file_name << std::endl;
-  std::cout << "The motion name is: " << in_group_name << std::endl;
-  std::cout << "The output h5 file name is: " << in_group_name << std::endl;
 
 
   // Input Cartesian trajectories
@@ -1155,8 +1127,6 @@ int main(int argc, char *argv[])
 
   std::vector<std::vector<double>> read_time_stamps = read_h5(in_file_name, in_group_name, "time"); 
 
-  // using read_h5() does not need to specify the size!!!
-  // elbow pos(3) + wrist pos(3) + wrist rot(9) = 15-dim
   unsigned int num_datapoints = read_l_wrist_pos_traj.size(); 
 
   // display a few examples(debug)
@@ -1172,12 +1142,12 @@ int main(int argc, char *argv[])
   */
 
 
-  // Parameters setting
+  // Variables' bounds
   const std::vector<double> q_l_arm_lb = {-1.0, -1.0, -1.0, -1.57, -1.57, -1.57};
   const std::vector<double> q_r_arm_lb = {-1.0, -1.0, -1.0, -1.57, -1.57, -1.57};
   const std::vector<double> q_l_arm_ub = {1.0, 1.0, 1.0, 1.57, 1.57, 1.57};
   const std::vector<double> q_r_arm_ub = {1.0, 1.0, 1.0, 1.57, 1.57, 1.57};
-  
+
   const std::vector<double> q_l_finger_lb = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
   const std::vector<double> q_l_finger_ub = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
   const std::vector<double> q_r_finger_lb = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
@@ -1194,18 +1164,22 @@ int main(int argc, char *argv[])
   // variable structure: l_arm, r_arm, l_finger, r_finger  
 
 
-
-  //std::vector<double> x(joint_value_dim);
-  double minf;
-  double tol = 1e-4;
-  double stopval = 1e-8;
-
-
-  // Set up KDL(get solver, wrist ID and elbow ID)
+  // Set up KDL FK solver (get solver, wrist ID and elbow ID)
   my_constraint_struct constraint_data; 
   setup_left_kdl(constraint_data); // set IDs, discard the solver handle
   setup_right_kdl(constraint_data); 
 
+
+  // Set a distance computation class
+  //DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(argc, argv, urdf_string.str(), srdf_string.str());
+  //constraint_data.dual_arm_dual_hand_min_distance = dual_arm_dual_hand_min_distance;
+  constraint_data.argc = argc;
+  constraint_data.argv = argv;
+  constraint_data.urdf_string = urdf_string;//.str();
+  constraint_data.srdf_string = srdf_string;//.str();
+
+
+  // Pack up a constraint_data to pass in optimization
   // robot's shoulder position
   constraint_data.l_robot_shoulder_pos = Vector3d(-0.06, 0.235, 0.395);
   constraint_data.r_robot_shoulder_pos = Vector3d(-0.06, -0.235, 0.395);
@@ -1219,27 +1193,11 @@ int main(int argc, char *argv[])
   constraint_data.glove_final = constraint_data.glove_final * M_PI / 180.0; 
 
 
-  // Set a distance computation class
-  //DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(argc, argv, urdf_string.str(), srdf_string.str());
-  //constraint_data.dual_arm_dual_hand_min_distance = dual_arm_dual_hand_min_distance;
-  constraint_data.argc = argc;
-  constraint_data.argv = argv;
-  constraint_data.urdf_string = urdf_string.str();
-  constraint_data.srdf_string = srdf_string.str();
-
-
-  //std::cout << "At Main func, before set up optimizer." << std::endl;
-
-  // Set up optimizer
-  /*try
-  {*/
+  // Optimization settings
+  double minf;
+  double tol = 1e-4;
+  double stopval = 1e-8;
   nlopt::opt opt(nlopt::LD_SLSQP, joint_value_dim); // nlopt::LD_SLSQP
-  /*}
-  catch(std::bad_alloc e)
-  {
-    std::cout << "Something went wrong in the constructor: " << e.what() << std::endl;
-    return -1;
-  }*/
 
   opt.set_lower_bounds(qlb); // set lower bounds
   opt.set_upper_bounds(qub); // set upper bounds
@@ -1312,8 +1270,6 @@ int main(int argc, char *argv[])
     constraint_data.r_finger_pos_goal = r_finger_pos_goal * M_PI / 180.0;
 
 
-
-
     /** Be careful with the data assignment above !!!! **
     //if (it == 10){
     std::cout << "Display the goal point: " << std::endl;
@@ -1329,16 +1285,15 @@ int main(int argc, char *argv[])
       exit(0);*/
 
 
-
     my_constraint_struct *f_data = &constraint_data;
 
 
     // Set constraints
     const std::vector<double> tol_vec = {0.0}; //{0.0, 0.0, 0.0, 0.0}; // tol_vec.size() determines the dimensionality m 
-    opt.add_inequality_mconstraint(myconstraint, (void *) f_data, tol_vec);
+    opt.add_inequality_mconstraint(this->myconstraint, (void *) f_data, tol_vec);
 
     // Set up objective function and additional data to pass in
-    opt.set_min_objective(myfunc, (void *) f_data); // set objective function to minimize; with no additional information passed(f_data)
+    opt.set_min_objective(this->myfunc, (void *) f_data); // set objective function to minimize; with no additional information passed(f_data)
 
 
     // Start optimization
@@ -1456,13 +1411,93 @@ int main(int argc, char *argv[])
   // Store the results
   const std::string group_name = in_group_name;
   //const std::string dataset_name = "arm_traj_1";
-  bool result1 = write_h5(out_file_name, group_name, "arm_traj_1", num_datapoints, joint_value_dim, q_results);
-  bool result2 = write_h5(out_file_name, group_name, "timestamp_1", num_datapoints, 1, read_time_stamps);  
+  bool result1 = this->write_h5(out_file_name, group_name, "arm_traj_1", num_datapoints, joint_value_dim, q_results);
+  bool result2 = this->write_h5(out_file_name, group_name, "timestamp_1", num_datapoints, 1, read_time_stamps);  
 
   if(result1 && result2)
     std::cout << "Joint path results successfully stored!" << std::endl;
-
  
+}
+
+
+int main(int argc, char **argv)
+{
+  
+  // Initialize a ros node, for the calculation of collision distance
+  ros::init(argc, argv, "sign_language_robot_collision_computation");
+
+  // Settings 
+  std::string urdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
+    std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
+
+  std::string in_file_name = "test_imi_data_UR5.h5";
+  std::string in_group_name = "fengren";
+  std::string out_file_name = "mocap_ik_results.h5";
+  
+  // Process the terminal arguments
+  static struct option long_options[] = 
+  {
+    {"in-h5-filename", required_argument, NULL, 'i'},
+    {"in-group-name", required_argument, NULL, 'g'},
+    {"out-h5-filename", required_argument, NULL, 'o'},
+    {"help", no_argument, NULL, 'h'},
+    {0, 0, 0, 0}
+  };
+  int c;
+  while(1)
+  {
+    int opt_index = 0;
+    // Get arguments
+    c = getopt_long(argc, argv, "i:g:o:h", long_options, &opt_index);
+    if (c == -1)
+      break;
+
+    // Process
+    switch(c)
+    {
+      case 'h':
+        std::cout << "Help: \n" << std::endl;
+        std::cout << "    This program reads imitation data from h5 file and performs optimization on the joint angles. The results are stored in a h5 file at last.\n" << std::endl; 
+        std::cout << "Arguments:\n" << std::endl;
+        std::cout << "    -i, --in-h5-filename, specify the name of the input h5 file, otherwise a default name specified inside the program will be used. Suffix is required.\n" << std::endl;
+        std::cout << "    -g, --in-group-name, specify the group name in the h5 file, which is actually the motion's name.\n" << std::endl;
+        std::cout << "    -o, --out-h5-name, specify the name of the output h5 file to store the resultant joint trajectory.\n" << std::endl;
+        return 0;
+        break;
+
+      case 'i':
+        in_file_name = optarg;
+        break;
+
+      case 'o':
+        out_file_name = optarg;
+        break;
+
+      case 'g':
+        in_group_name = optarg;
+        break;
+
+      default:
+        break;
+    }
+
+  }
+  std::cout << "The input h5 file name is: " << in_file_name << std::endl;
+  std::cout << "The motion name is: " << in_group_name << std::endl;
+  std::cout << "The output h5 file name is: " << in_group_name << std::endl;
+
+
+  // Get URDF and SRDF for distance computation class
+  std::ifstream urdf_file(urdf_file_name);
+  std::ifstream srdf_file(srdf_file_name);
+  std::stringstream urdf_string, srdf_string;
+  urdf_string << urdf_file.rdbuf();
+  srdf_string << srdf_file.rdbuf();
+
+  // Start optimization
+  MyNLopt my_nlopt(argc, argv, urdf_string.str(), srdf_string.str(), in_file_name, in_group_name, out_file_name);
+ 
+
   return 0;
 
 }
