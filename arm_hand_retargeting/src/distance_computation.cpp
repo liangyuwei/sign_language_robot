@@ -75,7 +75,7 @@ class DualArmDualHandMinDistance
 */
 
 
-DualArmDualHandMinDistance::DualArmDualHandMinDistance(int argc, char** argv, std::string urdf_string, std::string srdf_string) : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_), collision_robot_fcl_(kinematic_model_)
+DualArmDualHandMinDistance::DualArmDualHandMinDistance(std::string urdf_string, std::string srdf_string) : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_), collision_robot_fcl_(kinematic_model_)
 {
 
   //std::chrono::steady_clock::time_point time_start = std::chrono::steady_clock::now();
@@ -308,7 +308,7 @@ int teset_main(int argc, char** argv)
   std::cout << "time used for initializing ROS node:" << time_used2.count() << " s" << std::endl;
 
 
-  DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(argc, argv, urdf_string.str(), srdf_string.str());
+  DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(urdf_string.str(), srdf_string.str());
 
 
   min_dist_results = dual_arm_dual_hand_min_distance.compute_minimum_distance(q_fengren_start);

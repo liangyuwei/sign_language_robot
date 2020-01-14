@@ -34,7 +34,7 @@ class DualArmDualHandMinDistance
   public:
     DualArmDualHandMinDistance();
     // Initialization list
-    DualArmDualHandMinDistance(int argc, char **argv, std::string urdf_string, std::string srdf_string);// : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_), collision_robot_fcl_(kinematic_model_);
+    DualArmDualHandMinDistance(std::string urdf_string, std::string srdf_string);// : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_), collision_robot_fcl_(kinematic_model_);
 
     ~DualArmDualHandMinDistance(){};
 
