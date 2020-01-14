@@ -63,8 +63,8 @@ std::stringstream urdf_string = read_file(urdf_file_name);
 std::stringstream srdf_string = read_file(srdf_file_name);
 
 
-//static boost::shared_ptr<DualArmDualHandCollision> dual_arm_dual_hand_collision_ptr;//(urdf_string.str(), srdf_string.str());
-static boost::shared_ptr<DualArmDualHandMinDistance> dual_arm_dual_hand_min_distance_ptr;
+static boost::shared_ptr<DualArmDualHandCollision> dual_arm_dual_hand_collision_ptr;
+//static boost::shared_ptr<DualArmDualHandMinDistance> dual_arm_dual_hand_min_distance_ptr;
 
 
 
@@ -744,15 +744,15 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
   // compute minimum distance (including penetration depth)
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   // way 1 - compute the whole distance map, too slow!!!
-  double min_distance = dual_arm_dual_hand_min_distance_ptr->compute_minimum_distance(x_vec);
+  //double min_distance = dual_arm_dual_hand_min_distance_ptr->compute_minimum_distance(x_vec);
   // sometimes at non-colliding state, the min_distance is huge, reaching a maginitude of e+252...
-  if (min_distance > 1.0)
-  {
-    min_distance = 1.0;
-  }
+  //if (min_distance > 1.0)
+  //{
+  //  min_distance = 1.0;
+  //}
   // way 2 - only check if in collision, much faster
-  //double min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_vec);
-  //min_distance = -min_distance;
+  double min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_vec);
+  min_distance = -min_distance;
 
 
   //std::cout << "Computing minimum distance for constraint function value now !" << std::endl;
@@ -828,27 +828,27 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
       //std::cout << "Computing minimum distance for constraint function gradients now !" << std::endl;
       // -- plus --
       // way 1 - compute the whole distance map, too slow!!!
-      min_distance = dual_arm_dual_hand_min_distance_ptr->compute_minimum_distance(x_tmp_plus);
+      //min_distance = dual_arm_dual_hand_min_distance_ptr->compute_minimum_distance(x_tmp_plus);
       // sometimes at non-colliding state, the min_distance is huge, reaching a maginitude of e+252...
-      if (min_distance > 1.0)
-      {
-        min_distance = 1.0;
-      }
+      //if (min_distance > 1.0)
+      //{
+      //  min_distance = 1.0;
+      //}
       // way 2 - only check if in collision, much faster
-      //min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_plus);
-      //min_distance = -min_distance;
+      min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_plus);
+      min_distance = -min_distance;
       constraint_val_plus[0] = - (min_distance - threshold); 
 
       // -- minus --
       // way 1 - compute the whole distance map, too slow!!!
-      min_distance = dual_arm_dual_hand_min_distance_ptr->compute_minimum_distance(x_tmp_minus);
-      if (min_distance > 1.0)
-      {
-        min_distance = 1.0;
-      }
+      //min_distance = dual_arm_dual_hand_min_distance_ptr->compute_minimum_distance(x_tmp_minus);
+      //if (min_distance > 1.0)
+      //{
+      //  min_distance = 1.0;
+      //}
       // way 2 - only check if in collision, much faster
-      //min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_minus);
-      //min_distance = -min_distance;
+      min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_minus);
+      min_distance = -min_distance;
       constraint_val_minus[0] = - (min_distance - threshold); 
       
 
@@ -921,9 +921,9 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
   std::chrono::duration<double> t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::chrono::duration<double> t2_3 = std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2);
   //std::cout << "time used for constructor: " << time_used.count() << " s" << std::endl;
-  std::cout << "[ Time Usage ]" << std::endl;
-  std::cout << "Estimate cost value: " << t0_1.count() << " s" << std::endl;
-  std::cout << "Estimate gradient value: " << t2_3.count() << " s" << std::endl;
+  //std::cout << "[ Time Usage ]" << std::endl;
+  //std::cout << "Estimate cost value: " << t0_1.count() << " s" << std::endl;
+  //std::cout << "Estimate gradient value: " << t2_3.count() << " s" << std::endl;
 
 
 
@@ -1457,8 +1457,8 @@ int main(int argc, char **argv)
   ros::init(argc, argv, "sign_language_robot_collision_computation");
 
   // reset 
-  //dual_arm_dual_hand_collision_ptr.reset( new DualArmDualHandCollision(::urdf_string.str(), ::srdf_string.str()) );
-  dual_arm_dual_hand_min_distance_ptr.reset( new DualArmDualHandMinDistance(::urdf_string.str(), ::srdf_string.str()) );
+  dual_arm_dual_hand_collision_ptr.reset( new DualArmDualHandCollision(::urdf_string.str(), ::srdf_string.str()) );
+  //dual_arm_dual_hand_min_distance_ptr.reset( new DualArmDualHandMinDistance(::urdf_string.str(), ::srdf_string.str()) );
 
 
   // Settings 
