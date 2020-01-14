@@ -34,7 +34,7 @@ class DualArmDualHandCollision
   public:
     DualArmDualHandCollision();
     // Initialization list
-    DualArmDualHandCollision(int argc, char **argv, std::string urdf_string, std::string srdf_string);// : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_), collision_robot_fcl_(kinematic_model_);
+    DualArmDualHandCollision(std::string urdf_string, std::string srdf_string);// : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_), collision_robot_fcl_(kinematic_model_);
 
     ~DualArmDualHandCollision(){};
 

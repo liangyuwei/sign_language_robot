@@ -32,7 +32,7 @@
 #include "collision_checking.h"
 
 
-DualArmDualHandCollision::DualArmDualHandCollision(int argc, char** argv, std::string urdf_string, std::string srdf_string) : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_)
+DualArmDualHandCollision::DualArmDualHandCollision(std::string urdf_string, std::string srdf_string) : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_)
 {
   //this->collision_request_.contacts = false;//true;
   //this->collision_request_.max_contacts = 1000; 
@@ -112,7 +112,7 @@ int teset_main(int argc, char** argv)
   std::cout << "time used for initializing ROS node:" << time_used2.count() << " s" << std::endl;
 
 
-  DualArmDualHandCollision dual_arm_dual_hand_collision(argc, argv, urdf_string.str(), srdf_string.str());
+  DualArmDualHandCollision dual_arm_dual_hand_collision(urdf_string.str(), srdf_string.str());
 
 
   min_dist_results = dual_arm_dual_hand_collision.check_collision(q_fengren_start);

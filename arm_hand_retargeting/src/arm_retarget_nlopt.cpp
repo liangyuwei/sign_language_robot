@@ -45,6 +45,28 @@ int count = 0; // counter for cost function
 int c_count = 0; // counter for constratint function
 bool first_iter = true;
 
+
+std::stringstream read_file(std::string file_name)
+{
+  std::ifstream ifs(file_name);
+  std::stringstream ss;
+  ss << ifs.rdbuf();
+  return ss;
+}
+
+// Get URDF and SRDF for distance computation class
+std::string urdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
+std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
+//std::ifstream urdf_file(urdf_file_name);
+//std::ifstream srdf_file(srdf_file_name);
+std::stringstream urdf_string = read_file(urdf_file_name);
+std::stringstream srdf_string = read_file(srdf_file_name);
+
+
+static boost::shared_ptr<DualArmDualHandCollision> dual_arm_dual_hand_collision_ptr;//(urdf_string.str(), srdf_string.str());
+
+
+
 using namespace Eigen;
 using namespace H5;
 
@@ -150,17 +172,17 @@ class MyNLopt
 
   private:
     // Initialization list
-    DualArmDualHandCollision dual_arm_dual_hand_collision;
+    //DualArmDualHandCollision dual_arm_dual_hand_collision;
     
     // Cost-Func 
-    double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
-    double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct *fdata);
-    double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct *fdata);
+    static double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
+    static double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct *fdata);
+    static double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 6, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct *fdata);
     static double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_data);
 
     // Function for setting up FK solver
-    KDL::ChainFkSolverPos_recursive setup_left_kdl(my_constraint_struct &constraint_data);
-    KDL::ChainFkSolverPos_recursive setup_right_kdl(my_constraint_struct &constraint_data);
+    static KDL::ChainFkSolverPos_recursive setup_left_kdl(my_constraint_struct &constraint_data);
+    static KDL::ChainFkSolverPos_recursive setup_right_kdl(my_constraint_struct &constraint_data);
 
     // Constraints
     static void myconstraint(unsigned m, double *result, unsigned n, const double *x,
@@ -513,7 +535,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
 
   // Counter information
   ++count;
-  std::cout << "Evaluation " << count << " of cost function. " << std::endl;
+  //std::cout << "Evaluation " << count << " of cost function. " << std::endl;
 
 
   // Get additional information by typecasting void* f_data(user-defined data)
@@ -521,8 +543,8 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
 
 
   // Get fk solver( and set IDs if first time)
-  KDL::ChainFkSolverPos_recursive left_fk_solver = this->setup_left_kdl(*fdata);
-  KDL::ChainFkSolverPos_recursive right_fk_solver = this->setup_right_kdl(*fdata);
+  KDL::ChainFkSolverPos_recursive left_fk_solver = setup_left_kdl(*fdata);
+  KDL::ChainFkSolverPos_recursive right_fk_solver = setup_right_kdl(*fdata);
 
   //std::cout << "At evaluation of cost func, after setting up kdl solver." << std::endl;
 
@@ -670,9 +692,6 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
 }
 
 
-
-
-
 // Constraint function; expected to be myconstraint(x)<=0
 //double myconstraint(const std::vector<double> &x, std::vector<double> &grad, void *f_data)
 void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double *x,
@@ -682,7 +701,7 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
   // Constraints: relative position of wrists, collision avoidance
 
   c_count += 1;
-  std::cout << "Evaluation " << c_count << " of constraints. " << std::endl;
+  //std::cout << "Evaluation " << c_count << " of constraints. " << std::endl;
   
   // Meta-information
   my_constraint_struct *fdata = (my_constraint_struct *) f_data;
@@ -726,15 +745,15 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
   //DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(fdata->argc, fdata->argv, fdata->urdf_string, fdata->srdf_string);
   //double min_distance = dual_arm_dual_hand_min_distance.compute_minimum_distance(x_vec);
 
-  DualArmDualHandCollision dual_arm_dual_hand_min_collision(fdata->argc, fdata->argv, fdata->urdf_string, fdata->srdf_string);
-  double min_distance = dual_arm_dual_hand_min_collision.check_collision(x_vec);
-
+  //DualArmDualHandCollision dual_arm_dual_hand_collision(fdata->argc, fdata->argv, fdata->urdf_string, fdata->srdf_string);
+  double min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_vec);
+  min_distance = -min_distance;
 
   // sometimes at non-colliding state, the min_distance is huge, reaching a maginitude of e+252...
-  if (min_distance > 1.0)
+  /*if (min_distance > 1.0)
   {
     min_distance = 1.0;
-  }
+  }*/
 
 
   //std::cout << "Computing minimum distance for constraint function value now !" << std::endl;
@@ -809,14 +828,14 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
       // Constraint 1
       //std::cout << "Computing minimum distance for constraint function gradients now !" << std::endl;
       // -- plus --
-      min_distance = dual_arm_dual_hand_min_collision.check_collision(x_tmp_plus);
+      min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_plus);
       //dual_arm_dual_hand_min_distance.compute_minimum_distance(x_tmp_plus);
       // sometimes at non-colliding state, the min_distance is huge, reaching a maginitude of e+252...
       if (min_distance > 1.0)
         min_distance = 1.0;
       constraint_val_plus[0] = - (min_distance - threshold); 
       // -- minus --
-      min_distance = dual_arm_dual_hand_min_collision.check_collision(x_tmp_minus);
+      min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_minus);
       //dual_arm_dual_hand_min_distance.compute_minimum_distance(x_tmp_minus);
       // sometimes at non-colliding state, the min_distance is huge, reaching a maginitude of e+252...
       if (min_distance > 1.0)
@@ -893,9 +912,9 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
   std::chrono::duration<double> t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::chrono::duration<double> t2_3 = std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2);
   //std::cout << "time used for constructor: " << time_used.count() << " s" << std::endl;
-  std::cout << "[ Time Usage ]" << std::endl;
-  std::cout << "Estimate cost value: " << t0_1.count() << " s" << std::endl;
-  std::cout << "Estimate gradient value: " << t2_3.count() << " s" << std::endl;
+  //std::cout << "[ Time Usage ]" << std::endl;
+  //std::cout << "Estimate cost value: " << t0_1.count() << " s" << std::endl;
+  //std::cout << "Estimate gradient value: " << t2_3.count() << " s" << std::endl;
 
 
 
@@ -1104,9 +1123,10 @@ std::vector<std::vector<double>> MyNLopt::read_h5(const std::string file_name, c
 }
 
 
-MyNLopt::MyNLopt(int argc, char **argv, std::string urdf_string, std::string srdf_string, std::string in_file_name, std::string in_group_name, std::string out_file_name) : dual_arm_dual_hand_collision(argc, argv, urdf_string, srdf_string)
+MyNLopt::MyNLopt(int argc, char **argv, std::string urdf_string, std::string srdf_string, std::string in_file_name, std::string in_group_name, std::string out_file_name)// : dual_arm_dual_hand_collision(argc, argv, urdf_string, srdf_string)
 {
 
+  //static DualArmDualHandCollision dual_arm_dual_hand_collision(argc, argv, urdf_string, srdf_string);
 
   // Input Cartesian trajectories
   const unsigned int joint_value_dim = 2*6 + 2*12; // dual arm + dual hand = 36 DOF
@@ -1339,10 +1359,11 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string urdf_string, std::string srd
       }
       std::cout << "NLopt found minimum f: " << minf << " after " << opt.get_numevals() << " evaluations." << std::endl;
 
-      std::cout << "IK result: ";
+      /*std::cout << "IK result: ";
       for (int t = 0; t < x.size(); ++t)
         std::cout << x[t] << " ";
       std::cout << std::endl;
+      */
 
       std::cout << "Upperarm Direction Cost: " << f_data->upperarm_direction_cost << std::endl;
       std::cout << "Shoulder-Wrist Direction Cost: " << f_data->shoulder_wrist_direction_cost << std::endl;
@@ -1426,9 +1447,13 @@ int main(int argc, char **argv)
   // Initialize a ros node, for the calculation of collision distance
   ros::init(argc, argv, "sign_language_robot_collision_computation");
 
+  // reset 
+  dual_arm_dual_hand_collision_ptr.reset( new DualArmDualHandCollision(::urdf_string.str(), ::srdf_string.str()) );
+
+
   // Settings 
   std::string urdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/ur_description/urdf/ur5_robot_with_hands.urdf";
-    std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
+  std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/sign_language_robot_moveit_config/config/ur5.srdf";
 
   std::string in_file_name = "test_imi_data_UR5.h5";
   std::string in_group_name = "fengren";
@@ -1493,6 +1518,7 @@ int main(int argc, char **argv)
   std::stringstream urdf_string, srdf_string;
   urdf_string << urdf_file.rdbuf();
   srdf_string << srdf_file.rdbuf();
+
 
   // Start optimization
   MyNLopt my_nlopt(argc, argv, urdf_string.str(), srdf_string.str(), in_file_name, in_group_name, out_file_name);
