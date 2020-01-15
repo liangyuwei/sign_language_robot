@@ -89,6 +89,7 @@ DualArmDualHandMinDistance::DualArmDualHandMinDistance(std::string urdf_string, 
   //distance_request.enableGroup(kinematic_model); // specify which group to check
   this->acm_ = this->planning_scene_.getAllowedCollisionMatrix();
   this->distance_request_.acm = &(this->acm_); // specify acm to ignore adjacent links' collision check
+  this->distance_request_.distance_threshold = 0.1; // set a threshold to reduce number of queries
 
 
   // Display link names of each group
@@ -257,7 +258,10 @@ double DualArmDualHandMinDistance::compute_minimum_distance(const std::vector<do
   //std::cout << "time use for computing minimum distance:" << time_used.count() << " s" << std::endl;
 
 
-  return this->distance_result_.minimum_distance.distance;
+  double min_dist = this->distance_result_.minimum_distance.distance;
+  this->distance_result_.clear(); // should clear the result object !!!
+
+  return min_dist;
 
 }
 
@@ -301,11 +305,11 @@ int teset_main(int argc, char** argv)
 
   std::chrono::steady_clock::time_point time_start2 = std::chrono::steady_clock::now();
 
-  ros::init(argc, argv, "sign_language_robot_collision_computation");
+  ros::init(argc, argv, "distance_computation");
 
   std::chrono::steady_clock::time_point time_end2 = std::chrono::steady_clock::now();
   std::chrono::duration<double> time_used2 = std::chrono::duration_cast<std::chrono::duration<double>>(time_end2 - time_start2);
-  std::cout << "time used for initializing ROS node:" << time_used2.count() << " s" << std::endl;
+  //std::cout << "time used for initializing ROS node:" << time_used2.count() << " s" << std::endl;
 
 
   DualArmDualHandMinDistance dual_arm_dual_hand_min_distance(urdf_string.str(), srdf_string.str());
