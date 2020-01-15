@@ -718,7 +718,7 @@ def main():
     ### Planning of two ur5 arms: go to pose goal
     print "========== Load joint trajectory from h5 file "
     file_name = 'glove_test_data'
-    group_name = 'right_glove_test_3' #'right_glove_test_1'
+    group_name = 'right_glove_test_1' #'right_glove_test_1'
     f = h5py.File(file_name+'.h5', "r")
     timestamps = f[group_name+'/time'][:]
     r_glove_angles = f[group_name+'/r_glove_angle'][:]
