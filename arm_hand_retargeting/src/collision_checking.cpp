@@ -61,7 +61,11 @@ double DualArmDualHandCollision::check_collision(const std::vector<double> q_in)
   this->planning_scene_.checkSelfCollision(this->collision_request_, this->collision_result_);
   //std::cout << "The robot is " << (collision_result.collision ? "in" : "not in") << " collision with other parts." << std::endl;
 
-  return (this->collision_result_.collision ? 1 : -1); // set to 1 if in collision
+  double result = (this->collision_result_.collision ? 1 : -1); // 1 for colliding, -1 for free
+
+  this->collision_result_.clear(); // should clear the results, in case the result object is used again!!!
+
+  return result; // set to 1 if in collision
   
 }
 

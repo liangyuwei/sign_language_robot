@@ -43,6 +43,7 @@
 // global flags
 int count = 0; // counter for cost function
 int c_count = 0; // counter for constratint function
+unsigned int num_point_in_collision = 0; // check how many points on the path are in collision state
 bool first_iter = true;
 
 
@@ -1374,6 +1375,13 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string urdf_string, std::string srd
       std::cout << std::endl;
       */
 
+
+      // Check if the constraints are met 
+      double min_dist = dual_arm_dual_hand_collision_ptr->check_collision(x);
+      if (min_dist>0) // 1 for colliding state
+        num_point_in_collision += 1;
+      std::cout << "Current state is " << ((min_dist>0) ? "in" : "not in") << " collision." << std::endl;
+
       std::cout << "Upperarm Direction Cost: " << f_data->upperarm_direction_cost << std::endl;
       std::cout << "Shoulder-Wrist Direction Cost: " << f_data->shoulder_wrist_direction_cost << std::endl;
       std::cout << "Forearm Direction Cost: " << f_data->forearm_direction_cost << std::endl;
@@ -1387,6 +1395,8 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string urdf_string, std::string srd
       std::cout << "Left finger scaled pos Cost: " << f_data->scaled_l_finger_pos_cost << std::endl;
       std::cout << "Right finger scaled pos Cost: " << f_data->scaled_r_finger_pos_cost << std::endl;
       std::cout << "Total Cost: " << f_data->total_cost << std::endl;
+
+
 
       // Store the result(joint values)
       q_results[it] = x;
@@ -1402,6 +1412,7 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string urdf_string, std::string srd
       //Matrix<double, 6, 1> q_prev = Map<Eigen::Matrix<double, 6, 1>>(x.data(), 6, 1);
       constraint_data.q_prev = Map<Eigen::Matrix<double, joint_value_dim, 1>>(x.data(), joint_value_dim, 1); // used across optimizations over the whole trajectory  
       //std::cout << "q_prev is: " << constraint_data.q_prev.transpose() << std::endl;
+
       first_iter = false;
 
     /*}
@@ -1436,6 +1447,9 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string urdf_string, std::string srd
       std::cout << q_results[i][j] << " ";
     std::cout << std::endl;
   }*/
+
+
+  std::cout << num_point_in_collision << " points on the path are in collision !" << std::endl;
 
 
   // Store the results

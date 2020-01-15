@@ -168,6 +168,11 @@ target_link_libraries(arm_retarget_nlopt distance_computation)
 target_link_libraries(arm_retarget_nlopt collision_checking)
 
 
+# Test module
+add_executable(TEST_collision_checking src/TEST_collision_checking)
+target_link_libraries(TEST_collision_checking ${catkin_LIBRARIES} collision_checking)
+
+
 #add_executable(distance_computation src/distance_computation.cpp)
 #target_link_libraries(distance_computation ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
