@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- Set arguments -->
+  <arg name="model" />
+  <arg name="gui" default="True" />
+
+  <!-- Load ros parameters -->
+  <param name="robot_description" textfile="$(find yumi_description)/urdf/yumi_with_hands.urdf" />
+  <param name="use_gui" value="$(arg gui)" />
+
+  <!-- Start publishers -->
+  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher" />
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" />
+
+  <!-- Start RViz -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find yumi_control)/rviz/yumi_with_hands_urdf.rviz" />
+
+</launch>

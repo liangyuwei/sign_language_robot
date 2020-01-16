@@ -1,0 +1,57 @@
+# MoveIt-specific simulation settings
+moveit_sim_hw_interface:
+  joint_model_group: controllers_initial_group_
+  joint_model_group_pose: controllers_initial_pose_
+# Settings for ros_control control loop
+generic_hw_control_loop:
+  loop_hz: 300
+  cycle_time_error_threshold: 0.01
+# Settings for ros_control hardware interface
+hardware_interface:
+  joints:
+    - yumi_joint_1_l
+    - yumi_joint_2_l
+    - yumi_joint_7_l
+    - yumi_joint_3_l
+    - yumi_joint_4_l
+    - yumi_joint_5_l
+    - yumi_joint_6_l
+    - link1
+    - link11
+    - link2
+    - link22
+    - link3
+    - link33
+    - link4
+    - link44
+    - link5
+    - link51
+    - link52
+    - link53
+    - yumi_joint_1_r
+    - yumi_joint_2_r
+    - yumi_joint_7_r
+    - yumi_joint_3_r
+    - yumi_joint_4_r
+    - yumi_joint_5_r
+    - yumi_joint_6_r
+    - Link1
+    - Link11
+    - Link2
+    - Link22
+    - Link3
+    - Link33
+    - Link4
+    - Link44
+    - Link5
+    - Link51
+    - Link52
+    - Link53
+  sim_control_mode: 1  # 0: position, 1: velocity
+# Publish all joint states
+# Creates the /joint_states topic necessary in ROS
+joint_state_controller:
+  type: joint_state_controller/JointStateController
+  publish_rate: 50
+controller_list:
+  []
