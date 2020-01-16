@@ -61,7 +61,7 @@ int main(int argc, char** argv){
   ros::init(argc, argv, "unpack_synced_message_node");
   ros::NodeHandle n;
   ROS_INFO_STREAM("Waiting for /dual_arms_dual_hands_state to come up...");
-  ros::Subscriber sub = n.subscribe("/dual_arms_dual_hands_UR5_state", 100, &poseCallback);
+  ros::Subscriber sub = n.subscribe("/dual_arms_dual_hands_YuMi_state", 100, &poseCallback);
   // /dual_arms_dual_hands_UR5_state
   ROS_INFO_STREAM("Ready to unpack the sync-ed message.");
 

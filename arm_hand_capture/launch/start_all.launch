@@ -19,7 +19,8 @@
 
   
   <!-- Transform the synced data to match the configuration of UR5 -->
-  <node name="synced_message_to_ur5" pkg="arm_hand_capture" type="synced_message_to_ur5" />
+  <!--node name="synced_message_to_ur5" pkg="arm_hand_capture" type="synced_message_to_ur5" /-->
+  <node name="synced_message_to_yumi" pkg="arm_hand_capture" type="synced_message_to_yumi" />
 
 
   <!-- Start Rviz for visualization -->

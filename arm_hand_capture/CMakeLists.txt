@@ -74,9 +74,17 @@ target_link_libraries(unpack_synced_message ${catkin_LIBRARIES})
 add_dependencies(unpack_synced_message ${PACKAGE_NAME}_generate_messages_cpp)
 
 ## Transform the local frames(upperarm, forearm, hand) to match UR5 configuration
+# for real-time synchronization experiment in the future
 add_executable(synced_message_to_ur5 src/synced_message_to_ur5.cpp)
 target_link_libraries(synced_message_to_ur5 ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 add_dependencies(synced_message_to_ur5 ${PACKAGE_NAME}_generate_messages_cpp)
+
+## Transform the local frames(upperarm, forearm, hand) to match UR5 configuration
+# for real-time synchronization experiment in the future
+add_executable(synced_message_to_yumi src/synced_message_to_yumi.cpp)
+target_link_libraries(synced_message_to_yumi ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+add_dependencies(synced_message_to_yumi ${PACKAGE_NAME}_generate_messages_cpp)
+
 
 ## For visualization markers
 add_executable(load_visualization_markers src/load_visualization_markers.cpp)
