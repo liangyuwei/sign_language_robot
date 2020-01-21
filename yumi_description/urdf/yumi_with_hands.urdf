@@ -647,12 +647,12 @@
 
   <!-- GRIPPER PARTS BELOW -->
  
-  <!-- LEFT HAND part-->
-  <joint name="yumi_link_7_l_joint" type="fixed">
-    <parent link="yumi_link_7_l" />
-    <child link="left_hand_base" />
-    <origin rpy="0 0 3.1415" xyz="0 0 0"/>
-  </joint>
+<!-- LEFT HAND part-->
+<joint name="yumi_link_7_l_joint" type="fixed">
+  <parent link="yumi_link_7_l" />
+  <child link="left_hand_base" />
+  <origin rpy="0 0 3.1415" xyz="0 0 0"/>
+</joint>
 
   <!-- Create a new base frame for convenience, by LYW, 2019/11/22 -->
   <link name="left_hand_base">
@@ -766,7 +766,7 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-1"
+      lower="-1.6"
       upper="0"
       effort="1"
       velocity="1" />
@@ -824,7 +824,7 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-2"
+      lower="-1.7"
       upper="0"
       effort="1"
       velocity="1" />
@@ -882,7 +882,7 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-1"
+      lower="-1.6"
       upper="0"
       effort="1"
       velocity="1" />
@@ -940,7 +940,7 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-2"
+      lower="-1.7"
       upper="0"
       effort="1"
       velocity="1" />
@@ -998,7 +998,7 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-1"
+      lower="-1.6"
       upper="0"
       effort="1"
       velocity="1" />
@@ -1056,7 +1056,7 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-2"
+      lower="-1.7"
       upper="0"
       effort="1"
       velocity="1" />
@@ -1114,7 +1114,7 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-1"
+      lower="-1.6"
       upper="0"
       effort="1"
       velocity="1" />
@@ -1172,7 +1172,7 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-2"
+      lower="-1.7"
       upper="0"
       effort="1"
       velocity="1" />
@@ -1228,10 +1228,10 @@
     <child
       link="link5" />
     <axis
-      xyz="0 1 0" />
+      xyz="0 -1 0" />
     <limit
-      lower="0"
-      upper="1"
+      lower="-1.0"
+      upper="0.3"
       effort="1"
       velocity="1" />
   </joint>
@@ -1286,10 +1286,10 @@
     <child
       link="link51" />
     <axis
-      xyz="0 0 1" />
+      xyz="0 0 -1" />
     <limit
       lower="0"
-      upper="1"
+      upper="0.4"
       effort="1"
       velocity="1" />
   </joint>
@@ -1346,7 +1346,7 @@
     <axis
       xyz="0 0 1" />
     <limit
-      lower="-1"
+      lower="-0.4"
       upper="0"
       effort="1"
       velocity="1" />
@@ -1409,7 +1409,6 @@
       effort="1"
       velocity="1" />
   </joint>
-
 <!-- above is the part of LEFT HAND -->  
 
 
@@ -2174,7 +2173,6 @@
       effort="1"
       velocity="1" />
   </joint>
-
   
 <!-- above is the part of RIGHT HAND -->  
 

@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>yumi_sign_language_robot_control</name>
+  <version>0.0.0</version>
+  <description>The sign_language_robot_control package</description>
+
+  <maintainer email="liangyuwei@yahoo.com">liangyuwei</maintainer>
+
+  <license>TODO</license>
+
+
+  <build_depend>roscpp</build_depend>
+  <build_depend>shape_msgs</build_depend>
+  <build_depend>moveit_msgs</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>kdl_parser</build_depend>
+   
+  <exec_depend>kdl_parser</exec_depend>
+  
+
+  <buildtool_depend>catkin</buildtool_depend>
+  
+
+
+</package>
