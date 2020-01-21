@@ -162,10 +162,21 @@ add_library(distance_computation src/distance_computation.cpp)
 
 add_library(collision_checking src/collision_checking.cpp)
 
-add_executable(arm_retarget_nlopt src/arm_retarget_nlopt.cpp)
-target_link_libraries(arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
-target_link_libraries(arm_retarget_nlopt distance_computation)
-target_link_libraries(arm_retarget_nlopt collision_checking)
+add_library(collision_checking_yumi src/collision_checking_yumi.cpp)
+
+# retargeting code for UR5 configuration
+add_executable(ur5_arm_retarget_nlopt src/ur5_arm_retarget_nlopt.cpp)
+target_link_libraries(ur5_arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+target_link_libraries(ur5_arm_retarget_nlopt distance_computation)
+target_link_libraries(ur5_arm_retarget_nlopt collision_checking)
+
+
+# retargeting code for YuMi configuration
+add_executable(yumi_arm_retarget_nlopt src/yumi_arm_retarget_nlopt.cpp)
+target_link_libraries(yumi_arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+target_link_libraries(yumi_arm_retarget_nlopt distance_computation)
+target_link_libraries(yumi_arm_retarget_nlopt collision_checking_yumi)
+
 
 
 # Test module
