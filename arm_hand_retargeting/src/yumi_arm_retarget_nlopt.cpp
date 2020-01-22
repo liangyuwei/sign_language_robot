@@ -1244,6 +1244,12 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
 
   // Start iterations
   std::vector<std::vector<double> > q_results(num_datapoints, std::vector<double>(joint_value_dim));
+  std::vector<std::vector<double> > scaled_wrist_pos_cost_history(num_datapoints, std::vector<double>(1));  
+  std::vector<std::vector<double> > scaled_elbow_pos_cost_history(num_datapoints, std::vector<double>(1));  
+  std::vector<std::vector<double> > total_cost_history(num_datapoints, std::vector<double>(1));  
+  std::vector<std::vector<double> > time_spent_history(num_datapoints, std::vector<double>(1));  
+
+
   for (unsigned int it = 0; it < num_datapoints; ++it)
   {
 
@@ -1410,7 +1416,11 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
       std::cout << "Right finger scaled pos Cost: " << f_data->scaled_r_finger_pos_cost << std::endl;
       std::cout << "Total Cost: " << f_data->total_cost << std::endl;
 
-
+      // Store the statistics
+      scaled_wrist_pos_cost_history[it][0] = f_data->scaled_wrist_pos_cost;  
+      scaled_elbow_pos_cost_history[it][0] = f_data->scaled_elbow_pos_cost;  
+      total_cost_history[it][0] = f_data->total_cost;  
+      time_spent_history[it][0] = t_spent.count();  
 
       // Store the result(joint values)
       q_results[it] = x;
@@ -1428,6 +1438,11 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
       //std::cout << "q_prev is: " << constraint_data.q_prev.transpose() << std::endl;
 
       first_iter = false;
+
+      // Do remember to clear the constraints after every iteration !!!
+      // otherwise the number of constraints would add up by `m` after every iteration !!!
+      opt.remove_inequality_constraints();
+      opt.remove_equality_constraints(); // always good practice to use both, even though equality constraints are not used here.
 
     /*}
     catch (std::runtime_error e1){
@@ -1471,6 +1486,13 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
   //const std::string dataset_name = "arm_traj_1";
   bool result1 = this->write_h5(out_file_name, group_name, "arm_traj_1", num_datapoints, joint_value_dim, q_results);
   bool result2 = this->write_h5(out_file_name, group_name, "timestamp_1", num_datapoints, 1, read_time_stamps);  
+
+  // Store the statistics about the optimization
+  this->write_h5(out_file_name, group_name, "scaled_wrist_pos_cost", num_datapoints, 1, scaled_wrist_pos_cost_history);
+  this->write_h5(out_file_name, group_name, "scaled_elbow_pos_cost", num_datapoints, 1, scaled_elbow_pos_cost_history);
+  this->write_h5(out_file_name, group_name, "total_cost", num_datapoints, 1, total_cost_history);
+  this->write_h5(out_file_name, group_name, "time_spent", num_datapoints, 1, time_spent_history);
+
 
   if(result1 && result2)
     std::cout << "Joint path results successfully stored!" << std::endl;
