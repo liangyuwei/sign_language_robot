@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_ros_planning_interface
   moveit_core
   moveit_ros_planning
+  geometric_shapes
   shape_msgs
   moveit_msgs	
   geometry_msgs
