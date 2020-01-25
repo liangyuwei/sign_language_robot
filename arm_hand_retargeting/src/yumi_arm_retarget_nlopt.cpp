@@ -554,140 +554,100 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
 
 
   // Calculate loss function(tracking performance + continuity)
-  //std::vector<double> xx = x;
-  //Matrix<double, 36, 1> x_tmp = Map<Matrix<double, 36, 1>>(xx.data(), 36, 1);
+  std::vector<double> xx = x; // deep copy
+  Matrix<double, 38, 1> x_tmp = Map<Matrix<double, 38, 1>>(xx.data(), 38, 1);
+
+
   Matrix<double, 7, 1> q_cur_l, q_cur_r;
   Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = x_tmp.block<7, 1>(0, 0);
+  q_cur_r = x_tmp.block<7, 1>(7, 0);
+  q_cur_finger_l = x_tmp.block<12, 1>(14, 0);
+  q_cur_finger_r = x_tmp.block<12, 1>(26, 0);
+/*
   q_cur_l << x[0], x[1], x[2], x[3], x[4], x[5], x[6]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
   q_cur_r << x[7], x[8], x[9], x[10], x[11], x[12], x[13]; //Map<Matrix<double, 6, 1>>(x_tmp.data(), 6, 1);
   q_cur_finger_l << x[14], x[15], x[16], x[17], x[18], x[19], x[20], x[21], x[22], x[23], x[24], x[25]; //x_tmp.block<12, 1>(12, 0);
   q_cur_finger_r << x[26], x[27], x[28], x[29], x[30], x[31], x[32], x[33], x[34], x[35], x[36], x[37]; //x_tmp.block<12, 1>(24, 0);
+*/
+
+	// debug
+  /*
+  std::cout << "===== Check data type transfer =====" << std::endl;
+  std::cout << "Directly mapped matrix: " << x_tmp << std::endl;
+  std::cout << "Left arm angles: " << q_cur_l << std::endl;
+  std::cout << "Right arm angles: " << q_cur_r << std::endl;	
+  std::cout << "Left finger angles: " << q_cur_finger_l << std::endl;
+  std::cout << "Right finger angles: " << q_cur_finger_r << std::endl;
+  */
+
 
   double cost = compute_cost(left_fk_solver, q_cur_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
   cost += compute_cost(right_fk_solver, q_cur_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
   cost += compute_finger_cost(q_cur_finger_l, true, fdata);
   cost += compute_finger_cost(q_cur_finger_r, false, fdata);
+  // cost for collision checking
+  double min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x); // 1 for colliding, -1 for non-colliding
+  double k_col = 1.0;
+  cost += k_col * (min_distance + 1) * (min_distance + 1);
 
 
   // Compute gradient using Numeric Differentiation
   // only compute gradient if not NULL
   if(!grad.empty())
   {
-    double eps = 0.001;
-    Matrix<double, 7, 1> q_tmp_l, q_tmp_r;
-    Matrix<double, 12, 1> q_tmp_finger_l, q_tmp_finger_r;    
+    // get ready
+    double eps = 0.01;
 
     double cost1, cost2;
-    // gradients on the left arm's joints
-    for (unsigned int i = 0; i < q_tmp_l.size(); ++i)
+    // gradients on the joints
+    for (unsigned int i = 0; i < x.size(); ++i)
     {
+  		// Get compute points
+      std::vector<double> x_tmp_plus = x; // deep copy
+      std::vector<double> x_tmp_minus = x; // deep copy
+      Matrix<double, 7, 1> q_tmp_l, q_tmp_r;
+      Matrix<double, 12, 1> q_tmp_finger_l, q_tmp_finger_r;
+
+      Matrix<double, 38, 1> x_tmp_vec_plus = Map<Matrix<double, 38, 1>>(x_tmp_plus.data(), 38, 1);
+      Matrix<double, 38, 1> x_tmp_vec_minus = Map<Matrix<double, 38, 1>>(x_tmp_minus.data(), 38, 1);
+
+      x_tmp_vec_plus[i] += eps;
+      x_tmp_vec_minus[i] -= eps;
+
       // 1
-      q_tmp_l = q_cur_l;
-      q_tmp_r = q_cur_r;
-      q_tmp_l[i] += eps;
-      cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
-      cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
-      cost1 += compute_finger_cost(q_cur_finger_l, true, fdata);
-      cost1 += compute_finger_cost(q_cur_finger_r, false, fdata);
-      // 2
-      q_tmp_l = q_cur_l;
-      q_tmp_r = q_cur_r;
-      q_tmp_l[i] -= eps;
-      cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
-      cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
-      cost2 += compute_finger_cost(q_cur_finger_l, true, fdata);
-      cost2 += compute_finger_cost(q_cur_finger_r, false, fdata);
-
-      // combine 1 and 2
-      grad[i] = (cost1 - cost2) / (2.0 * eps);
-    }
-
-    // gradients on the right arm's joints
-    for (unsigned int i = q_tmp_l.size(); i < q_tmp_l.size() + q_tmp_r.size(); ++i)
-    {
-      // 1
-      q_tmp_l = q_cur_l;
-      q_tmp_r = q_cur_r;
-      q_tmp_r[i-q_tmp_l.size()] += eps;
-      cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
-      cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
-      cost1 += compute_finger_cost(q_cur_finger_l, true, fdata);
-      cost1 += compute_finger_cost(q_cur_finger_r, false, fdata);
-      // 2
-      q_tmp_l = q_cur_l;
-      q_tmp_r = q_cur_r;
-      q_tmp_r[i-q_tmp_l.size()] -= eps;
-      cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
-      cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
-      cost2 += compute_finger_cost(q_cur_finger_l, true, fdata);
-      cost2 += compute_finger_cost(q_cur_finger_r, false, fdata);
-      // combine 1 and 2
-      grad[i] = (cost1 - cost2) / (2.0 * eps);
-    }
-
-    // gradients on the left hand's joints
-    for (unsigned int i = q_tmp_l.size() + q_tmp_r.size(); i < q_tmp_l.size() + q_tmp_r.size() + q_tmp_finger_l.size(); ++i)
-    {
-      // 1
-      q_tmp_l = q_cur_l;
-      q_tmp_r = q_cur_r;
-      q_tmp_finger_l = q_cur_finger_l;
-      q_tmp_finger_r = q_cur_finger_r;
-
-      q_tmp_finger_l[i-q_tmp_l.size()-q_tmp_r.size()] += eps;
+      q_tmp_l = x_tmp_vec_plus.block<7, 1>(0, 0);
+      q_tmp_r = x_tmp_vec_plus.block<7, 1>(7, 0);
+      q_tmp_finger_l = x_tmp_vec_plus.block<12, 1>(14, 0);
+      q_tmp_finger_r = x_tmp_vec_plus.block<12, 1>(26, 0);
 
       cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
       cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       cost1 += compute_finger_cost(q_tmp_finger_l, true, fdata);
       cost1 += compute_finger_cost(q_tmp_finger_r, false, fdata);
-      // 2
-      q_tmp_l = q_cur_l;
-      q_tmp_r = q_cur_r;
-      q_tmp_finger_l = q_cur_finger_l;
-      q_tmp_finger_r = q_cur_finger_r;
+			// for collision cost
+			min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_plus); // 1 for colliding, -1 for non-colliding
+	    cost1 += k_col * (min_distance + 1) * (min_distance + 1);
 
-      q_tmp_finger_l[i-q_tmp_l.size()-q_tmp_r.size()] -= eps;
+      // 2
+      q_tmp_l = x_tmp_vec_minus.block<7, 1>(0, 0);
+      q_tmp_r = x_tmp_vec_minus.block<7, 1>(7, 0);
+      q_tmp_finger_l = x_tmp_vec_minus.block<12, 1>(14, 0);
+      q_tmp_finger_r = x_tmp_vec_minus.block<12, 1>(26, 0);
 
       cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
       cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       cost2 += compute_finger_cost(q_tmp_finger_l, true, fdata);
       cost2 += compute_finger_cost(q_tmp_finger_r, false, fdata);
+			// for collision cost
+			min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_minus); // 1 for colliding, -1 for non-colliding
+	    cost2 += k_col * (min_distance + 1) * (min_distance + 1);
+
       // combine 1 and 2
       grad[i] = (cost1 - cost2) / (2.0 * eps);
-    }    
+    }
 
-
-    // gradients on the right hand's joints
-    for (unsigned int i = q_tmp_l.size() + q_tmp_r.size() + q_tmp_finger_l.size(); i < q_tmp_l.size() + q_tmp_r.size() + q_tmp_finger_l.size() + q_tmp_finger_r.size(); ++i)
-    {
-      // 1
-      q_tmp_l = q_cur_l;
-      q_tmp_r = q_cur_r;
-      q_tmp_finger_l = q_cur_finger_l;
-      q_tmp_finger_r = q_cur_finger_r;
-
-      q_tmp_finger_r[i-q_tmp_l.size()-q_tmp_r.size()-q_tmp_finger_l.size()] += eps;
-
-      cost1 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
-      cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
-      cost1 += compute_finger_cost(q_tmp_finger_l, true, fdata);
-      cost1 += compute_finger_cost(q_tmp_finger_r, false, fdata);
-      // 2
-      q_tmp_l = q_cur_l;
-      q_tmp_r = q_cur_r;
-      q_tmp_finger_l = q_cur_finger_l;
-      q_tmp_finger_r = q_cur_finger_r;
-
-      q_tmp_finger_r[i-q_tmp_l.size()-q_tmp_r.size()-q_tmp_finger_l.size()] -= eps;
-
-      cost2 = compute_cost(left_fk_solver, q_tmp_l, fdata->l_num_wrist_seg, fdata->l_num_elbow_seg, fdata->l_num_shoulder_seg, true, fdata);
-      cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
-      cost2 += compute_finger_cost(q_tmp_finger_l, true, fdata);
-      cost2 += compute_finger_cost(q_tmp_finger_r, false, fdata);
-      // combine 1 and 2
-      grad[i] = (cost1 - cost2) / (2.0 * eps);
-    }    
-
+   
   }
 
   // Return cost function value
@@ -702,6 +662,7 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
                               double *grad, /* NULL if not needed */
                               void *f_data)
 {
+
   // Constraints: relative position of wrists, collision avoidance
 
   c_count += 1;
@@ -1328,8 +1289,8 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
 
 
     // Set constraints
-    const std::vector<double> tol_vec = {0.0}; //{0.0, 0.0, 0.0, 0.0}; // tol_vec.size() determines the dimensionality m 
-    opt.add_inequality_mconstraint(this->myconstraint, (void *) f_data, tol_vec);
+    //const std::vector<double> tol_vec = {0.0}; //{0.0, 0.0, 0.0, 0.0}; // tol_vec.size() determines the dimensionality m 
+    //opt.add_inequality_mconstraint(this->myconstraint, (void *) f_data, tol_vec);
 
     // Set up objective function and additional data to pass in
     opt.set_min_objective(this->myfunc, (void *) f_data); // set objective function to minimize; with no additional information passed(f_data)
