@@ -213,7 +213,7 @@ int main(int argc, char** argv)
   collision_object.primitives.push_back(primitive);
   collision_object.primitive_poses.push_back(box_pose);
   collision_object.operation = collision_object.ADD;
-  // way 1(checked, able to add visual object, but not useful in detection): add collision object into the environment through planning_scene_diff(synchronous update) (one of two mechanisms available to interact with the move_group node)
+  // way 1(checked, able to add visual object): add collision object into the environment through planning_scene_diff(synchronous update) (one of two mechanisms available to interact with the move_group node)
   /*ROS_INFO_STREAM("Add a box to into the world through /apply_planning_scene");
   moveit_msgs::PlanningScene planning_scene_msg; // this is just a message !!!
   planning_scene_msg.world.collision_objects.clear();
@@ -225,7 +225,7 @@ int main(int argc, char** argv)
   srv.request.scene = planning_scene_msg;
   planning_scene_diff_client.call(srv); // does not continue until we are sure the diff has been applied*/
 
-  // way 2(checked, able to add visual object, but not useful in detection): add collision object through planning scene interface (apply collision object to the planning scene of the move_group node synchronously)
+  // way 2(checked, able to add visual object): add collision object through planning scene interface (apply collision object to the planning scene of the move_group node synchronously)
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;  
   planning_scene_interface.applyCollisionObject(collision_object); // synchronously, can take action directly after this command, i.e. no need for sleep; collision object is added, yet not used for distanceRobot???
 

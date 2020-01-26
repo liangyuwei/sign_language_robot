@@ -587,7 +587,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
   cost += compute_finger_cost(q_cur_finger_l, true, fdata);
   cost += compute_finger_cost(q_cur_finger_r, false, fdata);
   // cost for collision checking
-  double min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x); // 1 for colliding, -1 for non-colliding
+  double min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x); // 1 for colliding, -1 for non-colliding
   double k_col = 1.0;
   cost += k_col * (min_distance + 1) * (min_distance + 1);
 
@@ -603,7 +603,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
     // gradients on the joints
     for (unsigned int i = 0; i < x.size(); ++i)
     {
-  		// Get compute points
+      // Get compute points
       std::vector<double> x_tmp_plus = x; // deep copy
       std::vector<double> x_tmp_minus = x; // deep copy
       Matrix<double, 7, 1> q_tmp_l, q_tmp_r;
@@ -625,9 +625,9 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
       cost1 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       cost1 += compute_finger_cost(q_tmp_finger_l, true, fdata);
       cost1 += compute_finger_cost(q_tmp_finger_r, false, fdata);
-			// for collision cost
-			min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_plus); // 1 for colliding, -1 for non-colliding
-	    cost1 += k_col * (min_distance + 1) * (min_distance + 1);
+      // for collision cost
+      min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x_tmp_plus); // 1 for colliding, -1 for non-colliding
+      cost1 += k_col * (min_distance + 1) * (min_distance + 1);
 
       // 2
       q_tmp_l = x_tmp_vec_minus.block<7, 1>(0, 0);
@@ -639,16 +639,18 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
       cost2 += compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       cost2 += compute_finger_cost(q_tmp_finger_l, true, fdata);
       cost2 += compute_finger_cost(q_tmp_finger_r, false, fdata);
-			// for collision cost
-			min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_minus); // 1 for colliding, -1 for non-colliding
-	    cost2 += k_col * (min_distance + 1) * (min_distance + 1);
+      // for collision cost
+      min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x_tmp_minus); // 1 for colliding, -1 for non-colliding
+      cost2 += k_col * (min_distance + 1) * (min_distance + 1);
 
       // combine 1 and 2
       grad[i] = (cost1 - cost2) / (2.0 * eps);
+
     }
 
-   
   }
+
+
 
   // Return cost function value
   return cost;
@@ -715,7 +717,7 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
     min_distance = 1.0;
   }*/
   // way 2 - only check if in collision, much faster
-  double min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_vec);
+  double min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x_vec);
   min_distance = -min_distance;
 
 
@@ -799,7 +801,7 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
         min_distance = 1.0;
       }*/
       // way 2 - only check if in collision, much faster
-      min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_plus);
+      min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x_tmp_plus);
       min_distance = -min_distance;
 
       constraint_val_plus[0] = - (min_distance - threshold); 
@@ -812,7 +814,7 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
         min_distance = 1.0;
       }*/
       // way 2 - only check if in collision, much faster
-      min_distance = dual_arm_dual_hand_collision_ptr->check_collision(x_tmp_minus);
+      min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x_tmp_minus);
       min_distance = -min_distance;
 
       constraint_val_minus[0] = - (min_distance - threshold); 
@@ -1348,7 +1350,7 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
 
       // Check if the constraints are met 
       // way 1 - simple collision checking
-      double min_dist = dual_arm_dual_hand_collision_ptr->check_collision(x);
+      double min_dist = dual_arm_dual_hand_collision_ptr->check_self_collision(x);
       if (min_dist>0) // 1 for colliding state
         num_point_in_collision += 1;
       std::cout << "Current state is " << ((min_dist>0) ? "in" : "not in") << " collision." << std::endl;

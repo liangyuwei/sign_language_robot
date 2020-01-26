@@ -24,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_ros_planning_interface
   moveit_core
   moveit_ros_planning
+  geometric_shapes
 )
 
 
@@ -163,6 +164,8 @@ add_library(distance_computation src/distance_computation.cpp)
 add_library(collision_checking src/collision_checking.cpp)
 
 add_library(collision_checking_yumi src/collision_checking_yumi.cpp)
+target_link_libraries(collision_checking_yumi ${catkin_LIBRARIES} ${Boost_LIBRARIES})
+
 
 # retargeting code for UR5 configuration
 add_executable(ur5_arm_retarget_nlopt src/ur5_arm_retarget_nlopt.cpp)
@@ -178,10 +181,13 @@ target_link_libraries(yumi_arm_retarget_nlopt distance_computation)
 target_link_libraries(yumi_arm_retarget_nlopt collision_checking_yumi)
 
 
-
 # Test module
 add_executable(TEST_collision_checking src/TEST_collision_checking)
 target_link_libraries(TEST_collision_checking ${catkin_LIBRARIES} collision_checking)
+
+
+add_executable(TEST_collision_checking_yumi src/collision_checking_yumi.cpp)
+target_link_libraries(TEST_collision_checking_yumi ${catkin_LIBRARIES} collision_checking_yumi)
 
 
 #add_executable(distance_computation src/distance_computation.cpp)
