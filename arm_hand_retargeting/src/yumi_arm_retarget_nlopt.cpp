@@ -1467,7 +1467,7 @@ int main(int argc, char **argv)
 {
   
   // Initialize a ros node, for the calculation of collision distance
-  ros::init(argc, argv, "sign_language_robot_collision_computation");
+  ros::init(argc, argv, "yumi_sign_language_robot_retarget");
 
   // reset 
   dual_arm_dual_hand_collision_ptr.reset( new DualArmDualHandCollision(::urdf_string.str(), ::srdf_string.str()) );

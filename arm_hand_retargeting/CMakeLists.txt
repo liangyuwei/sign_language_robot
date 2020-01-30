@@ -8,14 +8,54 @@ add_compile_options(-std=c++11)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
+# Eigen 3
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIRS})
 
-
+# Find HDF5
 find_package(HDF5 REQUIRED COMPONENTS C CXX HL) # this works...
 include_directories(${HDF5_INCLUDE_DIRS})
 
+# For NLopt
 find_package(NLopt REQUIRED)
+if(NLopt_FOUND)
+  message("NLopt lib is found: " ${NLOPT_LIBRARIES})
+endif(NLopt_FOUND)
+
+
+# Find G2O
+list( APPEND CMAKE_MODULE_PATH /home/liangyuwei/g2o/cmake_modules )
+set(G2O_DIR /home/liangyuwei/g2o)
+find_package(G2O REQUIRED)
+if(G2O_FOUND)
+  include_directories(${G2O_INCLUDE_DIR})
+  link_directories(${G2O_LIBRARY_DIRS})
+  link_libraries(${G2O_LIBRARIES})
+  message("G2O lib is found: " ${G2O_LIBRARIES})
+  message("G2O dir is found: " ${G2O_INCLUDE_DIR})
+endif(G2O_FOUND)
+
+# G2O-related (cholmod, csparse)
+include_directories(/usr/include/suitesparse)
+
+list(APPEND G2O_LIBRARIES
+  cholmod
+  cxsparse
+  g2o_core g2o_stuff g2o_csparse_extension g2o_incremental
+  g2o_solver_csparse g2o_solver_pcg g2o_solver_cholmod
+)
+
+
+#link_directories(${G2O_LIBRARY_DIRS})
+#message(">>>> G2O-libraries: " ${G2O_LIBRARIES})
+#message(">>>> G2O-Inclu-dirs: " ${G2O_INCLUDE_DIRS})
+# remember to sudo apt-get install ros-kinetic-libg2o	
+
+## Specify additional locations for library files
+#link_directories(
+#  /usr/local/lib # Location when using 'make system_install'
+#  /usr/lib       # More usual location (e.g. when installing using a package)
+#)
 
 
 find_package(catkin REQUIRED COMPONENTS
@@ -179,6 +219,11 @@ add_executable(yumi_arm_retarget_nlopt src/yumi_arm_retarget_nlopt.cpp)
 target_link_libraries(yumi_arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 target_link_libraries(yumi_arm_retarget_nlopt distance_computation)
 target_link_libraries(yumi_arm_retarget_nlopt collision_checking_yumi)
+
+add_executable(yumi_arm_retarget_g2o src/yumi_arm_retarget_g2o.cpp)
+target_link_libraries(yumi_arm_retarget_g2o ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+target_link_libraries(yumi_arm_retarget_g2o collision_checking_yumi)
+target_link_libraries(yumi_arm_retarget_g2o ${G2O_LIBRARIES} ) # g2o-related 
 
 
 # Test module
