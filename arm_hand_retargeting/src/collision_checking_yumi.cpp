@@ -184,15 +184,15 @@ double DualArmDualHandCollision::check_self_collision(const std::vector<double> 
 
   // Prepare collision_request
   this->collision_request_.group_name = "";
-  this->collision_request_.distance = true;
+  this->collision_request_.distance = false;//true; // only for debug, when used with optimization, remember to shut it off!!!! cause great difference in time usage!!!
   this->collision_request_.contacts = true;
   this->collision_request_.max_contacts = 1000;
 
   this->collision_result_.clear();
 
 
-  // Get the PlanningScene maintained by move_group
-  planning_scene::PlanningScenePtr move_group_planning_scene = this->get_move_group_planning_scene();
+  // Get the PlanningScene maintained by move_group (getting PlanningScene from move_group might not be necessary for self-collision checking...)
+  //planning_scene::PlanningScenePtr move_group_planning_scene = this->get_move_group_planning_scene();
 
 
   // Update robot state with the given joint values
@@ -200,8 +200,9 @@ double DualArmDualHandCollision::check_self_collision(const std::vector<double> 
 
 
   // Check if a robot is in collision with itself
-  //this->local_planning_scene_.
-  move_group_planning_scene->checkSelfCollision(this->collision_request_, this->collision_result_, this->current_state_, this->acm_);
+  this->local_planning_scene_.checkSelfCollision(this->collision_request_, this->collision_result_, this->current_state_, this->acm_); // using local planning scene is faster
+  //move_group_planning_scene->checkSelfCollision(this->collision_request_, this->collision_result_, this->current_state_, this->acm_);
+
 
 
   // Display information for debug
@@ -237,7 +238,7 @@ double DualArmDualHandCollision::check_world_collision(const std::vector<double>
 
   // Prepare collision_request
   this->collision_request_.group_name = "";
-  this->collision_request_.distance = true;
+  this->collision_request_.distance = false; //true; // only for debug, when used with optimization, remember to shut it off!!!! cause great difference in time usage!!!
   this->collision_request_.contacts = true;
   this->collision_request_.max_contacts = 1000;
 
@@ -281,7 +282,7 @@ double DualArmDualHandCollision::check_full_collision(const std::vector<double> 
 
   // Prepare collision_request
   this->collision_request_.group_name = "";
-  this->collision_request_.distance = true;
+  this->collision_request_.distance = false;//true;// only for debug, when used with optimization, remember to shut it off!!!! cause great difference in time usage!!!
   this->collision_request_.contacts = true;
   this->collision_request_.max_contacts = 1000;
 

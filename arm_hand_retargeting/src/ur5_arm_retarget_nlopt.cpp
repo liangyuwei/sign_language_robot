@@ -924,9 +924,9 @@ void MyNLopt::myconstraint(unsigned m, double *result, unsigned n, const double 
   std::chrono::duration<double> t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::chrono::duration<double> t2_3 = std::chrono::duration_cast<std::chrono::duration<double>>(t3 - t2);
   //std::cout << "time used for constructor: " << time_used.count() << " s" << std::endl;
-  //std::cout << "[ Time Usage ]" << std::endl;
-  //std::cout << "Estimate cost value: " << t0_1.count() << " s" << std::endl;
-  //std::cout << "Estimate gradient value: " << t2_3.count() << " s" << std::endl;
+  std::cout << "[ Time Usage ]" << std::endl;
+  std::cout << "Estimate cost value: " << t0_1.count() << " s" << std::endl;
+  std::cout << "Estimate gradient value: " << t2_3.count() << " s" << std::endl;
 
 
 
