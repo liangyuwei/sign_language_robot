@@ -9,6 +9,12 @@ find_package(catkin REQUIRED)
 ## System dependencies are found with CMake's conventions
 find_package(gazebo REQUIRED)
 
+## Find gazebo_ros, added by Yuwei Liang, on 2020/05/08, without this CMake couldn't find gazebo_ros
+find_package(gazebo_ros REQUIRED)
+include_directories(${gazebo_ros_INCLUDE_DIRS})
+
+
+
 set(CMAKE_CXX_FLAGS "-O3 -std=c++11")
 
 catkin_package(
