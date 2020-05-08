@@ -470,7 +470,7 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
 };
 
 
-/* Define constraint for scaled wrist and elbow position */
+/* Define constraint for ... */
 class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArmDualHandVertex>
 {
   public:
@@ -687,9 +687,7 @@ double MyUnaryConstraints::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 
 void MyUnaryConstraints::computeError()
 {
-  // compute the error function
-  std::cout << "Computing the unary edge's cost: ";
-
+  
   // get the current joint value
   // _vertices is a VertexContainer type, a std::vector<Vertex*>
   const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
@@ -704,12 +702,30 @@ void MyUnaryConstraints::computeError()
   q_cur_finger_r = x.block<12, 1>(26, 0); 
   
   // Compute unary costs
-  double cost = compute_arm_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
-  cost = compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
-  cost += compute_finger_cost(q_cur_finger_l, true, _measurement);  
-  cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
-  cost += 2.0 * compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
-  cost += 5.0 * compute_pos_limit_cost(x, _measurement);
+  // 1
+  double arm_cost = compute_arm_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
+  arm_cost += compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+  //std::cout << "Arm cost=";
+  //std::cout << arm_cost << ", ";
+  // 2
+  double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
+  finger_cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
+  //std::cout << "Finger cost=";
+  //std::cout << finger_cost << ", ";
+  // 3
+  double collision_cost = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
+  //std::cout << "Collision cost=";
+  //std::cout << collision_cost << ", ";
+  // 4
+  double pos_limit_cost = compute_pos_limit_cost(x, _measurement);
+  //std::cout << "Pos limit cost=";
+  //std::cout << pos_limit_cost << "; ";
+
+  // total cost
+  double cost = arm_cost + finger_cost + 2.0*collision_cost + 5.0*pos_limit_cost;
+  //std::cout << "Total cost=";
+  //std::cout << cost << std::endl;
+
 
   // protected attributes
   // _measurement, set by setMeasurement() method, a deep copy;
@@ -719,7 +735,9 @@ void MyUnaryConstraints::computeError()
   // compute the cost (constraint value)
   _error(0, 0) = cost;
 
-  std::cout << cost << std::endl;
+
+  // Display message
+  //std::cout << "Computing unary edge's cost: " << cost << std::endl;
             
 }
 
@@ -736,7 +754,7 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
     
     void computeError()
     {
-      std::cout << "Computing binary edge's cost: ";
+      
       // Get the values of the two vertices
       const DualArmDualHandVertex *v0 = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
       const DualArmDualHandVertex *v1 = static_cast<const DualArmDualHandVertex*>(_vertices[1]);
@@ -744,9 +762,12 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
       const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
       // Compute smoothness cost
-      _error(0, 0) = 1.0 * (x0 - x1).norm();
+      _error(0, 0) = 10.0 * (x0 - x1).norm();
+      //std::cout << "Smoothness cost=";
+      //std::cout << _error(0, 0) << std::endl;
 
-      std::cout << _error(0, 0) << std::endl;
+      // Display message
+      //std::cout << "Computing binary edge's cost: " << _error(0, 0) << std::endl;
 
     }
 
@@ -784,7 +805,7 @@ int main(int argc, char *argv[])
 
   // Optimization settings
   std::string in_file_name = "test_imi_data_YuMi.h5";
-  std::string in_group_name = "fengren";
+  std::string in_group_name = "fengren_1";
   std::string out_file_name = "mocap_ik_results_YuMi_g2o.h5";
 
 
@@ -838,7 +859,7 @@ int main(int argc, char *argv[])
   }
   std::cout << "The input h5 file name is: " << in_file_name << std::endl;
   std::cout << "The motion name is: " << in_group_name << std::endl;
-  std::cout << "The output h5 file name is: " << in_group_name << std::endl;
+  std::cout << "The output h5 file name is: " << out_file_name << std::endl;
 
 
 
@@ -847,6 +868,7 @@ int main(int argc, char *argv[])
 
   // Create a struct for storing user-defined data
   my_constraint_struct constraint_data; 
+
 
   // Input Cartesian trajectories
   std::vector<double> x(JOINT_DOF);
@@ -921,15 +943,17 @@ int main(int argc, char *argv[])
   std::cout << "========== Constructing an optimization graph ==========" << std::endl;
   // Construct solver (be careful, use unique_ptr instead!!! )
   typedef BlockSolver<BlockSolverTraits<JOINT_DOF, 1> > Block; // BlockSolverTraits<_PoseDim, _LandmarkDim>
-  //Block::LinearSolverType *linearSolver = new LinearSolverDense<Block::PoseMatrixType>(); // dense solution
+
+  //std::unique_ptr<Block::LinearSolverType> linearSolver( new LinearSolverDense<Block::PoseMatrixType>()); // dense solution
   std::unique_ptr<Block::LinearSolverType> linearSolver( new LinearSolverCholmod<Block::PoseMatrixType>()); // Cholmod
-  //Block::LinearSolverType *linearSolver = new LinearSolverCsparse<Block::PoseMatrixType>(); // Csparse
-  //Block::LinearSolverType *linearSolver = new LinearSolverPCG<Block::PoseMatrixType>(); // PCG
+  //std::unique_ptr<Block::LinearSolverType> linearSolver( new LinearSolverCSparse<Block::PoseMatrixType>()); // CSparse
+  //std::unique_ptr<Block::LinearSolverType> linearSolver( new LinearSolverPCG<Block::PoseMatrixType>()); // PCG
+
   std::unique_ptr<Block> solver_ptr( new Block(std::move(linearSolver)) ); // Matrix block solver
 
   // Choose update rule
-  //OptimizationAlgorithmLevenberg *solver = new OptimizationAlgorithmLevenberg(std::move(solver_ptr));
-  OptimizationAlgorithmGaussNewton *solver = new OptimizationAlgorithmGaussNewton(std::move(solver_ptr));
+  OptimizationAlgorithmLevenberg *solver = new OptimizationAlgorithmLevenberg(std::move(solver_ptr));
+  //OptimizationAlgorithmGaussNewton *solver = new OptimizationAlgorithmGaussNewton(std::move(solver_ptr));
   //OptimizationAlgorithmDogleg *solver = new OptimizationAlgorithmDogleg(solver_ptr);
 
   // Construct an optimizer (a graph model)
@@ -951,14 +975,16 @@ int main(int argc, char *argv[])
 
   // Add vertices and edges
   std::cout << "========== Adding vertices and unary edges ==========" << std::endl;
-  num_datapoints = 3;
+  //num_datapoints = 3;
   std::vector<DualArmDualHandVertex*> v_list(num_datapoints);
+  std::vector<MyUnaryConstraints*> unary_edges;
+  std::vector<SmoothnessConstraint*> smoothness_edges;  
   for (unsigned int it = 0; it < num_datapoints; ++it)
   {
     // add vertices
     //DualArmDualHandVertex *v = new DualArmDualHandVertex();
     v_list[it] = new DualArmDualHandVertex();
-    v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Zero()); // feed in initial guess
+    v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Identity()); // feed in initial guess
     v_list[it]->setId(it); // set a unique id
     optimizer.addVertex(v_list[it]);
 
@@ -1007,23 +1033,31 @@ int main(int argc, char *argv[])
     // add unary edges
     MyUnaryConstraints *unary_edge = new MyUnaryConstraints(left_fk_solver, right_fk_solver, dual_arm_dual_hand_collision_ptr);
     unary_edge->setId(it);
-    unary_edge->setVertex(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
+    unary_edge->setVertex(0, optimizer.vertex(it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
     unary_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
-    //edge->setInformation(); // information matrix, inverse of covariance.. importance
+    unary_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
     optimizer.addEdge(unary_edge);
+
+    unary_edges.push_back(unary_edge);
     
   }
 
+  
   std::cout << "========== Adding binary edges ==========" << std::endl;
   for (unsigned int it = 0; it < num_datapoints - 1; ++it)
   {
     // Add binary edges
     SmoothnessConstraint *smoothness_edge = new SmoothnessConstraint();
     smoothness_edge->setId(it+num_datapoints); // set a unique ID
-    smoothness_edge->setVertex(0, v_list[it]);
-    smoothness_edge->setVertex(1, v_list[it+1]); // binary edge, connects only 2 vertices, i.e. i=0 and i=1
+    smoothness_edge->setVertex(0, optimizer.vertex(it)); //v_list[it]);
+    smoothness_edge->setVertex(1, optimizer.vertex(it+1)); //v_list[it+1]); // binary edge, connects only 2 vertices, i.e. i=0 and i=1
+    smoothness_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // Information type correct
     optimizer.addEdge(smoothness_edge);
+
+    smoothness_edges.push_back(smoothness_edge);
+
   }
+
 
   
 
@@ -1031,15 +1065,63 @@ int main(int argc, char *argv[])
   std::cout << "Start optimization:" << std::endl;
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   optimizer.initializeOptimization();
-  optimizer.optimize(2); // optimize for a number of iterations
+  //optimizer.computeInitialGuess();  
+  //optimizer.computeActiveErrors();
+
+  std::cout << "optimizing graph, vertices: " << optimizer.vertices().size() << std::endl;
+
+  //bool saveFlag = optimizer.save("./g2o_results/result_before.g2o");
+  //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
+
+
+  optimizer.optimize(100); // optimize for a number of iterations
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Total time used for optimization: " << t_spent.count() << " s" << std::endl;
+
+  //saveFlag = optimizer.save("./g2o_results/result_after.g2o");
+  //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
+
+  std::cout << "Optimization done." << std::endl;
   
+
+  // estimate Count of inlier ???
+  /*
+  int inliers = 0;
+  for (auto e:unary_edges)
+  {
+    e->computeError();
+
+    std::cout << "unary edge error = " << e->chi2() << std::endl;
+
+  }
+  for (auto e:smoothness_edges)
+  {
+    e->computeError();
+
+    std::cout << "smoothness edge error = " << e->chi2() << std::endl;
+
+  }
+  */
+
+
 
   // Store the optimization value
   Matrix<double, JOINT_DOF, 1> q_result = v_list[0]->estimate();
-  std::cout << "Joint values for the path point 1/" << num_datapoints << ": " << q_result.transpose() << std::endl; // check if the setId() method can be used to get the value
+  std::cout << std::endl << "Joint values for the path point 1/" << num_datapoints << ": " << q_result.transpose() << std::endl; // check if the setId() method can be used to get the value
+
+  q_result = v_list[1]->estimate();
+  std::cout << std::endl << "Joint values for the path point 2/" << num_datapoints << ": " << q_result.transpose() << std::endl; // check if the setId() method can be used to get the value
+
+  q_result = v_list[2]->estimate();
+  std::cout << std::endl << "Joint values for the path point 3/" << num_datapoints << ": " << q_result.transpose() << std::endl; // check if the setId() method can be used to get the value
+
+  
+  bool PSDFlag = optimizer.verifyInformationMatrices(true);
+
+  if(PSDFlag)
+    std::cout << "All information matrices are Positive Semi-Definite." << std::endl;
+
 
 
 
