@@ -210,6 +210,12 @@ add_library(collision_checking_yumi src/collision_checking_yumi.cpp)
 target_link_libraries(collision_checking_yumi ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 
+add_library(generate_trajectory_from_viepoints src/generate_trajectory_from_viepoints.cpp)
+target_link_libraries(generate_trajectory_from_viepoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+
+
+
+
 # retargeting code for UR5 configuration
 add_executable(ur5_arm_retarget_nlopt src/ur5_arm_retarget_nlopt.cpp)
 target_link_libraries(ur5_arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
@@ -230,12 +236,16 @@ target_link_libraries(yumi_arm_retarget_g2o ${G2O_LIBRARIES} ) # g2o-related
 
 
 # Test module
-add_executable(TEST_collision_checking src/TEST_collision_checking)
+add_executable(TEST_collision_checking src/TEST_collision_checking.cpp)
 target_link_libraries(TEST_collision_checking ${catkin_LIBRARIES} collision_checking)
 
 
 add_executable(TEST_collision_checking_yumi src/collision_checking_yumi.cpp)
 target_link_libraries(TEST_collision_checking_yumi ${catkin_LIBRARIES} collision_checking_yumi)
+
+
+#add_executable(TEST_generate_trajectory_from_viepoints src/generate_trajectory_from_viepoints.cpp)
+#target_link_libraries(TEST_generate_trajectory_from_viepoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 
 #add_executable(distance_computation src/distance_computation.cpp)

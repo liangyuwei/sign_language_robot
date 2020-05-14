@@ -886,6 +886,8 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double>> read_l_finger_pos_traj = read_h5(in_file_name, in_group_name, "l_glove_angle"); // N * 14 size
   std::vector<std::vector<double>> read_r_finger_pos_traj = read_h5(in_file_name, in_group_name, "r_glove_angle"); // N * 14 size  
   std::vector<std::vector<double>> read_time_stamps = read_h5(in_file_name, in_group_name, "time"); 
+
+
   unsigned int num_datapoints = read_l_wrist_pos_traj.size(); 
 
 
