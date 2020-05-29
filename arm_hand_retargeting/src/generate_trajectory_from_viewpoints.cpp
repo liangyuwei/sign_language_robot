@@ -11,7 +11,7 @@
 //#include "H5Location.h"
 
 
-#include "generate_trajectory_from_viepoints.h"
+#include "generate_trajectory_from_viewpoints.h"
 
 
 using namespace std;

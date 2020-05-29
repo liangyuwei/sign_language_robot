@@ -54,6 +54,12 @@
 // For collision checking
 #include "collision_checking_yumi.h"
 
+
+// For libTorch; one-stop header
+//#include <torch/script.h>
+//#include <torch/torch.h>
+#include "tmp_torch.h"
+
 // Macros
 #define JOINT_DOF 38
 
@@ -411,9 +417,9 @@ std::vector<std::vector<double>> read_h5(const std::string file_name, const std:
     double data_array[ROW][COL];
     dataset.read(data_array, PredType::NATIVE_DOUBLE);
     std::vector<std::vector<double>> data_vector(ROW, std::vector<double>(COL));
-    for (int j = 0; j < dims_out[0]; j++)
+    for (unsigned int j = 0; j < dims_out[0]; j++)
     {
-      for (int i = 0; i < dims_out[1]; i++)
+      for (unsigned int i = 0; i < dims_out[1]; i++)
         data_vector[j][i] = data_array[j][i];
     }
 
@@ -465,8 +471,8 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
     }
 
     // Read and write, leave blank
-    virtual bool read( std::istream& in ) {}
-    virtual bool write( std::ostream& out ) const {}
+    virtual bool read( std::istream& in ) {return true;}
+    virtual bool write( std::ostream& out ) const {return true;}
 };
 
 
@@ -487,8 +493,8 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     void computeError();
 
     // Read and write, leave blank
-    virtual bool read( std::istream& in ) {}
-    virtual bool write( std::ostream& out ) const {}
+    virtual bool read( std::istream& in ) {return true;}
+    virtual bool write( std::ostream& out ) const {return true;}
 
   public:
     // FK solvers
@@ -770,8 +776,8 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
     }
 
     // Read and write, leave blank
-    virtual bool read( std::istream& in ) {}
-    virtual bool write( std::ostream& out ) const {}
+    virtual bool read( std::istream& in ) {return true;}
+    virtual bool write( std::ostream& out ) const {return true;}
 
 };
 
@@ -782,6 +788,35 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
 // class AccLimitConstraint : public BaseMultiEdge<>{}; // add in timestamp variables
 
 // class CoordinationConstraint : public BaseBinaryEdge<>{}; // Coordination constraints to keep
+
+
+/* Define constraint for evaluating trajectory similarity */
+class SimilarityConstraints : public BaseMultiEdge<1, std::vector<double> > // <D, E>, dimension and measurement datatype
+{
+  public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    SimilarityConstraints(std::string file_name)
+    {
+      this->similarity_network_model = file_name;
+    };
+    ~SimilarityConstraints(){};    
+
+    // functions to compute costs
+    void computeError()
+    {
+      _error(0, 0) = 0;
+    }
+
+    // Read and write, leave blank
+    virtual bool read( std::istream& in ) {return true;}
+    virtual bool write( std::ostream& out ) const {return true;}
+
+
+  public:
+    std::string similarity_network_model;
+    
+};
+
 
 
 std::stringstream read_file(std::string file_name)
@@ -799,6 +834,11 @@ int main(int argc, char *argv[])
 
   // Initialize a ros node, for the calculation of collision distance
   ros::init(argc, argv, "yumi_sign_language_robot_retargeting");
+
+
+  // test
+  std::cout << "Test the torch..." << std::endl;
+  test_torch();
 
 
   // Optimization settings
@@ -858,9 +898,6 @@ int main(int argc, char *argv[])
   std::cout << "The input h5 file name is: " << in_file_name << std::endl;
   std::cout << "The motion name is: " << in_group_name << std::endl;
   std::cout << "The output h5 file name is: " << out_file_name << std::endl;
-
-
-
 
 
 
