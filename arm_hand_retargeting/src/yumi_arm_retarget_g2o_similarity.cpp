@@ -55,14 +55,17 @@
 #include "collision_checking_yumi.h"
 
 
-// For libTorch; one-stop header
-//#include <torch/script.h>
-//#include <torch/torch.h>
-#include "tmp_torch.h"
+// For similarity network (libtorch)
+#include "similarity_network_pytorch.h"
+
+
+// For trajectory generator
+#include "generate_trajectory_from_viewpoints.h"
+
 
 // Macros
 #define JOINT_DOF 38
-
+#define PASSPOINT_DOF 48
 
 using namespace g2o;
 using namespace Eigen;
@@ -150,6 +153,10 @@ typedef struct {
   Vector3d r_wrist_cur;
   double l_r_wrist_diff_cost;
 
+
+  // for selecting point on new trajectory (y_seq)
+  unsigned int point_id = 0;
+  
 
   // A class for distance computation (collision avoidance)
   int argc;
@@ -476,7 +483,32 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
 };
 
 
-/* Define constraint for ... */
+
+/* Define vertex for pass points */
+class PassPointVertex : public BaseVertex<PASSPOINT_DOF, Matrix<double, PASSPOINT_DOF, 1> >
+{
+  public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    virtual void setToOriginImpl() // reset
+    {
+      _estimate << Matrix<double, PASSPOINT_DOF, 1>::Zero();
+    }
+  
+    virtual void oplusImpl(const double *update) // update rule
+    {
+      for (unsigned int i = 0; i < PASSPOINT_DOF; ++i)
+        _estimate[i] += update[i];
+    }
+
+    // Read and write, leave blank
+    virtual bool read( std::istream& in ) {return true;}
+    virtual bool write( std::ostream& out ) const {return true;}
+
+};
+
+
+
+/* Define constraint for tracking error */
 class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArmDualHandVertex>
 {
   public:
@@ -708,29 +740,37 @@ void MyUnaryConstraints::computeError()
   q_cur_finger_r = x.block<12, 1>(26, 0); 
   
   // Compute unary costs
+/*
   // 1
   double arm_cost = compute_arm_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
   arm_cost += compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
   //std::cout << "Arm cost=";
   //std::cout << arm_cost << ", ";
+
   // 2
   double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
   finger_cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
   //std::cout << "Finger cost=";
   //std::cout << finger_cost << ", ";
+*/
+  
   // 3
   double collision_cost = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
   //std::cout << "Collision cost=";
   //std::cout << collision_cost << ", ";
+  
   // 4
   double pos_limit_cost = compute_pos_limit_cost(x, _measurement);
   //std::cout << "Pos limit cost=";
   //std::cout << pos_limit_cost << "; ";
 
   // total cost
-  double cost = arm_cost + finger_cost + 2.0*collision_cost + 5.0*pos_limit_cost;
+  //double cost = arm_cost + finger_cost + 2.0*collision_cost + 5.0*pos_limit_cost;
+  double cost = 2.0*collision_cost + 5.0*pos_limit_cost;
   //std::cout << "Total cost=";
   //std::cout << cost << std::endl;
+
+
 
 
   // protected attributes
@@ -791,31 +831,318 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
 
 
 /* Define constraint for evaluating trajectory similarity */
-class SimilarityConstraints : public BaseMultiEdge<1, std::vector<double> > // <D, E>, dimension and measurement datatype
+class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, E>, dimension and measurement datatype
 {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    SimilarityConstraints(std::string file_name)
-    {
-      this->similarity_network_model = file_name;
-    };
-    ~SimilarityConstraints(){};    
+    
+    SimilarityConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, boost::shared_ptr<SimilarityNetwork> &_similarity_network_ptr) : trajectory_generator_ptr(_trajectory_generator_ptr), similarity_network_ptr(_similarity_network_ptr) {};
+  
+    ~SimilarityConstraint(){};    
+
+    // trajectory generator and similarity network
+    boost::shared_ptr<TrajectoryGenerator> &trajectory_generator_ptr;
+    boost::shared_ptr<SimilarityNetwork> &similarity_network_ptr;
+    
 
     // functions to compute costs
     void computeError()
     {
-      _error(0, 0) = 0;
+      // Get pass_points as stack
+      int num_vertices = _vertices.size(); // VertexContainer, i.e. std::vector<Vertex*>
+      //Matrix<double, PASSPOINT_DOF, num_vertices> pass_points;
+      MatrixXd pass_points;
+      for (int n = 0; n < num_vertices; n++)
+      { 
+        const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
+        pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate();        
+      }
+    
+      // Generate new trajectory
+      MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+      std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
+
+      // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
+      MatrixXd y_seq_tmp = y_seq.transpose();
+      VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), 4800);
+
+      // compute similariity distance(it would do the normalization)
+      double dist = similarity_network_ptr->compute_distance(new_traj);
+
+      _error(0, 0) = 5.0 * dist;
+    
+    
     }
 
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
     virtual bool write( std::ostream& out ) const {return true;}
 
-
-  public:
-    std::string similarity_network_model;
     
 };
+
+
+
+
+/* Define constraint for computing tracking error */
+class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, E>, dimension and measurement datatype
+{
+  public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    // Constructor and destructor
+    TrackingConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, KDL::ChainFkSolverPos_recursive &_left_fk_solver, KDL::ChainFkSolverPos_recursive &_right_fk_solver) : trajectory_generator_ptr(_trajectory_generator_ptr), left_fk_solver(_left_fk_solver), right_fk_solver(_right_fk_solver) {};
+    ~TrackingConstraint(){};    
+
+
+    // trajectory generator and similarity network
+    boost::shared_ptr<TrajectoryGenerator> &trajectory_generator_ptr;
+
+
+    // KDL solver
+    KDL::ChainFkSolverPos_recursive &left_fk_solver;
+    KDL::ChainFkSolverPos_recursive &right_fk_solver;
+
+
+    // functions to compute costs
+    double compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
+    double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
+    double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct &fdata);
+    void computeError();
+
+    // Read and write, leave blank
+    virtual bool read( std::istream& in ) {return true;}
+    virtual bool write( std::ostream& out ) const {return true;}
+    
+};
+
+
+double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
+    {
+      // Get joint angles
+      KDL::JntArray q_in(q_cur.size()); 
+      for (unsigned int i = 0; i < q_cur.size(); ++i)
+      {
+        q_in(i) = q_cur(i);
+      }
+
+      // Do FK using KDL, get the current elbow/wrist/shoulder state
+      KDL::Frame elbow_cart_out, wrist_cart_out, shoulder_cart_out; // Output homogeneous transformation
+      int result;
+      result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
+      if (result < 0){
+        ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+        exit(-1);
+      }
+      else{
+        //ROS_INFO_STREAM("FK solver succeeded for elbow link.");
+      }
+      result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1);
+      if (result < 0){
+        ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+        exit(-1);
+      }
+      else{
+        //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+      }
+      result = fk_solver.JntToCart(q_in, shoulder_cart_out, num_shoulder_seg+1);
+      if (result < 0){
+        ROS_INFO_STREAM("FK solver failed when processing shoulder link, something went wrong");
+        exit(-1);
+        }
+      else{
+        //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+      }
+
+      // Preparations
+      Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
+      Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
+      Matrix3d wrist_ori_cur = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out.M.data, 3, 3); 
+      Vector3d shoulder_pos_cur = Map<Vector3d>(shoulder_cart_out.p.data, 3, 1);
+
+      Vector3d shoulder_pos_human, elbow_pos_human, wrist_pos_human;
+      Matrix3d wrist_ori_human;
+      if (left_or_right) // left arm
+      {
+        shoulder_pos_human = fdata.l_shoulder_pos_goal;
+        elbow_pos_human = fdata.l_elbow_pos_goal;
+        wrist_pos_human = fdata.l_wrist_pos_goal;
+        wrist_ori_human = fdata.l_wrist_ori_goal;
+
+        fdata.l_wrist_cur = wrist_pos_cur;
+      }
+      else // right arm
+      {
+        shoulder_pos_human = fdata.r_shoulder_pos_goal;
+        elbow_pos_human = fdata.r_elbow_pos_goal;
+        wrist_pos_human = fdata.r_wrist_pos_goal;
+        wrist_ori_human = fdata.r_wrist_ori_goal;
+
+        fdata.r_wrist_cur = wrist_pos_cur;
+
+      }
+
+
+  // Compute cost function
+  double wrist_pos_cost = (wrist_pos_cur - wrist_pos_human).norm(); // _human is actually the newly generated trajectory
+  double elbow_pos_cost = (elbow_pos_cur - elbow_pos_human).norm();
+  double wrist_ori_cost = std::fabs( std::acos (( (wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
+  double cost = 1.0 * wrist_ori_cost + 1.0 * wrist_pos_cost + 1.0 * elbow_pos_cost;
+
+
+  // Return cost function value
+  return cost;
+
+}
+
+
+double TrackingConstraint::linear_map(double x_, double min_, double max_, double min_hat, double max_hat)
+{
+  return (x_ - min_) / (max_ - min_) * (max_hat - min_hat) + min_hat;
+}
+
+
+double TrackingConstraint::compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct &fdata)
+{
+  // Obtain required data and parameter settings
+  Matrix<double, 14, 1> q_finger_human;
+  Matrix<double, 14, 1> human_finger_start = fdata.glove_start;
+  Matrix<double, 14, 1> human_finger_final = fdata.glove_final;
+  Matrix<double, 12, 1> robot_finger_start, robot_finger_final;
+  if (left_or_right)
+  {
+    // Get the sensor data
+    q_finger_human = fdata.l_finger_pos_goal;
+    // Get bounds
+    robot_finger_start = fdata.l_robot_finger_start;
+    robot_finger_final = fdata.l_robot_finger_final;
+  }
+  else
+  {
+    // Get the sensor data
+    q_finger_human = fdata.r_finger_pos_goal;    
+    // Get bounds
+    robot_finger_start = fdata.r_robot_finger_start;
+    robot_finger_final = fdata.r_robot_finger_final;
+  }
+
+
+  // Direct mapping and linear scaling
+  Matrix<double, 12, 1> q_finger_robot_goal;
+  q_finger_robot_goal[0] = linear_map(q_finger_human[3], human_finger_start[3], human_finger_final[3], robot_finger_start[0], robot_finger_final[0]);
+  q_finger_robot_goal[1] = linear_map(q_finger_human[4], human_finger_start[4], human_finger_final[4], robot_finger_start[1], robot_finger_final[1]);
+  q_finger_robot_goal[2] = linear_map(q_finger_human[6], human_finger_start[6], human_finger_final[6], robot_finger_start[2], robot_finger_final[2]);
+  q_finger_robot_goal[3] = linear_map(q_finger_human[7], human_finger_start[7], human_finger_final[7], robot_finger_start[3], robot_finger_final[3]);
+  q_finger_robot_goal[4] = linear_map(q_finger_human[9], human_finger_start[9], human_finger_final[9], robot_finger_start[4], robot_finger_final[4]);
+  q_finger_robot_goal[5] = linear_map(q_finger_human[10], human_finger_start[10], human_finger_final[10], robot_finger_start[5], robot_finger_final[5]);
+  q_finger_robot_goal[6] = linear_map(q_finger_human[12], human_finger_start[12], human_finger_final[12], robot_finger_start[6], robot_finger_final[6]);
+  q_finger_robot_goal[7] = linear_map(q_finger_human[13], human_finger_start[13], human_finger_final[13], robot_finger_start[7], robot_finger_final[7]);
+  q_finger_robot_goal[8] = (robot_finger_start[8] + robot_finger_final[8]) / 2.0;
+  q_finger_robot_goal[9] = linear_map(q_finger_human[2], human_finger_start[2], human_finger_final[2], robot_finger_start[9], robot_finger_final[9]);
+  q_finger_robot_goal[10] = linear_map(q_finger_human[0], human_finger_start[0], human_finger_final[0], robot_finger_start[10], robot_finger_final[10]);
+  q_finger_robot_goal[11] = linear_map(q_finger_human[1], human_finger_start[1], human_finger_final[1], robot_finger_start[11], robot_finger_final[11]); 
+
+  
+  // Compute cost
+  double finger_cost = (q_finger_robot_goal - q_finger_robot).norm();
+
+
+  if (left_or_right)
+  {
+    fdata.scaled_l_finger_pos_cost = finger_cost;
+  }
+  else
+  {
+    fdata.scaled_r_finger_pos_cost = finger_cost;
+  }
+
+  return finger_cost;
+
+}
+
+
+
+void TrackingConstraint::computeError()
+{
+  // get the current joint value
+  // _vertices is a VertexContainer type, a std::vector<Vertex*>
+  const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
+  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+  
+
+  // Get joint angles
+  Matrix<double, 7, 1> q_cur_l, q_cur_r;
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = x.block<7, 1>(0, 0);
+  q_cur_r = x.block<7, 1>(7, 0);
+  q_cur_finger_l = x.block<12, 1>(14, 0);
+  q_cur_finger_r = x.block<12, 1>(26, 0); 
+  
+  
+  // Get pass_points as stack
+  unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
+  //Matrix<double, PASSPOINT_DOF, num_vertices> pass_points;
+  MatrixXd pass_points;
+  for (int n = 1; n < num_passpoints; n++) // starting from 1, bypass 0
+  { 
+    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
+    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate();        
+  }
+   
+  // Generate new trajectory
+  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+  //std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
+  // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
+  //MatrixXd y_seq_tmp = y_seq.transpose();
+  //VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), 4800);
+  
+  
+  // Set new goals(expected trajectory) to _measurement
+  unsigned int point_id = _measurement.point_id;
+  VectorXd y_seq_point = y_seq.block(point_id, 0, 1, 48);
+  
+  _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 1, 3); // Vector3d
+  Quaterniond q_l(y_seq_point(0, 3), y_seq_point(0, 4), y_seq_point(0, 5), y_seq_point(0, 6));
+  Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
+  _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
+  _measurement.l_elbow_pos_goal = y_seq_point.block(0, 7, 1, 3);
+
+
+  _measurement.r_wrist_pos_goal = y_seq_point.block(0, 10, 1, 3); // Vector3d
+  Quaterniond q_r(y_seq_point(0, 13), y_seq_point(0, 14), y_seq_point(0, 15), y_seq_point(0, 16));
+  Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
+  _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
+  _measurement.r_elbow_pos_goal = y_seq_point.block(0, 17, 1, 3);
+
+  _measurement.l_finger_pos_goal = y_seq_point.block(0, 20, 1, 14); // y_seq's glove data is already in radius
+  _measurement.r_finger_pos_goal = y_seq_point.block(0, 34, 1, 14);
+
+  //21,22,23,24, 25,26,27,28, 29,30,31,32, 33,34,
+  //35,36,37,38,39,40,41,42,43,44,45,46,47,48
+
+  
+  // Compute unary costs
+  // 1
+  double arm_cost = compute_arm_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
+  arm_cost += compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+  //std::cout << "Arm cost=";
+  //std::cout << arm_cost << ", ";
+
+  // 2
+  double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
+  finger_cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
+  //std::cout << "Finger cost=";
+  //std::cout << finger_cost << ", ";
+
+  // total cost
+  double cost = arm_cost + finger_cost;
+
+  // compute the cost (constraint value)
+  _error(0, 0) = cost;
+
+
+            
+}
+
 
 
 
@@ -837,8 +1164,8 @@ int main(int argc, char *argv[])
 
 
   // test
-  std::cout << "Test the torch..." << std::endl;
-  test_torch();
+//  std::cout << "Test the torch..." << std::endl;
+//  test_torch();
 
 
   // Optimization settings
@@ -908,23 +1235,42 @@ int main(int argc, char *argv[])
   // Input Cartesian trajectories
   std::vector<double> x(JOINT_DOF);
   std::cout << "========== Reading imitation data from h5 file ==========" << std::endl;
+/*
+  std::cout << "left part: " << std::endl;
   std::vector<std::vector<double>> read_l_wrist_pos_traj = read_h5(in_file_name, in_group_name, "l_wrist_pos"); 
   std::vector<std::vector<double>> read_l_wrist_ori_traj = read_h5(in_file_name, in_group_name, "l_wrist_ori"); 
   std::vector<std::vector<double>> read_l_elbow_pos_traj = read_h5(in_file_name, in_group_name, "l_elbow_pos"); 
   std::vector<std::vector<double>> read_l_shoulder_pos_traj = read_h5(in_file_name, in_group_name, "l_shoulder_pos"); 
 
+  std::cout << "right part: " << std::endl;
   std::vector<std::vector<double>> read_r_wrist_pos_traj = read_h5(in_file_name, in_group_name, "r_wrist_pos"); 
   std::vector<std::vector<double>> read_r_wrist_ori_traj = read_h5(in_file_name, in_group_name, "r_wrist_ori"); 
   std::vector<std::vector<double>> read_r_elbow_pos_traj = read_h5(in_file_name, in_group_name, "r_elbow_pos"); 
   std::vector<std::vector<double>> read_r_shoulder_pos_traj = read_h5(in_file_name, in_group_name, "r_shoulder_pos"); 
 
+  std::cout << "finger part: " << std::endl;
   std::vector<std::vector<double>> read_l_finger_pos_traj = read_h5(in_file_name, in_group_name, "l_glove_angle"); // N * 14 size
   std::vector<std::vector<double>> read_r_finger_pos_traj = read_h5(in_file_name, in_group_name, "r_glove_angle"); // N * 14 size  
+*/
+
   std::vector<std::vector<double>> read_time_stamps = read_h5(in_file_name, in_group_name, "time"); 
 
 
-  unsigned int num_datapoints = read_l_wrist_pos_traj.size(); 
 
+  std::cout << "others: " << std::endl;
+
+  std::vector<std::vector<double>> read_pass_points = read_h5(in_file_name, in_group_name, "pass_points"); 
+  std::cout << "others: " << std::endl;  
+  std::vector<std::vector<double>> read_original_traj = read_h5(in_file_name, in_group_name, "resampled_normalized_flattened_oritraj"); 
+  
+  std::cout << "others: " << std::endl;  
+  unsigned int num_datapoints = 100; // pre-defined, fixed // = read_l_wrist_pos_traj.size(); 
+
+  unsigned int num_passpoints = read_pass_points.size();
+  
+  std::cout << "number of pass points: " << num_passpoints << std::endl;
+
+  exit(0);
 
  // Variables' bounds
   const std::vector<double> q_l_arm_lb = {-2.9, -2.49, 0.0, -1.7, -1.578, -1.5, -1.57};//{-2.94, -2.5, -2.94, -2.16, -5.06, -1.54, -4.0};
@@ -1010,12 +1356,49 @@ int main(int argc, char *argv[])
   dual_arm_dual_hand_collision_ptr.reset( new DualArmDualHandCollision(urdf_string.str(), srdf_string.str()) );
 
 
+  // Prepare trajectory generator
+  boost::shared_ptr<TrajectoryGenerator> trajectory_generator_ptr;
+  trajectory_generator_ptr.reset( new TrajectoryGenerator(in_file_name, in_group_name) );  
+
+  // Prepare similarity network
+  std::string model_path = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/traced_model_adam_euclidean_epoch500_bs128_group_split_dataset.pt";
+  VectorXd original_traj(4800);
+  for (int i = 0; i < read_original_traj.size(); i++)
+    original_traj[i] = read_original_traj[i][0];
+  boost::shared_ptr<SimilarityNetwork> similarity_network_ptr;
+  similarity_network_ptr.reset( new SimilarityNetwork(model_path, original_traj) );  
+
+
+
   // Add vertices and edges
-  std::cout << "========== Adding vertices and unary edges ==========" << std::endl;
-  //num_datapoints = 3;
+  num_datapoints = 100; // pre-defined, fixed !!!
   std::vector<DualArmDualHandVertex*> v_list(num_datapoints);
+  std::vector<PassPointVertex*> pv_list(num_passpoints);
   std::vector<MyUnaryConstraints*> unary_edges;
   std::vector<SmoothnessConstraint*> smoothness_edges;  
+  std::vector<TrackingConstraint*> tracking_edges;
+  SimilarityConstraint* similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr);
+  
+  std::cout << "========== Adding pass_points vertices and similarity edge ==========" << std::endl;
+  similarity_edge->setId(10086);
+  for (unsigned int it = 0; it < num_passpoints; it++)
+  {
+    // preparation
+    std::vector<double> pass_point = read_pass_points[it]; // 48-dim
+    Matrix<double, PASSPOINT_DOF, 1> pass_point_mat = Map<Matrix<double, PASSPOINT_DOF, 1>>(pass_point.data(), PASSPOINT_DOF, 1);
+    
+    // create vertex
+    pv_list[it] = new PassPointVertex();
+    pv_list[it]->setEstimate(pass_point_mat);
+    pv_list[it]->setId(10086+it); // set a unique id
+    optimizer.addVertex(pv_list[it]);    
+
+    // connect to edge
+    similarity_edge->setVertex(it, optimizer.vertex(10086+it));
+  }
+  
+  
+  std::cout << "========== Adding vertices, unary edges and tracking_error edges ==========" << std::endl;  
   for (unsigned int it = 0; it < num_datapoints; ++it)
   {
     // add vertices
@@ -1025,6 +1408,7 @@ int main(int argc, char *argv[])
     v_list[it]->setId(it); // set a unique id
     optimizer.addVertex(v_list[it]);
 
+    /*
     // set up path point info
     std::vector<double> l_wrist_pos = read_l_wrist_pos_traj[it]; // 3-dim
     std::vector<double> l_wrist_ori = read_l_wrist_ori_traj[it]; // 9-dim
@@ -1066,6 +1450,11 @@ int main(int argc, char *argv[])
 
     constraint_data.l_finger_pos_goal = l_finger_pos_goal * M_PI / 180.0; // remember to convert from degree to radius!!!
     constraint_data.r_finger_pos_goal = r_finger_pos_goal * M_PI / 180.0;
+    */
+
+    // id for selecting point on new trajectory (y_seq)
+    constraint_data.point_id = it; 
+
 
     // add unary edges
     MyUnaryConstraints *unary_edge = new MyUnaryConstraints(left_fk_solver, right_fk_solver, dual_arm_dual_hand_collision_ptr);
@@ -1077,6 +1466,20 @@ int main(int argc, char *argv[])
 
     unary_edges.push_back(unary_edge);
     
+    
+    // add tracking edges
+    TrackingConstraint *tracking_edge = new TrackingConstraint(trajectory_generator_ptr, left_fk_solver, right_fk_solver);
+    tracking_edge->setId(50000+it);
+    tracking_edge->setVertex(0, optimizer.vertex(it)); // connect q vertex
+    for (unsigned int j = 0; j < num_passpoints; j++) 
+      tracking_edge->setVertex(j+1, optimizer.vertex(10086+it)); // connect pass_point vertices
+
+    tracking_edge->setMeasurement(constraint_data);
+    tracking_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
+    optimizer.addEdge(tracking_edge);
+ 
+    tracking_edges.push_back(tracking_edge);
+        
   }
 
   
@@ -1095,6 +1498,9 @@ int main(int argc, char *argv[])
 
   }
 
+
+
+  
 
   
 

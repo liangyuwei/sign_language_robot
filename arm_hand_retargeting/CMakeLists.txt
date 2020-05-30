@@ -221,12 +221,12 @@ add_library(collision_checking_yumi src/collision_checking_yumi.cpp)
 target_link_libraries(collision_checking_yumi ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 
-#add_library(generate_trajectory_from_viewpoints src/generate_trajectory_from_viewpoints.cpp)
-#target_link_libraries(generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+add_library(generate_trajectory_from_viewpoints src/generate_trajectory_from_viewpoints.cpp)
+target_link_libraries(generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 
-add_library(tmp_torch STATIC src/tmp_torch.cpp)
-target_link_libraries(tmp_torch PRIVATE ${TORCH_LIBRARIES} ${HDF5_CXX_LIBRARIES}) # link HDF5 together with TORCH fixes the linking error... i.e. undefined reference to symbol 'GOMP_parallel@@GOMP_4.0
+add_library(similarity_network_pytorch STATIC src/similarity_network_pytorch.cpp)
+target_link_libraries(similarity_network_pytorch PRIVATE ${TORCH_LIBRARIES} ${HDF5_CXX_LIBRARIES}) # link HDF5 together with TORCH fixes the linking error... i.e. undefined reference to symbol 'GOMP_parallel@@GOMP_4.0
 #set_target_properties(tmp_torch PROPERTIES
 #  CXX_STANDARD 14
 #  LINK_FLAGS "-fopenmp")
@@ -254,12 +254,13 @@ target_link_libraries(tmp_torch PRIVATE ${TORCH_LIBRARIES} ${HDF5_CXX_LIBRARIES}
 
 
 add_executable(yumi_arm_retarget_g2o_similarity src/yumi_arm_retarget_g2o_similarity.cpp)
-target_link_libraries(yumi_arm_retarget_g2o_similarity ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES} ${G2O_LIBRARIES} collision_checking_yumi)
+target_link_libraries(yumi_arm_retarget_g2o_similarity ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES} ${G2O_LIBRARIES} collision_checking_yumi generate_trajectory_from_viewpoints)
 #target_link_libraries(yumi_arm_retarget_g2o_similarity collision_checking_yumi)
 #target_link_libraries(yumi_arm_retarget_g2o_similarity ${G2O_LIBRARIES} ) # use g2o with pytorch similarity network
-target_link_libraries(yumi_arm_retarget_g2o_similarity tmp_torch)
+target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorch)
 #target_link_libraries(yumi_arm_retarget_g2o_similarity ${TORCH_LIBRARIES}) # libTorch
 #set_property(TARGET yumi_arm_retarget_g2o_similarity PROPERTY CXX_STANDARD 14)#14)
+
 
 
 
@@ -278,5 +279,7 @@ target_link_libraries(yumi_arm_retarget_g2o_similarity tmp_torch)
 #add_executable(distance_computation src/distance_computation.cpp)
 #target_link_libraries(distance_computation ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
+#add_executable(TEST_similarity_network_pytorch src/TEST_similarity_network_pytorch.cpp)
+#target_link_libraries(TEST_similarity_network_pytorch ${EIGEN3_LIBRARIES} similarity_network_pytorch)
 
 

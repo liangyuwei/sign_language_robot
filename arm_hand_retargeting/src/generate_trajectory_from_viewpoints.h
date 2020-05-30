@@ -33,7 +33,7 @@ class TrajectoryGenerator
     MatrixXd pos_and_glove_id;
     MatrixXd quat_id;
     MatrixXd pass_time;
-    MatrixXd pass_points; // not needed for adaptation
+    MatrixXd pass_points; // not needed for adaptation; N x 48(dof)
     MatrixXd time_range;
     
     std::string file_name, group_name;
@@ -50,6 +50,8 @@ class TrajectoryGenerator
     void debug_store(); // only used for debug, no need to store anything during run-time
     void debug_test_noise();
 
+    // normalize quaternion part of data (g2o might break the unit quaternion constraint)
+    MatrixXd normalize_quaternion_part(MatrixXd pass_points);
 
     // interpolate to compute
     void interpolate_hseq(MatrixXd pass_points);

@@ -144,14 +144,14 @@ std::vector<std::vector<double>> read_h5(const std::string file_name, const std:
     DataSet dataset = group.openDataSet(DATASET_NAME);
 
     // Get the class of the datatype that is used by the dataset.
-    H5T_class_t type_class = dataset.getTypeClass();
+    //H5T_class_t type_class = dataset.getTypeClass();
 
     // Get dataspace of the dataset.
     DataSpace dataspace = dataset.getSpace();
 
     // Get the dimension size of each dimension in the dataspace and display them.
     hsize_t dims_out[2];
-    int ndims = dataspace.getSimpleExtentDims( dims_out, NULL);
+    //int ndims = dataspace.getSimpleExtentDims( dims_out, NULL);
     int ROW = dims_out[0], COL = dims_out[1];
 
     // Read data into raw buffer(array) and convert to std::vector
@@ -198,6 +198,8 @@ std::vector<std::vector<double>> read_h5(const std::string file_name, const std:
 /* Class Instantiation */
 TrajectoryGenerator::TrajectoryGenerator(std::string file_name, std::string group_name)
 {
+
+  /* Initialize the class using the original imitation trajectory, and use new pass points to deform it. */
 
   this->file_name = file_name;
   this->group_name = group_name;
@@ -334,6 +336,34 @@ MatrixXd TrajectoryGenerator::convert_to_matrixxd(std::vector<std::vector<double
 }
 
 
+
+/* Normalize quaternion part of pass_points before using it (g2o might break the unit quaternion constraint) */
+MatrixXd TrajectoryGenerator::normalize_quaternion_part(MatrixXd pass_points)
+{
+  unsigned int num_pass_points = pass_points.rows();//f_seq.size();
+
+
+  for(unsigned int q_id = 0; q_id < 2; q_id++)
+  {         
+    unsigned int dof_id = (unsigned int) quat_id(q_id*4) - 1; // start from 0
+
+    for(unsigned int n = 0; n < num_pass_points; n++)
+    {
+      Quaterniond q(pass_points(n, dof_id), pass_points(n, dof_id+1), pass_points(n, dof_id+2), pass_points(n, dof_id+3));
+      q.normalize();
+      pass_points.block(n, dof_id, 1, 4) << q.w(), q.x(), q.y(), q.z(); // [w,x,y,z], in consistent with MATLAB quaternion data type
+    }
+
+  }
+
+  return pass_points;
+
+}
+
+
+
+
+
 /* Compute linear piece-wise function h(x) from given pass_points, including start, goal and via-points */
 void TrajectoryGenerator::interpolate_hseq(MatrixXd pass_points)
 {
@@ -440,6 +470,9 @@ void TrajectoryGenerator::compute_yseq()
 
 MatrixXd TrajectoryGenerator::generate_trajectory_from_passpoints(MatrixXd pass_points)
 {
+
+  // Normalize the quaternion part of pass_points (g2o update might break the unit quaternion constraint)
+  pass_points = this->normalize_quaternion_part(pass_points);
 
   // Interpolate through pass_points to make up h(x)
   this->interpolate_hseq(pass_points);
