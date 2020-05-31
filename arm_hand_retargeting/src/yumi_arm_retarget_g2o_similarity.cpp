@@ -410,14 +410,14 @@ std::vector<std::vector<double>> read_h5(const std::string file_name, const std:
     DataSet dataset = group.openDataSet(DATASET_NAME);
 
     // Get the class of the datatype that is used by the dataset.
-    //H5T_class_t type_class = dataset.getTypeClass();
+    H5T_class_t type_class = dataset.getTypeClass();
 
     // Get dataspace of the dataset.
     DataSpace dataspace = dataset.getSpace();
 
     // Get the dimension size of each dimension in the dataspace and display them.
     hsize_t dims_out[2];
-    //int ndims = dataspace.getSimpleExtentDims( dims_out, NULL);
+    int ndims = dataspace.getSimpleExtentDims( dims_out, NULL); // though ndims is not used, this line of code assigns data to dims_out!!!
     int ROW = dims_out[0], COL = dims_out[1];
 
     // Read data into raw buffer(array) and convert to std::vector
@@ -836,7 +836,11 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     
-    SimilarityConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, boost::shared_ptr<SimilarityNetwork> &_similarity_network_ptr) : trajectory_generator_ptr(_trajectory_generator_ptr), similarity_network_ptr(_similarity_network_ptr) {};
+    SimilarityConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, boost::shared_ptr<SimilarityNetwork> &_similarity_network_ptr, unsigned int num_vertices) : trajectory_generator_ptr(_trajectory_generator_ptr), similarity_network_ptr(_similarity_network_ptr) 
+    {
+      // resize the number of vertices this edge connects to
+      resize(num_vertices);
+    }
   
     ~SimilarityConstraint(){};    
 
@@ -890,7 +894,11 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     // Constructor and destructor
-    TrackingConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, KDL::ChainFkSolverPos_recursive &_left_fk_solver, KDL::ChainFkSolverPos_recursive &_right_fk_solver) : trajectory_generator_ptr(_trajectory_generator_ptr), left_fk_solver(_left_fk_solver), right_fk_solver(_right_fk_solver) {};
+    TrackingConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, KDL::ChainFkSolverPos_recursive &_left_fk_solver, KDL::ChainFkSolverPos_recursive &_right_fk_solver, unsigned int num_vertices) : trajectory_generator_ptr(_trajectory_generator_ptr), left_fk_solver(_left_fk_solver), right_fk_solver(_right_fk_solver)
+    {
+      // resize the number of vertices this edge connects to
+      resize(num_vertices);
+    }
     ~TrackingConstraint(){};    
 
 
@@ -1234,7 +1242,7 @@ int main(int argc, char *argv[])
 
   // Input Cartesian trajectories
   std::vector<double> x(JOINT_DOF);
-  std::cout << "========== Reading imitation data from h5 file ==========" << std::endl;
+  //std::cout << "========== Reading imitation data from h5 file ==========" << std::endl;
 /*
   std::cout << "left part: " << std::endl;
   std::vector<std::vector<double>> read_l_wrist_pos_traj = read_h5(in_file_name, in_group_name, "l_wrist_pos"); 
@@ -1251,26 +1259,24 @@ int main(int argc, char *argv[])
   std::cout << "finger part: " << std::endl;
   std::vector<std::vector<double>> read_l_finger_pos_traj = read_h5(in_file_name, in_group_name, "l_glove_angle"); // N * 14 size
   std::vector<std::vector<double>> read_r_finger_pos_traj = read_h5(in_file_name, in_group_name, "r_glove_angle"); // N * 14 size  
-*/
+
 
   std::vector<std::vector<double>> read_time_stamps = read_h5(in_file_name, in_group_name, "time"); 
+*/
 
 
-
-  std::cout << "others: " << std::endl;
+  std::cout << ">>>> Reading data from h5 file" << std::endl;
 
   std::vector<std::vector<double>> read_pass_points = read_h5(in_file_name, in_group_name, "pass_points"); 
-  std::cout << "others: " << std::endl;  
   std::vector<std::vector<double>> read_original_traj = read_h5(in_file_name, in_group_name, "resampled_normalized_flattened_oritraj"); 
-  
-  std::cout << "others: " << std::endl;  
-  unsigned int num_datapoints = 100; // pre-defined, fixed // = read_l_wrist_pos_traj.size(); 
 
+  unsigned int num_datapoints = 100; // pre-defined, fixed // = read_l_wrist_pos_traj.size(); 
   unsigned int num_passpoints = read_pass_points.size();
   
-  std::cout << "number of pass points: " << num_passpoints << std::endl;
+  //std::cout << "size: " << read_original_traj.size() << " x " << read_original_traj[0].size() << std::endl;
+  //std::cout << "test: " << read_original_traj[0][0] << " " << read_original_traj[1][0] << " " << read_original_traj[2][0] << std::endl;
+  //std::cout << "number of pass points: " << num_passpoints << std::endl;
 
-  exit(0);
 
  // Variables' bounds
   const std::vector<double> q_l_arm_lb = {-2.9, -2.49, 0.0, -1.7, -1.578, -1.5, -1.57};//{-2.94, -2.5, -2.94, -2.16, -5.06, -1.54, -4.0};
@@ -1298,7 +1304,7 @@ int main(int argc, char *argv[])
 
 
   // Setup KDL FK solver( and set IDs for wrist, elbow and shoulder)
-  std::cout << "========== Setting KDL FK Solvers ==========" << std::endl;
+  std::cout << ">>>> Setting KDL FK Solvers " << std::endl;
   KDL::ChainFkSolverPos_recursive left_fk_solver = setup_left_kdl(constraint_data);
   KDL::ChainFkSolverPos_recursive right_fk_solver = setup_right_kdl(constraint_data); 
 
@@ -1323,7 +1329,7 @@ int main(int argc, char *argv[])
 
   
   // Construct a graph optimization problem 
-  std::cout << "========== Constructing an optimization graph ==========" << std::endl;
+  std::cout << ">>>> Constructing an optimization graph " << std::endl;
   // Construct solver (be careful, use unique_ptr instead!!! )
   typedef BlockSolver<BlockSolverTraits<JOINT_DOF, 1> > Block; // BlockSolverTraits<_PoseDim, _LandmarkDim>
 
@@ -1346,7 +1352,7 @@ int main(int argc, char *argv[])
 
 
   // Prepare collision checker
-  std::cout << "========== Preparing collision checker ==========" << std::endl;
+  std::cout << ">>>> Preparing collision checker " << std::endl;
   // Get URDF and SRDF for distance computation class
   std::string urdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/yumi_description/urdf/yumi_with_hands.urdf";
   std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/yumi_sign_language_robot_moveit_config/config/yumi.srdf";
@@ -1357,10 +1363,12 @@ int main(int argc, char *argv[])
 
 
   // Prepare trajectory generator
+  std::cout << ">>>> Preparing trajectory generator " << std::endl;
   boost::shared_ptr<TrajectoryGenerator> trajectory_generator_ptr;
   trajectory_generator_ptr.reset( new TrajectoryGenerator(in_file_name, in_group_name) );  
 
   // Prepare similarity network
+  std::cout << ">>>> Preparing similarity network " << std::endl;
   std::string model_path = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/traced_model_adam_euclidean_epoch500_bs128_group_split_dataset.pt";
   VectorXd original_traj(4800);
   for (int i = 0; i < read_original_traj.size(); i++)
@@ -1371,15 +1379,16 @@ int main(int argc, char *argv[])
 
 
   // Add vertices and edges
-  num_datapoints = 100; // pre-defined, fixed !!!
   std::vector<DualArmDualHandVertex*> v_list(num_datapoints);
   std::vector<PassPointVertex*> pv_list(num_passpoints);
   std::vector<MyUnaryConstraints*> unary_edges;
   std::vector<SmoothnessConstraint*> smoothness_edges;  
   std::vector<TrackingConstraint*> tracking_edges;
-  SimilarityConstraint* similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr);
+  SimilarityConstraint* similarity_edge;
+
+  similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr, num_passpoints);
   
-  std::cout << "========== Adding pass_points vertices and similarity edge ==========" << std::endl;
+  std::cout << ">>>> Adding pass_points vertices and similarity edge " << std::endl;
   similarity_edge->setId(10086);
   for (unsigned int it = 0; it < num_passpoints; it++)
   {
@@ -1390,22 +1399,23 @@ int main(int argc, char *argv[])
     // create vertex
     pv_list[it] = new PassPointVertex();
     pv_list[it]->setEstimate(pass_point_mat);
-    pv_list[it]->setId(10086+it); // set a unique id
+    pv_list[it]->setId(it); // set a unique id
     optimizer.addVertex(pv_list[it]);    
 
     // connect to edge
-    similarity_edge->setVertex(it, optimizer.vertex(10086+it));
+    similarity_edge->setVertex(it, optimizer.vertex(it));
   }
+  optimizer.addEdge(similarity_edge);
+
   
-  
-  std::cout << "========== Adding vertices, unary edges and tracking_error edges ==========" << std::endl;  
+  std::cout << ">>>> Adding vertices, unary edges and tracking_error edges " << std::endl;  
   for (unsigned int it = 0; it < num_datapoints; ++it)
   {
     // add vertices
     //DualArmDualHandVertex *v = new DualArmDualHandVertex();
     v_list[it] = new DualArmDualHandVertex();
     v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Identity()); // feed in initial guess
-    v_list[it]->setId(it); // set a unique id
+    v_list[it]->setId(num_passpoints+it); // set a unique id
     optimizer.addVertex(v_list[it]);
 
     /*
@@ -1459,7 +1469,7 @@ int main(int argc, char *argv[])
     // add unary edges
     MyUnaryConstraints *unary_edge = new MyUnaryConstraints(left_fk_solver, right_fk_solver, dual_arm_dual_hand_collision_ptr);
     unary_edge->setId(it);
-    unary_edge->setVertex(0, optimizer.vertex(it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
+    unary_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
     unary_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
     unary_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
     optimizer.addEdge(unary_edge);
@@ -1468,11 +1478,11 @@ int main(int argc, char *argv[])
     
     
     // add tracking edges
-    TrackingConstraint *tracking_edge = new TrackingConstraint(trajectory_generator_ptr, left_fk_solver, right_fk_solver);
+    TrackingConstraint *tracking_edge = new TrackingConstraint(trajectory_generator_ptr, left_fk_solver, right_fk_solver, num_passpoints+1);
     tracking_edge->setId(50000+it);
-    tracking_edge->setVertex(0, optimizer.vertex(it)); // connect q vertex
+    tracking_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); // connect q vertex
     for (unsigned int j = 0; j < num_passpoints; j++) 
-      tracking_edge->setVertex(j+1, optimizer.vertex(10086+it)); // connect pass_point vertices
+      tracking_edge->setVertex(j+1, optimizer.vertex(j)); // connect pass_point vertices
 
     tracking_edge->setMeasurement(constraint_data);
     tracking_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
@@ -1483,29 +1493,24 @@ int main(int argc, char *argv[])
   }
 
   
-  std::cout << "========== Adding binary edges ==========" << std::endl;
+  std::cout << ">>>> Adding binary edges " << std::endl;
   for (unsigned int it = 0; it < num_datapoints - 1; ++it)
   {
     // Add binary edges
     SmoothnessConstraint *smoothness_edge = new SmoothnessConstraint();
-    smoothness_edge->setId(it+num_datapoints); // set a unique ID
-    smoothness_edge->setVertex(0, optimizer.vertex(it)); //v_list[it]);
-    smoothness_edge->setVertex(1, optimizer.vertex(it+1)); //v_list[it+1]); // binary edge, connects only 2 vertices, i.e. i=0 and i=1
+    smoothness_edge->setId(it+60000); // set a unique ID
+    smoothness_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); //v_list[it]);
+    smoothness_edge->setVertex(1, optimizer.vertex(num_passpoints+it+1)); //v_list[it+1]); // binary edge, connects only 2 vertices, i.e. i=0 and i=1
     smoothness_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // Information type correct
     optimizer.addEdge(smoothness_edge);
 
     smoothness_edges.push_back(smoothness_edge);
 
   }
-
-
-
-  
-
   
 
   // Start optimization
-  std::cout << "Start optimization:" << std::endl;
+  std::cout << ">>>> Start optimization:" << std::endl;
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   optimizer.initializeOptimization();
   //optimizer.computeInitialGuess();  
@@ -1525,7 +1530,7 @@ int main(int argc, char *argv[])
   //saveFlag = optimizer.save("./g2o_results/result_after.g2o");
   //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
 
-  std::cout << "Optimization done." << std::endl;
+  std::cout << ">>>> Optimization done." << std::endl;
   
 
   // estimate Count of inlier ???

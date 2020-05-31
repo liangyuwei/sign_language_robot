@@ -144,14 +144,14 @@ std::vector<std::vector<double>> read_h5(const std::string file_name, const std:
     DataSet dataset = group.openDataSet(DATASET_NAME);
 
     // Get the class of the datatype that is used by the dataset.
-    //H5T_class_t type_class = dataset.getTypeClass();
+    H5T_class_t type_class = dataset.getTypeClass();
 
     // Get dataspace of the dataset.
     DataSpace dataspace = dataset.getSpace();
 
     // Get the dimension size of each dimension in the dataspace and display them.
     hsize_t dims_out[2];
-    //int ndims = dataspace.getSimpleExtentDims( dims_out, NULL);
+    int ndims = dataspace.getSimpleExtentDims( dims_out, NULL);
     int ROW = dims_out[0], COL = dims_out[1];
 
     // Read data into raw buffer(array) and convert to std::vector
