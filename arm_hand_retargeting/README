@@ -1,0 +1,31 @@
+1. Use libTorch with catkin_make(ros)
+
+
+*(1)* Use pre-built cxx11 ABI:
+https://pytorch.org/get-started/locally/, choose LibTorch, download Pre-cxx11 ABI, extract to ~/libtorch.
+
+
+*(2)* The above ABI requires cudNN to be installed:
+Download corresponding version on https://developer.nvidia.com/rdp/cudnn-archive, choose .tgz !!!
+
+tar -zxvf cudnn.tgz
+
+sudo cp ./include/cudnn.h /usr/local/cuda-10.2/include
+ 
+sudo cp ./lib64/libcudnn* /usr/local/cuda-10.2/lib64
+ 
+sudo chmod a+r /usr/local/cuda-10.2/include/cudnn.h /usr/local/cuda-10.2/lib64/libcudnn*
+
+
+*(3)* 
+
+
+
+* Actually, I didn't fix the linking error - undefined reference to symbol 'GOMP_parallel@@GOMP_4.0 - because I don't know why...
+All I did is just linking torch_libraries with hdf5_libraries ahead of linking tmp_torch to the g2o retargeting code.. and it worked...
+
+
+
+
+
+

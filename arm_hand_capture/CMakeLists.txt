@@ -51,7 +51,10 @@ include_directories(include ${catkin_INCLUDE_DIRS} ${Boost_INCLUDE_DIRS})
 add_executable(sync_message_topic src/sync_message_topic.cpp)
 # make sure messages are generated before compiling nodes
 target_link_libraries(sync_message_topic ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-add_dependencies(sync_message_topic ${PACKAGE_NAME}_generate_messages_cpp)
+add_dependencies(sync_message_topic ${PROJECT_NAME}_generate_messages_cpp)
+
+
+
 
 ## Testing of message_filters using ordinary message types
 #add_executable(topic_to_sync_1 src/topic_to_sync_1.cpp)
@@ -71,34 +74,34 @@ add_dependencies(sync_message_topic ${PACKAGE_NAME}_generate_messages_cpp)
 ## Unpack the sync-ed message and broadcast the transforms of each arm
 add_executable(unpack_synced_message src/unpack_synced_message.cpp)
 target_link_libraries(unpack_synced_message ${catkin_LIBRARIES})
-add_dependencies(unpack_synced_message ${PACKAGE_NAME}_generate_messages_cpp)
+add_dependencies(unpack_synced_message ${PROJECT_NAME}_generate_messages_cpp)
 
 ## Transform the local frames(upperarm, forearm, hand) to match UR5 configuration
 # for real-time synchronization experiment in the future
 add_executable(synced_message_to_ur5 src/synced_message_to_ur5.cpp)
 target_link_libraries(synced_message_to_ur5 ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-add_dependencies(synced_message_to_ur5 ${PACKAGE_NAME}_generate_messages_cpp)
+add_dependencies(synced_message_to_ur5 ${PROJECT_NAME}_generate_messages_cpp)
 
 ## Transform the local frames(upperarm, forearm, hand) to match UR5 configuration
 # for real-time synchronization experiment in the future
 add_executable(synced_message_to_yumi src/synced_message_to_yumi.cpp)
 target_link_libraries(synced_message_to_yumi ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-add_dependencies(synced_message_to_yumi ${PACKAGE_NAME}_generate_messages_cpp)
+add_dependencies(synced_message_to_yumi ${PROJECT_NAME}_generate_messages_cpp)
 
 
 ## For visualization markers
 add_executable(load_visualization_markers src/load_visualization_markers.cpp)
 target_link_libraries(load_visualization_markers ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-add_dependencies(load_visualization_markers ${PACKAGE_NAME}_generate_messages_cpp)
+add_dependencies(load_visualization_markers ${PROJECT_NAME}_generate_messages_cpp)
 
 ## Sync the arm-hand state with the corresponding image
 add_executable(sync_state_with_image src/sync_state_with_image.cpp)
 target_link_libraries(sync_state_with_image ${catkin_LIBRARIES})
-add_dependencies(sync_state_with_image ${PACKAGE_NAME}_generate_messages_cpp)
+add_dependencies(sync_state_with_image ${PROJECT_NAME}_generate_messages_cpp)
 
 add_executable(unpack_synced_message_with_image src/unpack_synced_message_with_image.cpp)
 target_link_libraries(unpack_synced_message_with_image ${catkin_LIBRARIES})
-add_dependencies(unpack_synced_message_with_image ${PACKAGE_NAME}_generate_messages_cpp)
+add_dependencies(unpack_synced_message_with_image ${PROJECT_NAME}_generate_messages_cpp)
 
 
 

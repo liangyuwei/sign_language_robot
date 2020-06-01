@@ -1,21 +1,73 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(arm_hand_retargeting)
 
+SET(CMAKE_BUILD_TYPE "Debug")
+
 ## Compile as C++11, supported in ROS Kinetic and newer
-add_compile_options(-std=c++11)
+add_compile_options(-std=c++14)#(-std=c++11)#
+
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 
+
+# For LibTorch (PyTorch)
+set(CMAKE_PREFIX_PATH "/home/liangyuwei/libtorch")
+find_package(Torch REQUIRED)
+#set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS})
+include_directories(${TORCH_INCLUDE_DIRS})#(include/)#
+#set(CUDNN_INCLUDE_DIR "")
+
+
+# Eigen 3
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIRS})
 
-
+# Find HDF5
 find_package(HDF5 REQUIRED COMPONENTS C CXX HL) # this works...
 include_directories(${HDF5_INCLUDE_DIRS})
 
+# For NLopt
 find_package(NLopt REQUIRED)
+if(NLopt_FOUND)
+  message("NLopt lib is found: " ${NLOPT_LIBRARIES})
+endif(NLopt_FOUND)
+
+
+# Find G2O
+list( APPEND CMAKE_MODULE_PATH /home/liangyuwei/g2o/cmake_modules )
+set(G2O_DIR /home/liangyuwei/g2o)
+find_package(G2O REQUIRED)
+if(G2O_FOUND)
+  include_directories(${G2O_INCLUDE_DIR})
+  link_directories(${G2O_LIBRARY_DIRS})
+  link_libraries(${G2O_LIBRARIES})
+  message("G2O lib is found: " ${G2O_LIBRARIES})
+  message("G2O dir is found: " ${G2O_INCLUDE_DIR})
+endif(G2O_FOUND)
+
+# G2O-related (cholmod, csparse)
+include_directories(/usr/include/suitesparse)
+
+list(APPEND G2O_LIBRARIES
+  cholmod
+  cxsparse
+  g2o_core g2o_stuff g2o_csparse_extension g2o_incremental
+  g2o_solver_csparse g2o_solver_pcg g2o_solver_cholmod
+)
+
+
+#link_directories(${G2O_LIBRARY_DIRS})
+#message(">>>> G2O-libraries: " ${G2O_LIBRARIES})
+#message(">>>> G2O-Inclu-dirs: " ${G2O_INCLUDE_DIRS})
+# remember to sudo apt-get install ros-kinetic-libg2o	
+
+## Specify additional locations for library files
+#link_directories(
+#  /usr/local/lib # Location when using 'make system_install'
+#  /usr/lib       # More usual location (e.g. when installing using a package)
+#)
 
 
 find_package(catkin REQUIRED COMPONENTS
@@ -24,6 +76,7 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_ros_planning_interface
   moveit_core
   moveit_ros_planning
+  geometric_shapes
 )
 
 
@@ -158,86 +211,75 @@ include_directories(
 ## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
 # set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
 
-add_library(distance_computation src/distance_computation.cpp)
 
-add_library(collision_checking src/collision_checking.cpp)
+### tool libraries
+#add_library(distance_computation src/distance_computation.cpp)
 
-add_executable(arm_retarget_nlopt src/arm_retarget_nlopt.cpp)
-target_link_libraries(arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
-target_link_libraries(arm_retarget_nlopt distance_computation)
-target_link_libraries(arm_retarget_nlopt collision_checking)
+#add_library(collision_checking src/collision_checking.cpp)
+
+add_library(collision_checking_yumi src/collision_checking_yumi.cpp)
+target_link_libraries(collision_checking_yumi ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
 
-# Test module
-add_executable(TEST_collision_checking src/TEST_collision_checking)
-target_link_libraries(TEST_collision_checking ${catkin_LIBRARIES} collision_checking)
+add_library(generate_trajectory_from_viewpoints src/generate_trajectory_from_viewpoints.cpp)
+target_link_libraries(generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+
+
+add_library(similarity_network_pytorch STATIC src/similarity_network_pytorch.cpp)
+target_link_libraries(similarity_network_pytorch PRIVATE ${TORCH_LIBRARIES} ${HDF5_CXX_LIBRARIES}) # link HDF5 together with TORCH fixes the linking error... i.e. undefined reference to symbol 'GOMP_parallel@@GOMP_4.0
+#set_target_properties(tmp_torch PROPERTIES
+#  CXX_STANDARD 14
+#  LINK_FLAGS "-fopenmp")
+
+
+
+### retargeting code for UR5 configuration
+#add_executable(ur5_arm_retarget_nlopt src/ur5_arm_retarget_nlopt.cpp)
+#target_link_libraries(ur5_arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+#target_link_libraries(ur5_arm_retarget_nlopt distance_computation)
+#target_link_libraries(ur5_arm_retarget_nlopt collision_checking)
+
+
+### retargeting code for YuMi configuration
+#add_executable(yumi_arm_retarget_nlopt src/yumi_arm_retarget_nlopt.cpp)
+#target_link_libraries(yumi_arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+#target_link_libraries(yumi_arm_retarget_nlopt distance_computation)
+#target_link_libraries(yumi_arm_retarget_nlopt collision_checking_yumi)
+
+
+#add_executable(yumi_arm_retarget_g2o src/yumi_arm_retarget_g2o.cpp)
+#target_link_libraries(yumi_arm_retarget_g2o ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+#target_link_libraries(yumi_arm_retarget_g2o collision_checking_yumi)
+#target_link_libraries(yumi_arm_retarget_g2o ${G2O_LIBRARIES} ) # g2o-related 
+
+
+add_executable(yumi_arm_retarget_g2o_similarity src/yumi_arm_retarget_g2o_similarity.cpp)
+target_link_libraries(yumi_arm_retarget_g2o_similarity ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES} ${G2O_LIBRARIES} collision_checking_yumi generate_trajectory_from_viewpoints)
+#target_link_libraries(yumi_arm_retarget_g2o_similarity collision_checking_yumi)
+#target_link_libraries(yumi_arm_retarget_g2o_similarity ${G2O_LIBRARIES} ) # use g2o with pytorch similarity network
+target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorch)
+#target_link_libraries(yumi_arm_retarget_g2o_similarity ${TORCH_LIBRARIES}) # libTorch
+#set_property(TARGET yumi_arm_retarget_g2o_similarity PROPERTY CXX_STANDARD 14)#14)
+
+
+
+
+
+### Test modules
+#add_executable(TEST_collision_checking src/TEST_collision_checking.cpp)
+#target_link_libraries(TEST_collision_checking ${catkin_LIBRARIES} collision_checking)
+
+#add_executable(TEST_collision_checking_yumi src/collision_checking_yumi.cpp)
+#target_link_libraries(TEST_collision_checking_yumi ${catkin_LIBRARIES} collision_checking_yumi)
+
+#add_executable(TEST_generate_trajectory_from_viepoints src/generate_trajectory_from_viepoints.cpp)
+#target_link_libraries(TEST_generate_trajectory_from_viepoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 
 #add_executable(distance_computation src/distance_computation.cpp)
 #target_link_libraries(distance_computation ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
+#add_executable(TEST_similarity_network_pytorch src/TEST_similarity_network_pytorch.cpp)
+#target_link_libraries(TEST_similarity_network_pytorch ${EIGEN3_LIBRARIES} similarity_network_pytorch)
 
 
-## Add cmake target dependencies of the executable
-## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
-
-#############
-## Install ##
-#############
-
-# all install targets should use catkin DESTINATION variables
-# See http://ros.org/doc/api/catkin/html/adv_user_guide/variables.html
-
-## Mark executable scripts (Python etc.) for installation
-## in contrast to setup.py, you can choose the destination
-# install(PROGRAMS
-#   scripts/my_python_script
-#   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark executables for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_executables.html
-# install(TARGETS ${PROJECT_NAME}_node
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
-
-## Mark libraries for installation
-## See http://docs.ros.org/melodic/api/catkin/html/howto/format1/building_libraries.html
-# install(TARGETS ${PROJECT_NAME}
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_GLOBAL_BIN_DESTINATION}
-# )
-
-## Mark cpp header files for installation
-# install(DIRECTORY include/${PROJECT_NAME}/
-#   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-#   FILES_MATCHING PATTERN "*.h"
-#   PATTERN ".svn" EXCLUDE
-# )
-
-## Mark other files for installation (e.g. launch and bag files, etc.)
-# install(FILES
-#   # myfile1
-#   # myfile2
-#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
-# )
-
-#############
-## Testing ##
-#############
-
-## Add gtest based cpp test target and link libraries
-# catkin_add_gtest(${PROJECT_NAME}-test test/test_arm_hand_retargeting.cpp)
-# if(TARGET ${PROJECT_NAME}-test)
-#   target_link_libraries(${PROJECT_NAME}-test ${PROJECT_NAME})
-# endif()
-
-## Add folders to be run by python nosetests
-# catkin_add_nosetests(test)

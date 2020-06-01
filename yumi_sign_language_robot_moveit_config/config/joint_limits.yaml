@@ -2,66 +2,83 @@
 # Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
 # Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits]
 joint_limits:
-  Link1:
+
+  # Left Arm
+  yumi_joint_1_l:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 3.14159265359
     has_acceleration_limits: false
     max_acceleration: 0
-  Link11:
+  yumi_joint_2_l:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 3.14159265359
     has_acceleration_limits: false
     max_acceleration: 0
-  Link2:
+  yumi_joint_7_l:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 3.14159265359
     has_acceleration_limits: false
     max_acceleration: 0
-  Link22:
+  yumi_joint_3_l:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 3.14159265359
     has_acceleration_limits: false
     max_acceleration: 0
-  Link3:
+  yumi_joint_4_l:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 6.98131700798
     has_acceleration_limits: false
     max_acceleration: 0
-  Link33:
+  yumi_joint_5_l:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 6.98131700798
     has_acceleration_limits: false
     max_acceleration: 0
-  Link4:
+  yumi_joint_6_l:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 6.98131700798
     has_acceleration_limits: false
     max_acceleration: 0
-  Link44:
+
+  # Right Arm
+  yumi_joint_1_r:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 3.14159265359
     has_acceleration_limits: false
     max_acceleration: 0
-  Link5:
+  yumi_joint_2_r:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 3.14159265359
     has_acceleration_limits: false
     max_acceleration: 0
-  Link51:
+  yumi_joint_7_r:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 3.14159265359
     has_acceleration_limits: false
     max_acceleration: 0
-  Link52:
+  yumi_joint_3_r:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 3.14159265359
     has_acceleration_limits: false
     max_acceleration: 0
-  Link53:
+  yumi_joint_4_r:
     has_velocity_limits: true
-    max_velocity: 1
+    max_velocity: 6.98131700798
     has_acceleration_limits: false
     max_acceleration: 0
+  yumi_joint_5_r:
+    has_velocity_limits: true
+    max_velocity: 6.98131700798
+    has_acceleration_limits: false
+    max_acceleration: 0
+  yumi_joint_6_r:
+    has_velocity_limits: true
+    max_velocity: 6.98131700798
+    has_acceleration_limits: false
+    max_acceleration: 0
+
+
+  # Left Hand
   link1:
     has_velocity_limits: true
     max_velocity: 1
@@ -122,73 +139,71 @@ joint_limits:
     max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_1_l:
+
+
+  # Right Hand
+  Link1:
     has_velocity_limits: true
-    max_velocity: 3.14159265359
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_1_r:
+  Link11:
     has_velocity_limits: true
-    max_velocity: 3.14159265359
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_2_l:
+  Link2:
     has_velocity_limits: true
-    max_velocity: 3.14159265359
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_2_r:
+  Link22:
     has_velocity_limits: true
-    max_velocity: 3.14159265359
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_3_l:
+  Link3:
     has_velocity_limits: true
-    max_velocity: 3.14159265359
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_3_r:
+  Link33:
     has_velocity_limits: true
-    max_velocity: 3.14159265359
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_4_l:
+  Link4:
     has_velocity_limits: true
-    max_velocity: 6.98131700798
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_4_r:
+  Link44:
     has_velocity_limits: true
-    max_velocity: 6.98131700798
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_5_l:
+  Link5:
     has_velocity_limits: true
-    max_velocity: 6.98131700798
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_5_r:
+  Link51:
     has_velocity_limits: true
-    max_velocity: 6.98131700798
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_6_l:
+  Link52:
     has_velocity_limits: true
-    max_velocity: 6.98131700798
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_6_r:
+  Link53:
     has_velocity_limits: true
-    max_velocity: 6.98131700798
+    max_velocity: 1
     has_acceleration_limits: false
     max_acceleration: 0
-  yumi_joint_7_l:
-    has_velocity_limits: true
-    max_velocity: 3.14159265359
-    has_acceleration_limits: false
-    max_acceleration: 0
-  yumi_joint_7_r:
-    has_velocity_limits: true
-    max_velocity: 3.14159265359
-    has_acceleration_limits: false
-    max_acceleration: 0
+
+
+
+
+
