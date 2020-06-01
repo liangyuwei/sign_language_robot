@@ -213,6 +213,8 @@ TrajectoryGenerator::TrajectoryGenerator(std::string file_name, std::string grou
   this->time_range = convert_to_matrixxd(read_h5(file_name, group_name, "time_range")); 
   this->pass_points = convert_to_matrixxd(read_h5(file_name, group_name, "pass_points"));
 
+  //std::cout << "f_seq size is: " << this->f_seq.rows() << " x " << this->f_seq.cols() << std::endl;
+
 }
 
 void TrajectoryGenerator::debug_print()

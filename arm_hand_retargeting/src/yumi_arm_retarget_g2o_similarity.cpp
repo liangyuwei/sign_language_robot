@@ -726,6 +726,9 @@ double MyUnaryConstraints::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 void MyUnaryConstraints::computeError()
 {
   
+
+  std::cout << "Computing Unary Constraint..." << std::endl;
+
   // get the current joint value
   // _vertices is a VertexContainer type, a std::vector<Vertex*>
   const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
@@ -798,7 +801,8 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
     
     void computeError()
     {
-      
+      std::cout << "Computing Smoothness Constraint..." << std::endl;
+
       // Get the values of the two vertices
       const DualArmDualHandVertex *v0 = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
       const DualArmDualHandVertex *v1 = static_cast<const DualArmDualHandVertex*>(_vertices[1]);
@@ -839,6 +843,7 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
     SimilarityConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, boost::shared_ptr<SimilarityNetwork> &_similarity_network_ptr, unsigned int num_vertices) : trajectory_generator_ptr(_trajectory_generator_ptr), similarity_network_ptr(_similarity_network_ptr) 
     {
       // resize the number of vertices this edge connects to
+      std::cout << "resizing similarity constraint..." << std::endl;
       resize(num_vertices);
     }
   
@@ -852,10 +857,14 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
     // functions to compute costs
     void computeError()
     {
+
+      std::cout << "Computing Similarity Constraint..." << std::endl;
+
       // Get pass_points as stack
       int num_vertices = _vertices.size(); // VertexContainer, i.e. std::vector<Vertex*>
       //Matrix<double, PASSPOINT_DOF, num_vertices> pass_points;
-      MatrixXd pass_points;
+      MatrixXd pass_points; // num_vertices is not known at compile time
+      pass_points.resize(num_vertices, PASSPOINT_DOF);
       for (int n = 0; n < num_vertices; n++)
       { 
         const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
@@ -868,10 +877,19 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
 
       // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
       MatrixXd y_seq_tmp = y_seq.transpose();
-      VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), 4800);
+      VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), 4800, 1);
 
       // compute similariity distance(it would do the normalization)
-      double dist = similarity_network_ptr->compute_distance(new_traj);
+      double dist;
+      try{
+         dist = similarity_network_ptr->compute_distance(new_traj);
+      }
+      catch (Exception ex)
+      {
+        std::cout << "Error in similarity network" << std::endl;
+        exit(-1);
+      }
+
 
       _error(0, 0) = 5.0 * dist;
     
@@ -897,6 +915,7 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     TrackingConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, KDL::ChainFkSolverPos_recursive &_left_fk_solver, KDL::ChainFkSolverPos_recursive &_right_fk_solver, unsigned int num_vertices) : trajectory_generator_ptr(_trajectory_generator_ptr), left_fk_solver(_left_fk_solver), right_fk_solver(_right_fk_solver)
     {
       // resize the number of vertices this edge connects to
+      std::cout << "resizing tracking constraint..." << std::endl;
       resize(num_vertices);
     }
     ~TrackingConstraint(){};    
@@ -1071,6 +1090,9 @@ double TrackingConstraint::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 
 void TrackingConstraint::computeError()
 {
+
+  std::cout << "Computing Tracking Constraint..." << std::endl;
+
   // get the current joint value
   // _vertices is a VertexContainer type, a std::vector<Vertex*>
   const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
@@ -1089,8 +1111,9 @@ void TrackingConstraint::computeError()
   // Get pass_points as stack
   unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
   //Matrix<double, PASSPOINT_DOF, num_vertices> pass_points;
-  MatrixXd pass_points;
-  for (int n = 1; n < num_passpoints; n++) // starting from 1, bypass 0
+  MatrixXd pass_points; // num_passpoints is not known at compile time
+  pass_points.resize(num_passpoints, PASSPOINT_DOF);
+  for (unsigned int n = 1; n < num_passpoints; n++) // starting from 1, bypass 0
   { 
     const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
     pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate();        
@@ -1241,7 +1264,7 @@ int main(int argc, char *argv[])
 
 
   // Input Cartesian trajectories
-  std::vector<double> x(JOINT_DOF);
+  //std::vector<double> x(JOINT_DOF);
   //std::cout << "========== Reading imitation data from h5 file ==========" << std::endl;
 /*
   std::cout << "left part: " << std::endl;
@@ -1370,7 +1393,8 @@ int main(int argc, char *argv[])
   // Prepare similarity network
   std::cout << ">>>> Preparing similarity network " << std::endl;
   std::string model_path = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/traced_model_adam_euclidean_epoch500_bs128_group_split_dataset.pt";
-  VectorXd original_traj(4800);
+  //VectorXd original_traj(4800);
+  Matrix<double, 1, 4800> original_traj; // size is known at compile time 
   for (int i = 0; i < read_original_traj.size(); i++)
     original_traj[i] = read_original_traj[i][0];
   boost::shared_ptr<SimilarityNetwork> similarity_network_ptr;
@@ -1389,7 +1413,7 @@ int main(int argc, char *argv[])
   similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr, num_passpoints);
   
   std::cout << ">>>> Adding pass_points vertices and similarity edge " << std::endl;
-  similarity_edge->setId(10086);
+  similarity_edge->setId(0);
   for (unsigned int it = 0; it < num_passpoints; it++)
   {
     // preparation
@@ -1468,7 +1492,7 @@ int main(int argc, char *argv[])
 
     // add unary edges
     MyUnaryConstraints *unary_edge = new MyUnaryConstraints(left_fk_solver, right_fk_solver, dual_arm_dual_hand_collision_ptr);
-    unary_edge->setId(it);
+    unary_edge->setId(it+1);
     unary_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
     unary_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
     unary_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
@@ -1479,7 +1503,7 @@ int main(int argc, char *argv[])
     
     // add tracking edges
     TrackingConstraint *tracking_edge = new TrackingConstraint(trajectory_generator_ptr, left_fk_solver, right_fk_solver, num_passpoints+1);
-    tracking_edge->setId(50000+it);
+    tracking_edge->setId(1+num_datapoints+1+it);
     tracking_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); // connect q vertex
     for (unsigned int j = 0; j < num_passpoints; j++) 
       tracking_edge->setVertex(j+1, optimizer.vertex(j)); // connect pass_point vertices
@@ -1498,7 +1522,7 @@ int main(int argc, char *argv[])
   {
     // Add binary edges
     SmoothnessConstraint *smoothness_edge = new SmoothnessConstraint();
-    smoothness_edge->setId(it+60000); // set a unique ID
+    smoothness_edge->setId(2*num_datapoints+2+it); // set a unique ID
     smoothness_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); //v_list[it]);
     smoothness_edge->setVertex(1, optimizer.vertex(num_passpoints+it+1)); //v_list[it+1]); // binary edge, connects only 2 vertices, i.e. i=0 and i=1
     smoothness_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // Information type correct
@@ -1520,6 +1544,23 @@ int main(int argc, char *argv[])
 
   //bool saveFlag = optimizer.save("./g2o_results/result_before.g2o");
   //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
+
+
+  // Test if something wrong with edges computation
+  for (unsigned int t = 0; t < unary_edges.size(); t++)
+    unary_edges[t]->computeError();
+  std::cout << "Unary edges all right!" << std::endl;
+
+  for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+    smoothness_edges[t]->computeError();
+  std::cout << "Smoothness edges all right!" << std::endl;
+
+  for (unsigned int t = 0; t < tracking_edges.size(); t++)
+    tracking_edges[t]->computeError();
+  std::cout << "Tracking edges all right!" << std::endl;
+
+  similarity_edge->computeError();
+  std::cout << "Similarity edge all right!" << std::endl;
 
 
   optimizer.optimize(100); // optimize for a number of iterations

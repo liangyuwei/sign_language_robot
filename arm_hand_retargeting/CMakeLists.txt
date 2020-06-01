@@ -272,8 +272,8 @@ target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorc
 #add_executable(TEST_collision_checking_yumi src/collision_checking_yumi.cpp)
 #target_link_libraries(TEST_collision_checking_yumi ${catkin_LIBRARIES} collision_checking_yumi)
 
-#add_executable(TEST_generate_trajectory_from_viepoints src/generate_trajectory_from_viepoints.cpp)
-#target_link_libraries(TEST_generate_trajectory_from_viepoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+#add_executable(TEST_generate_trajectory_from_viewpoints src/generate_trajectory_from_viewpoints.cpp)
+#target_link_libraries(TEST_generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 
 #add_executable(distance_computation src/distance_computation.cpp)
