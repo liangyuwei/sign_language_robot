@@ -344,6 +344,7 @@ MatrixXd TrajectoryGenerator::normalize_quaternion_part(MatrixXd pass_points)
 {
   unsigned int num_pass_points = pass_points.rows();//f_seq.size();
 
+  //std::cout << "debug: pass_points size is " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
 
   for(unsigned int q_id = 0; q_id < 2; q_id++)
   {         
@@ -352,7 +353,10 @@ MatrixXd TrajectoryGenerator::normalize_quaternion_part(MatrixXd pass_points)
     for(unsigned int n = 0; n < num_pass_points; n++)
     {
       Quaterniond q(pass_points(n, dof_id), pass_points(n, dof_id+1), pass_points(n, dof_id+2), pass_points(n, dof_id+3));
+      //std::cout << "pass_points: " << pass_points(n, dof_id) << ", " << pass_points(n, dof_id+1) << ", " << pass_points(n, dof_id+2) << ", " << pass_points(n, dof_id+3) << std::endl;
+      //std::cout << "before: " << q.w() << ", " << q.x() << ", " << q.y() << ", " << q.z() << std::endl;
       q.normalize();
+      //std::cout << "after: " << q.w() << ", " << q.x() << ", " << q.y() << ", " << q.z() << std::endl;      
       pass_points.block(n, dof_id, 1, 4) << q.w(), q.x(), q.y(), q.z(); // [w,x,y,z], in consistent with MATLAB quaternion data type
     }
 
@@ -475,6 +479,7 @@ MatrixXd TrajectoryGenerator::generate_trajectory_from_passpoints(MatrixXd pass_
 
   // Normalize the quaternion part of pass_points (g2o update might break the unit quaternion constraint)
   pass_points = this->normalize_quaternion_part(pass_points);
+  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
 
   // Interpolate through pass_points to make up h(x)
   this->interpolate_hseq(pass_points);

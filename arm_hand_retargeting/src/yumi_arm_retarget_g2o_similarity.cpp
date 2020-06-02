@@ -1112,13 +1112,14 @@ void TrackingConstraint::computeError()
   unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
   MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
   //pass_points.resize(num_passpoints, PASSPOINT_DOF);
-  for (unsigned int n = 1; n < num_passpoints; n++) // starting from 1, bypass 0
+  for (unsigned int n = 1; n <= num_passpoints; n++) // starting from 1, bypass 0; go throught all num_passpoints pass points.
   { 
     const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
     pass_points.block(n-1, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
   }
-  std::cout << "debug: pass_points = \n" << pass_points << std::endl;
-   
+  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
+  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
+  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
 
   // Generate new trajectory
   MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
@@ -1126,7 +1127,8 @@ void TrackingConstraint::computeError()
   // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
   //MatrixXd y_seq_tmp = y_seq.transpose();
   //VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), 4800);
-  std::cout << "debug: y_seq = \n" << y_seq << std::endl;
+  //std::cout << "debug: y_seq = \n" << y_seq << std::endl;
+  //std::cout << "debug: y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
   
   
   // Set new goals(expected trajectory) to _measurement
