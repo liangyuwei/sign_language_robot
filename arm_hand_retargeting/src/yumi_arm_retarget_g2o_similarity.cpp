@@ -870,26 +870,30 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
         const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
         pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1        
       }
+      //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
     
       // Generate new trajectory
       MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
-      std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
+      //std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
 
       // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
       MatrixXd y_seq_tmp = y_seq.transpose();
       VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), 4800, 1);
+      //std::cout << "debug: original y_seq = " << y_seq << std::endl;
+      //std::cout << "debug: reshaped y_seq = " << y_seq_tmp.transpose() << std::endl;
 
       // compute similariity distance(it would do the normalization)
-      double dist;
+      double dist = 0;
       try{
          dist = similarity_network_ptr->compute_distance(new_traj);
+         //std::cout << "debug1: dist = " << dist << std::endl;
       }
       catch (Exception ex)
       {
         std::cout << "Error in similarity network" << std::endl;
         exit(-1);
       }
-
+      //std::cout << "debug2: dist = " << dist << std::endl;
 
       _error(0, 0) = 5.0 * dist;
     
@@ -1097,7 +1101,8 @@ void TrackingConstraint::computeError()
   // _vertices is a VertexContainer type, a std::vector<Vertex*>
   const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
   const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
-  std::cout << "debug: x = \n" << x.transpose() << std::endl;
+  //std::cout << "debug: x size is: " << x.rows() << " x " << x.cols() << std::endl;
+  //std::cout << "debug: x = \n" << x.transpose() << std::endl;
 
   // Get joint angles
   Matrix<double, 7, 1> q_cur_l, q_cur_r;
@@ -1137,8 +1142,8 @@ void TrackingConstraint::computeError()
 
   _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
   Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
-  std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
-                               << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
+  //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
+  //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
   Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
   _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
   _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
@@ -1153,7 +1158,7 @@ void TrackingConstraint::computeError()
   _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
   _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
 
-  
+  /*
   std::cout << "l_wrist_pos_goal: \n" << _measurement.l_wrist_pos_goal.transpose() << "\n"
             << "l_wrist_ori_goal: \n" << _measurement.l_wrist_ori_goal << "\n"
             << "l_elbow_pos_goal: \n" << _measurement.l_elbow_pos_goal.transpose() << "\n"
@@ -1166,7 +1171,7 @@ void TrackingConstraint::computeError()
 
             << "l_finger_pos_goal: \n" << _measurement.l_finger_pos_goal.transpose() << "\n"
             << "r_finger_pos_goal: \n" << _measurement.r_finger_pos_goal.transpose() << std::endl;
-  
+  */
 
   //21,22,23,24, 25,26,27,28, 29,30,31,32, 33,34,
   //35,36,37,38,39,40,41,42,43,44,45,46,47,48
@@ -1187,7 +1192,7 @@ void TrackingConstraint::computeError()
 
   // total cost
   double cost = arm_cost + finger_cost;
-  std::cout << "debug: arm_cost = " << arm_cost << ", finger_cost = " << finger_cost << std::endl;
+  //std::cout << "debug: arm_cost = " << arm_cost << ", finger_cost = " << finger_cost << std::endl;
 
   // compute the cost (constraint value)
   _error(0, 0) = cost;
@@ -1417,10 +1422,11 @@ int main(int argc, char *argv[])
   std::cout << ">>>> Preparing similarity network " << std::endl;
   std::string model_path = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/traced_model_adam_euclidean_epoch500_bs128_group_split_dataset.pt";
   //VectorXd original_traj(4800);
-  Matrix<double, 1, 4800> original_traj; // size is known at compile time 
+  Matrix<double, 4800, 1> original_traj; // size is known at compile time 
   for (int i = 0; i < read_original_traj.size(); i++)
     original_traj[i] = read_original_traj[i][0];
   boost::shared_ptr<SimilarityNetwork> similarity_network_ptr;
+  //std::cout << "debug: original_traj size is " << original_traj.rows() << " x " << original_traj.cols() << std::endl;
   similarity_network_ptr.reset( new SimilarityNetwork(model_path, original_traj) );  
 
 
@@ -1433,7 +1439,7 @@ int main(int argc, char *argv[])
   std::vector<TrackingConstraint*> tracking_edges;
   SimilarityConstraint* similarity_edge;
 
-  similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr, NUM_DATAPOINTS);
+  similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr, num_passpoints);
   
   std::cout << ">>>> Adding pass_points vertices and similarity edge " << std::endl;
   similarity_edge->setId(0);
@@ -1464,7 +1470,7 @@ int main(int argc, char *argv[])
     // add vertices
     //DualArmDualHandVertex *v = new DualArmDualHandVertex();
     v_list[it] = new DualArmDualHandVertex();
-    v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Identity()); // feed in initial guess
+    v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Zero()); // feed in initial guess
     v_list[it]->setId(num_passpoints+it); // set a unique id
     optimizer.addVertex(v_list[it]);
 

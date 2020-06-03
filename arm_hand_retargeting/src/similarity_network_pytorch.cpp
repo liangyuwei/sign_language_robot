@@ -4,9 +4,12 @@ VectorXd SimilarityNetwork::normalize(VectorXd original_traj)
 {
 
   //std::cout << "size: " << pos_and_angle_id.rows() << " x " << pos_and_angle_id.cols() << std::endl;
+  //std::cout << "debug: original_traj = " << original_traj << std::endl;
 
   // convert to matrixxd for ease of computation
   MatrixXd tmp = Map<Matrix<double, 100, 48, RowMajor>>(original_traj.data(), 100, 48);
+  
+  //std::cout << "debug: tmp = " << tmp << std::endl;
   /*
   std::cout << "compare" << std::endl;
   std::cout << "size: " << tmp.rows() << " x " << tmp.cols() << std::endl;
@@ -19,20 +22,25 @@ VectorXd SimilarityNetwork::normalize(VectorXd original_traj)
   // for pos and angle data
   //std::cout << "previous: " << std::endl << tmp.block(0, 0, 100, 1).transpose() << std::endl;
   //std::cout << "previous: " << std::endl << tmp.block(0, 1, 100, 1).transpose() << std::endl;
+  //std::cout << "before: " << tmp << std::endl;
   double min_num, max_num;
   for (int pg_id = 0; pg_id < pos_and_angle_id.rows(); pg_id++)
   {
     unsigned int dof_id = (unsigned int) pos_and_angle_id(pg_id)-1; // index starts at 0
     min_num = tmp.block(0, dof_id, 100, 1).minCoeff();
     max_num = tmp.block(0, dof_id, 100, 1).maxCoeff();
-    
+    //std::cout << "debug: min = " << min_num << ", max = " << max_num << std::endl;
+
+    if (min_num == max_num) // necessary!!!
+      continue;
+
     for (int n = 0; n < tmp.rows(); n++)
       tmp(n, dof_id) = (tmp(n, dof_id) - min_num) / (max_num - min_num); // index starts at 0
 
   }
   //std::cout << "after: " << std::endl << tmp.block(0, 0, 100, 1).transpose() << std::endl;
   //std::cout << "after: " << std::endl << tmp.block(0, 1, 100, 1).transpose() << std::endl;
-
+  //std::cout << "after: " << tmp << std::endl;
 
   // for quaternion data
   for(unsigned int q_id = 0; q_id < 2; q_id++)
@@ -41,7 +49,9 @@ VectorXd SimilarityNetwork::normalize(VectorXd original_traj)
     for (unsigned int n = 0; n < tmp.rows(); n++)
     {
       Quaterniond q(tmp(n, dof_id), tmp(n, dof_id+1), tmp(n, dof_id+2), tmp(n, dof_id+3));
+      //std::cout << "debug: quaternion before = " << q.w() << ", " << q.x() << ", " << q.y() << ", " << q.z() << std::endl;
       q.normalize();
+      //std::cout << "debug: quaternion after = " << q.w() << ", " << q.x() << ", " << q.y() << ", " << q.z() << std::endl;
       tmp.block(n, dof_id, 1, 4) << q.w(), q.x(), q.y(), q.z(); // [w,x,y,z], in consistent with MATLAB quaternion data type
     }
   }
@@ -140,13 +150,22 @@ SimilarityNetwork::SimilarityNetwork(std::string model_path, VectorXd original_t
     exit(-1);
   }
 
+  //std::cout << "debug: original_traj = " << original_traj.transpose() << std::endl;
+  //std::cout << "debug: original_traj size is: " << original_traj.rows() << " x " << original_traj.cols() << std::endl;
+
+
   // Normalize the original trajectory
   //std::cout << "normalize trajectory..." << std::endl;
   original_traj = this->normalize(original_traj);
+  //std::cout << "debug: normalized original_traj = " << original_traj << std::endl;
+  //std::cout << "debug: normalized original_traj size is: " << original_traj.rows() << " x " << original_traj.cols() << std::endl;
+
 
   // Evaluate the original trajectory to get its feature
   //std::cout << "evaluate features..." << std::endl;
   this->oritraj_feature = this->eval_feature(original_traj);
+  //std::cout << "debug: oritraj_feature = " << oritraj_feature << std::endl;
+  //std::cout << "debug: oritraj_feature size is: " << oritraj_feature.rows() << " x " << oritraj_feature.cols() << std::endl;
 
   // Print original trajectory's feature
   //std::cout << "Feature of the original trajectory: " << this->oritraj_feature << std::endl;
@@ -158,17 +177,24 @@ SimilarityNetwork::SimilarityNetwork(std::string model_path, VectorXd original_t
 double SimilarityNetwork::compute_distance(VectorXd new_traj)
 {
 
+  //std::cout << "debug: new_traj = " << new_traj << std::endl;
+  //std::cout << "debug: new_traj size is: " << new_traj.rows() << " x " << new_traj.cols() << std::endl;
+
   // Normalize the input trajectory, pos/angle to 0-1, quaternion to unit
   VectorXd new_resampled_traj = this->normalize(new_traj);
+  //std::cout << "debug: new_resampled_traj = " << new_resampled_traj << std::endl;
+  //std::cout << "debug: new_resampled_traj size is: " << new_resampled_traj.rows() << " x " << new_resampled_traj.cols() << std::endl;
+
 
   // Compute feature vector corresponding to the given trajectory
   //std::cout << "compute new feature..." << std::endl;
   VectorXd newtraj_feature = this->eval_feature(new_resampled_traj);
-
+  //std::cout << "debug: newtraj_feature = " << newtraj_feature << std::endl;
+  //std::cout << "debug: newtraj_feature size is: " << newtraj_feature.rows() << " x " << newtraj_feature.cols() << std::endl;
 
   // Compute distance
   double dist = (newtraj_feature - this->oritraj_feature).norm();
-
+  //std::cout << "debug: dist = " << dist << std::endl;
 
   return dist;
 

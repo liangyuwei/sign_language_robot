@@ -17,7 +17,7 @@ class SimilarityNetwork
     SimilarityNetwork(std::string model_path, VectorXd original_traj); // traj is 1 x 48N
     ~SimilarityNetwork(){};
     VectorXd eval_feature(VectorXd input_traj);
-    double compute_distance(VectorXd new_traj);
+    double compute_distance(VectorXd new_traj); // traj should be 1 x 48N
     VectorXd normalize(VectorXd original_traj); // pos & angle normalized to 0-1, quaternion normalized to unit quaternion
   
     VectorXd tmp_original_traj;
@@ -31,7 +31,7 @@ class SimilarityNetwork
     unsigned int DOF = 48;
     unsigned int traj_length = 4800;
     unsigned int feature_length = 100;
-    VectorXd oritraj_feature;
+    VectorXd oritraj_feature; // 100 x 1
 
     torch::jit::script::Module module; // typedef torch::jit::Module
 
