@@ -73,6 +73,12 @@ using namespace g2o;
 using namespace Eigen;
 using namespace H5;
 
+unsigned int count_col = 0;
+unsigned int count_sim = 0;
+unsigned int count_traj = 0;
+unsigned int count_unary = 0;
+unsigned int count_smoothness = 0;
+unsigned int count_tracking = 0;
 
 typedef struct {
 
@@ -727,7 +733,9 @@ double MyUnaryConstraints::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 
 void MyUnaryConstraints::computeError()
 {
-  
+
+  // statistics
+  count_unary++;  
 
   //std::cout << "Computing Unary Constraint..." << std::endl;
 
@@ -803,6 +811,10 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
     
     void computeError()
     {
+
+      // statistics
+      count_smoothness++;  
+
       //std::cout << "Computing Smoothness Constraint..." << std::endl;
 
       // Get the values of the two vertices
@@ -860,6 +872,9 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
     void computeError()
     {
 
+      // statistics
+      count_sim++;  
+
       //std::cout << "Computing Similarity Constraint..." << std::endl;
 
       // Get pass_points as stack
@@ -875,6 +890,10 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
       // Generate new trajectory
       MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
       //std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
+      
+      // statistics
+      count_traj++;  
+
 
       // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
       MatrixXd y_seq_tmp = y_seq.transpose();
@@ -1094,6 +1113,8 @@ double TrackingConstraint::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 
 void TrackingConstraint::computeError()
 {
+  // statistics
+  count_tracking++;  
 
   //std::cout << "Computing Tracking Constraint..." << std::endl;
 
@@ -1134,7 +1155,9 @@ void TrackingConstraint::computeError()
   //VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), 4800);
   //std::cout << "debug: y_seq = \n" << y_seq << std::endl;
   //std::cout << "debug: y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
-  
+  // statistics
+  count_traj++;  
+
   
   // Set new goals(expected trajectory) to _measurement
   unsigned int point_id = _measurement.point_id;
@@ -1575,6 +1598,7 @@ int main(int argc, char *argv[])
   std::cout << "optimizing graph, vertices: " << optimizer.vertices().size() << std::endl;
 
   // Test if something wrong with edges computation
+  /*
   double cost_tmp = 0;
   // 1
   std::cout << "Unary edges' values: ";
@@ -1612,7 +1636,7 @@ int main(int argc, char *argv[])
   cost_tmp = similarity_edge->error()[0];
   std::cout << cost_tmp << std::endl;
   std::cout << "Similarity edge all right!" << std::endl;
-  
+  */  
 
 
   // save for fun...
@@ -1620,7 +1644,7 @@ int main(int argc, char *argv[])
   std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
 
 
-  optimizer.optimize(3); // optimize for a number of iterations
+  optimizer.optimize(1); // optimize for a number of iterations
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Total time used for optimization: " << t_spent.count() << " s" << std::endl;
