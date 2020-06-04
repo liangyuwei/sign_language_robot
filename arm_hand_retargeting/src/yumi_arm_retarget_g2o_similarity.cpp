@@ -962,18 +962,30 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
 
 
 /* Define constraint for computing tracking error */
+/* addVertex rule: connect pass_points first, then datapoints */
 class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, E>, dimension and measurement datatype
 {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     // Constructor and destructor
-    TrackingConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, KDL::ChainFkSolverPos_recursive &_left_fk_solver, KDL::ChainFkSolverPos_recursive &_right_fk_solver, unsigned int num_vertices) : trajectory_generator_ptr(_trajectory_generator_ptr), left_fk_solver(_left_fk_solver), right_fk_solver(_right_fk_solver)
+    TrackingConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, 
+                      KDL::ChainFkSolverPos_recursive &_left_fk_solver, 
+                      KDL::ChainFkSolverPos_recursive &_right_fk_solver, 
+                      unsigned int num_passpoints,
+                      unsigned int num_datapoints) : trajectory_generator_ptr(_trajectory_generator_ptr), left_fk_solver(_left_fk_solver), right_fk_solver(_right_fk_solver)
     {
+      // record
+      this->num_datapoints = num_datapoints;
+      this->num_passpoints = num_passpoints;
       // resize the number of vertices this edge connects to
       //std::cout << "resizing tracking constraint..." << std::endl;
-      resize(num_vertices);
+      resize(num_datapoints+num_passpoints);
+      
     }
     ~TrackingConstraint(){};    
+
+    // numbers
+    unsigned int num_datapoints, num_passpoints;
 
 
     // trajectory generator and similarity network
@@ -1145,41 +1157,26 @@ double TrackingConstraint::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 
 void TrackingConstraint::computeError()
 {
+
+  //std::cout << "Computing Tracking Constraint..." << std::endl;
+
   // statistics
   count_tracking++;  
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
 
 
-  //std::cout << "Computing Tracking Constraint..." << std::endl;
-
-  // get the current joint value
-  // _vertices is a VertexContainer type, a std::vector<Vertex*>
-  const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
-  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
-  //std::cout << "debug: x size is: " << x.rows() << " x " << x.cols() << std::endl;
-  //std::cout << "debug: x = \n" << x.transpose() << std::endl;
-
-  // Get joint angles
-  Matrix<double, 7, 1> q_cur_l, q_cur_r;
-  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
-  q_cur_l = x.block<7, 1>(0, 0);
-  q_cur_r = x.block<7, 1>(7, 0);
-  q_cur_finger_l = x.block<12, 1>(14, 0);
-  q_cur_finger_r = x.block<12, 1>(26, 0); 
-  
-  
   // Get pass_points as stack
-  unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
+  //unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
   MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
   //pass_points.resize(num_passpoints, PASSPOINT_DOF);
-  for (unsigned int n = 1; n <= num_passpoints; n++) // starting from 1, bypass 0; go throught all num_passpoints pass points.
+  for (unsigned int n = 0; n < num_passpoints; n++) 
   { 
     const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
-    pass_points.block(n-1, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
+    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
   }
-  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
-  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
-  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
+  std::cout << "debug: pass_points = \n" << pass_points << std::endl;
+  std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
+  std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
 
   // Generate new trajectory
   std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
@@ -1196,72 +1193,97 @@ void TrackingConstraint::computeError()
   // statistics
   count_traj++;  
 
-  
-  // Set new goals(expected trajectory) to _measurement
-  unsigned int point_id = _measurement.point_id;
-  Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
 
-  _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
-  Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
-  //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
-  //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
-  Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
-  _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
-  _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
+  // iterate to compute costs
+  double cost = 0;
+  double total_cost = 0;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    // _vertices is a VertexContainer type, a std::vector<Vertex*>
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+    //std::cout << "debug: x size is: " << x.rows() << " x " << x.cols() << std::endl;
+    //std::cout << "debug: x = \n" << x.transpose() << std::endl;
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    unsigned int point_id = n; //_measurement.point_id;
+    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
+
+    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
+    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
+    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
+    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
+    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
+    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
+    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
 
 
-  _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
-  Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
-  Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
-  _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
-  _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
+    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
+    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
+    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
+    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
+    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
 
-  _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
-  _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
+    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
 
-  /*
-  std::cout << "l_wrist_pos_goal: \n" << _measurement.l_wrist_pos_goal.transpose() << "\n"
-            << "l_wrist_ori_goal: \n" << _measurement.l_wrist_ori_goal << "\n"
-            << "l_elbow_pos_goal: \n" << _measurement.l_elbow_pos_goal.transpose() << "\n"
-            << "quaternion q_l: \n" << q_l.w() << " " << q_l.x() << " " << q_l.y() << " " << q_l.z() << "\n"
+    /*
+    std::cout << "l_wrist_pos_goal: \n" << _measurement.l_wrist_pos_goal.transpose() << "\n"
+              << "l_wrist_ori_goal: \n" << _measurement.l_wrist_ori_goal << "\n"
+              << "l_elbow_pos_goal: \n" << _measurement.l_elbow_pos_goal.transpose() << "\n"
+              << "quaternion q_l: \n" << q_l.w() << " " << q_l.x() << " " << q_l.y() << " " << q_l.z() << "\n"
 
-            << "r_wrist_pos_goal: \n" << _measurement.r_wrist_pos_goal.transpose() << "\n"
-            << "r_wrist_ori_goal: \n" << _measurement.r_wrist_ori_goal << "\n"
-            << "r_elbow_pos_goal: \n" << _measurement.r_elbow_pos_goal.transpose() << "\n"
-            << "quaternion q_r: \n" << q_r.w() << " " << q_r.x() << " " << q_r.y() << " " << q_r.z() << "\n"
+              << "r_wrist_pos_goal: \n" << _measurement.r_wrist_pos_goal.transpose() << "\n"
+              << "r_wrist_ori_goal: \n" << _measurement.r_wrist_ori_goal << "\n"
+              << "r_elbow_pos_goal: \n" << _measurement.r_elbow_pos_goal.transpose() << "\n"
+              << "quaternion q_r: \n" << q_r.w() << " " << q_r.x() << " " << q_r.y() << " " << q_r.z() << "\n"
 
-            << "l_finger_pos_goal: \n" << _measurement.l_finger_pos_goal.transpose() << "\n"
-            << "r_finger_pos_goal: \n" << _measurement.r_finger_pos_goal.transpose() << std::endl;
-  */
+              << "l_finger_pos_goal: \n" << _measurement.l_finger_pos_goal.transpose() << "\n"
+              << "r_finger_pos_goal: \n" << _measurement.r_finger_pos_goal.transpose() << std::endl;
+    */
 
-  //21,22,23,24, 25,26,27,28, 29,30,31,32, 33,34,
-  //35,36,37,38,39,40,41,42,43,44,45,46,47,48
+    //21,22,23,24, 25,26,27,28, 29,30,31,32, 33,34,
+    //35,36,37,38,39,40,41,42,43,44,45,46,47,48
 
-  
-  // Compute unary costs
-  // 1
-  double arm_cost = compute_arm_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
-  arm_cost += compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
-  //std::cout << "Arm cost=";
-  //std::cout << arm_cost << ", ";
+    
+    // Compute unary costs
+    // 1
+    double arm_cost = compute_arm_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
+    arm_cost += compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+    //std::cout << "Arm cost=";
+    //std::cout << arm_cost << ", ";
 
-  // 2
-  double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
-  finger_cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
-  //std::cout << "Finger cost=";
-  //std::cout << finger_cost << ", ";
+    // 2
+    double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
+    finger_cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
+    //std::cout << "Finger cost=";
+    //std::cout << finger_cost << ", ";
 
-  // total cost
-  double cost = arm_cost + finger_cost;
-  //std::cout << "debug: arm_cost = " << arm_cost << ", finger_cost = " << finger_cost << std::endl;
+    // total cost
+    cost = arm_cost + finger_cost;
+    std::cout << "debug: arm_cost = " << arm_cost << ", finger_cost = " << finger_cost << std::endl;
+    total_cost += cost;
+
+  }
 
   // compute the cost (constraint value)
-  _error(0, 0) = cost;
+  _error(0, 0) = total_cost;
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   total_tracking += t_spent.count();
-            
+
+
+
 }
 
 
@@ -1499,13 +1521,23 @@ int main(int argc, char *argv[])
   std::vector<PassPointVertex*> pv_list(NUM_DATAPOINTS);
   std::vector<MyUnaryConstraints*> unary_edges;
   std::vector<SmoothnessConstraint*> smoothness_edges;  
-  std::vector<TrackingConstraint*> tracking_edges;
+  //std::vector<TrackingConstraint*> tracking_edges;
+  TrackingConstraint* tracking_edge;
   SimilarityConstraint* similarity_edge;
 
   similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr, num_passpoints);
-  
-  std::cout << ">>>> Adding pass_points vertices and similarity edge " << std::endl;
   similarity_edge->setId(0);
+
+  tracking_edge = new TrackingConstraint(trajectory_generator_ptr, 
+                                         left_fk_solver, right_fk_solver, 
+                                         num_passpoints, NUM_DATAPOINTS);
+  tracking_edge->setId(1);
+
+
+  /* Edge order: similarity(0), tracking(1), unary(2 ~ num_datapoints+1), smoothness()*/
+  /* Vertex order: pass_points(0 ~ num_passpoints-1), datapoints(num_passpoints ~ num_passpoints+num_datapoints-1) */
+
+  std::cout << ">>>> Adding pass_points vertices, similarity edge and tracking edge " << std::endl;
   for (unsigned int it = 0; it < num_passpoints; it++)
   {
     // preparation
@@ -1523,7 +1555,11 @@ int main(int argc, char *argv[])
 
     // connect to edge
     similarity_edge->setVertex(it, optimizer.vertex(it));
+
+    tracking_edge->setVertex(it, optimizer.vertex(it));
+
   }
+  similarity_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
   optimizer.addEdge(similarity_edge);
 
   
@@ -1582,12 +1618,12 @@ int main(int argc, char *argv[])
     */
 
     // id for selecting point on new trajectory (y_seq)
-    constraint_data.point_id = it; 
+    //constraint_data.point_id = it; 
 
 
     // add unary edges
     MyUnaryConstraints *unary_edge = new MyUnaryConstraints(left_fk_solver, right_fk_solver, dual_arm_dual_hand_collision_ptr);
-    unary_edge->setId(it+1);
+    unary_edge->setId(it+2); // similarity and tracking edges ahead of it
     unary_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
     unary_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
     unary_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
@@ -1597,19 +1633,12 @@ int main(int argc, char *argv[])
     
     
     // add tracking edges
-    TrackingConstraint *tracking_edge = new TrackingConstraint(trajectory_generator_ptr, left_fk_solver, right_fk_solver, num_passpoints+1);
-    tracking_edge->setId(1+NUM_DATAPOINTS+1+it);
-    tracking_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); // connect q vertex
-    for (unsigned int j = 0; j < num_passpoints; j++) 
-      tracking_edge->setVertex(j+1, optimizer.vertex(j)); // connect pass_point vertices
-
-    tracking_edge->setMeasurement(constraint_data);
-    tracking_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
-    optimizer.addEdge(tracking_edge);
+    tracking_edge->setVertex(num_passpoints+it, optimizer.vertex(num_passpoints+it)); 
  
-    tracking_edges.push_back(tracking_edge);
-        
   }
+  tracking_edge->setMeasurement(constraint_data);
+  tracking_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
+  optimizer.addEdge(tracking_edge);
 
   
   std::cout << ">>>> Adding binary edges " << std::endl;
@@ -1617,7 +1646,7 @@ int main(int argc, char *argv[])
   {
     // Add binary edges
     SmoothnessConstraint *smoothness_edge = new SmoothnessConstraint();
-    smoothness_edge->setId(2*NUM_DATAPOINTS+2+it); // set a unique ID
+    smoothness_edge->setId(NUM_DATAPOINTS+2+it); // set a unique ID
     smoothness_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); //v_list[it]);
     smoothness_edge->setVertex(1, optimizer.vertex(num_passpoints+it+1)); //v_list[it+1]); // binary edge, connects only 2 vertices, i.e. i=0 and i=1
     smoothness_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // Information type correct
@@ -1638,7 +1667,7 @@ int main(int argc, char *argv[])
   std::cout << "optimizing graph, vertices: " << optimizer.vertices().size() << std::endl;
 
   // Test if something wrong with edges computation
-  /*
+
   double cost_tmp = 0;
   // 1
   std::cout << "Unary edges' values: ";
@@ -1661,22 +1690,24 @@ int main(int argc, char *argv[])
   std::cout << std::endl;
   std::cout << "Smoothness edges all right!" << std::endl;
   // 3
-  std::cout << "Tracking edges' values: ";
-  for (unsigned int t = 96; t < tracking_edges.size(); t++)
-  {
-    tracking_edges[t]->computeError();
-    cost_tmp = tracking_edges[t]->error()[0];
-    std::cout << cost_tmp << ", ";
-  }
-  std::cout << std::endl;
-  std::cout << "Tracking edges all right!" << std::endl;
+  //std::cout << "Tracking edges' values: ";
+  //for (unsigned int t = 96; t < tracking_edges.size(); t++)
+  //{
+  //  tracking_edges[t]->computeError();
+  //  cost_tmp = tracking_edges[t]->error()[0];
+  //  std::cout << cost_tmp << ", ";
+  //}
+  tracking_edge->computeError();
+  cost_tmp = tracking_edge->error()[0];
+  std::cout << "Tracking edge's values: " << cost_tmp << std::endl;
+  std::cout << "Tracking edge all right!" << std::endl;
   // 4
   std::cout << "Similarity edge's value: ";
   similarity_edge->computeError();
   cost_tmp = similarity_edge->error()[0];
   std::cout << cost_tmp << std::endl;
   std::cout << "Similarity edge all right!" << std::endl;
-  */  
+   
 
 
   // save for fun...
