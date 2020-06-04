@@ -80,6 +80,13 @@ unsigned int count_unary = 0;
 unsigned int count_smoothness = 0;
 unsigned int count_tracking = 0;
 
+double total_col = 0;
+double total_sim = 0;
+double total_traj = 0;
+double total_unary = 0;
+double total_smoothness = 0;
+double total_tracking = 0;
+
 typedef struct {
 
   // Human motion data
@@ -554,7 +561,12 @@ double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q
     x[i] = q_whole[i];
 
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   double min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x); 
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_col += t_spent.count();
+  count_col++;
   // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
 
   // Compute cost for collision avoidance
@@ -734,8 +746,10 @@ double MyUnaryConstraints::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 void MyUnaryConstraints::computeError()
 {
 
+
   // statistics
   count_unary++;  
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
 
   //std::cout << "Computing Unary Constraint..." << std::endl;
 
@@ -797,7 +811,11 @@ void MyUnaryConstraints::computeError()
 
   // Display message
   //std::cout << "Computing unary edge's cost: " << cost << std::endl;
-            
+  
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_01 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_unary += t_01.count();
+
 }
 
 
@@ -814,6 +832,7 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
 
       // statistics
       count_smoothness++;  
+      std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
 
       //std::cout << "Computing Smoothness Constraint..." << std::endl;
 
@@ -830,6 +849,10 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
 
       // Display message
       //std::cout << "Computing binary edge's cost: " << _error(0, 0) << std::endl;
+
+      std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+      total_smoothness += t_spent.count();
 
     }
 
@@ -888,7 +911,11 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
       //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
     
       // Generate new trajectory
+      std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
       MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+      std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+      total_traj += t_spent.count();
       //std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
       
       // statistics
@@ -904,8 +931,12 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
       // compute similariity distance(it would do the normalization)
       double dist = 0;
       try{
-         dist = similarity_network_ptr->compute_distance(new_traj);
-         //std::cout << "debug1: dist = " << dist << std::endl;
+        std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+        dist = similarity_network_ptr->compute_distance(new_traj);
+        //std::cout << "debug1: dist = " << dist << std::endl;
+        std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+        std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+        total_sim += t_spent.count();
       }
       catch (Exception ex)
       {
@@ -916,6 +947,7 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
 
       _error(0, 0) = 5.0 * dist;
     
+      
     
     }
 
@@ -1115,6 +1147,8 @@ void TrackingConstraint::computeError()
 {
   // statistics
   count_tracking++;  
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+
 
   //std::cout << "Computing Tracking Constraint..." << std::endl;
 
@@ -1148,7 +1182,11 @@ void TrackingConstraint::computeError()
   //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
 
   // Generate new trajectory
+  std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
   MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+  std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+  total_traj += t_spent1.count();
   //std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
   // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
   //MatrixXd y_seq_tmp = y_seq.transpose();
@@ -1220,7 +1258,9 @@ void TrackingConstraint::computeError()
   // compute the cost (constraint value)
   _error(0, 0) = cost;
 
-
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_tracking += t_spent.count();
             
 }
 
@@ -1644,7 +1684,7 @@ int main(int argc, char *argv[])
   std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
 
 
-  optimizer.optimize(1); // optimize for a number of iterations
+  optimizer.optimize(2); // optimize for a number of iterations
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Total time used for optimization: " << t_spent.count() << " s" << std::endl;
@@ -1654,6 +1694,27 @@ int main(int argc, char *argv[])
 
   std::cout << ">>>> Optimization done." << std::endl;
   
+
+  // Statistics:
+  std::cout << "Statistics: " << std::endl;
+  std::cout << "Collision checking " << count_col 
+            << " times, with total time = " << total_col 
+            << " s, average time = " << total_col / count_col << " s." << std::endl;
+  std::cout << "Similarity computation " << count_sim 
+            << " times, with total time = " << total_sim 
+            << " s, average time = " << total_sim / count_sim << " s." << std::endl;
+  std::cout << "Trajectory generation " << count_traj 
+            << " times, with total time = " << total_traj 
+            << " s, average time = " << total_traj / count_traj << " s." << std::endl;
+  std::cout << "Unary constraint " << count_unary 
+            << " times, with total time = " << total_unary
+            << " s, average time = " << total_unary / count_unary << " s." << std::endl;
+  std::cout << "Smoothness constraint " << count_smoothness
+            << " times, with total time = " << total_smoothness 
+            << " s, average time = " << total_smoothness / count_smoothness << " s." << std::endl;
+  std::cout << "Trackig constraint " << count_tracking
+            << " times, with total time = " << total_tracking 
+            << " s, average time = " << total_tracking / count_tracking << " s." << std::endl;                                                
 
   // estimate Count of inlier ???
   /*
