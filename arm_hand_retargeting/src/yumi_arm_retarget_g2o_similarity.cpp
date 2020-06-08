@@ -69,6 +69,7 @@
 #define NUM_DATAPOINTS 100 // pre-defined, fixed
 //#define NUM_PASSPOINTS 25 // BlockSolver mush known this at compile time...
 
+
 using namespace g2o;
 using namespace Eigen;
 using namespace H5;
@@ -924,7 +925,7 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
 
       // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
       MatrixXd y_seq_tmp = y_seq.transpose();
-      VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), 4800, 1);
+      VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), PASSPOINT_DOF*NUM_DATAPOINTS, 1);
       //std::cout << "debug: original y_seq = " << y_seq << std::endl;
       //std::cout << "debug: reshaped y_seq = " << y_seq_tmp.transpose() << std::endl;
 
@@ -1174,9 +1175,9 @@ void TrackingConstraint::computeError()
     const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
     pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
   }
-  std::cout << "debug: pass_points = \n" << pass_points << std::endl;
-  std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
-  std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
+  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
+  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
+  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
 
   // Generate new trajectory
   std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
@@ -1270,7 +1271,7 @@ void TrackingConstraint::computeError()
 
     // total cost
     cost = arm_cost + finger_cost;
-    std::cout << "debug: arm_cost = " << arm_cost << ", finger_cost = " << finger_cost << std::endl;
+    //std::cout << "debug: arm_cost = " << arm_cost << ", finger_cost = " << finger_cost << std::endl;
     total_cost += cost;
 
   }
@@ -1507,7 +1508,7 @@ int main(int argc, char *argv[])
   std::cout << ">>>> Preparing similarity network " << std::endl;
   std::string model_path = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/traced_model_adam_euclidean_epoch500_bs128_group_split_dataset.pt";
   //VectorXd original_traj(4800);
-  Matrix<double, 4800, 1> original_traj; // size is known at compile time 
+  Matrix<double, PASSPOINT_DOF*NUM_DATAPOINTS, 1> original_traj; // size is known at compile time 
   for (int i = 0; i < read_original_traj.size(); i++)
     original_traj[i] = read_original_traj[i][0];
   boost::shared_ptr<SimilarityNetwork> similarity_network_ptr;
@@ -1667,7 +1668,7 @@ int main(int argc, char *argv[])
   std::cout << "optimizing graph, vertices: " << optimizer.vertices().size() << std::endl;
 
   // Test if something wrong with edges computation
-
+  /*
   double cost_tmp = 0;
   // 1
   std::cout << "Unary edges' values: ";
@@ -1707,21 +1708,21 @@ int main(int argc, char *argv[])
   cost_tmp = similarity_edge->error()[0];
   std::cout << cost_tmp << std::endl;
   std::cout << "Similarity edge all right!" << std::endl;
-   
+  */
 
 
   // save for fun...
-  bool saveFlag = optimizer.save("/home/liangyuwei/sign_language_robot_ws/g2o_results/result_before.g2o");
-  std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
+  //bool saveFlag = optimizer.save("/home/liangyuwei/sign_language_robot_ws/g2o_results/result_before.g2o");
+  //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
 
 
-  optimizer.optimize(2); // optimize for a number of iterations
+  optimizer.optimize(1); // optimize for a number of iterations
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Total time used for optimization: " << t_spent.count() << " s" << std::endl;
 
-  saveFlag = optimizer.save("./g2o_results/result_after.g2o");
-  std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
+  //saveFlag = optimizer.save("./g2o_results/result_after.g2o");
+  //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
 
   std::cout << ">>>> Optimization done." << std::endl;
   
