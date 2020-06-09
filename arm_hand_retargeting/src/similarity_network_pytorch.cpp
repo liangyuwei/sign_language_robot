@@ -7,7 +7,7 @@ VectorXd SimilarityNetwork::normalize(VectorXd original_traj)
   //std::cout << "debug: original_traj = " << original_traj << std::endl;
 
   // convert to matrixxd for ease of computation
-  MatrixXd tmp = Map<Matrix<double, 100, 48, RowMajor>>(original_traj.data(), 100, 48);
+  MatrixXd tmp = Map<Matrix<double, NUM_DATAPOINTS, 48, RowMajor>>(original_traj.data(), NUM_DATAPOINTS, 48);
   
   //std::cout << "debug: tmp = " << tmp << std::endl;
   /*
@@ -27,8 +27,8 @@ VectorXd SimilarityNetwork::normalize(VectorXd original_traj)
   for (int pg_id = 0; pg_id < pos_and_angle_id.rows(); pg_id++)
   {
     unsigned int dof_id = (unsigned int) pos_and_angle_id(pg_id)-1; // index starts at 0
-    min_num = tmp.block(0, dof_id, 100, 1).minCoeff();
-    max_num = tmp.block(0, dof_id, 100, 1).maxCoeff();
+    min_num = tmp.block(0, dof_id, NUM_DATAPOINTS, 1).minCoeff();
+    max_num = tmp.block(0, dof_id, NUM_DATAPOINTS, 1).maxCoeff();
     //std::cout << "debug: min = " << min_num << ", max = " << max_num << std::endl;
 
     if (min_num == max_num) // necessary!!!

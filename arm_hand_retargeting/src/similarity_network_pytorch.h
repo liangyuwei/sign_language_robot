@@ -9,6 +9,9 @@
 
 using namespace Eigen;
 
+#ifndef NUM_DATAPOINTS
+#define NUM_DATAPOINTS 50
+#endif
 
 class SimilarityNetwork
 {
@@ -29,7 +32,7 @@ class SimilarityNetwork
     VectorXd pos_and_angle_id;
     // 
     unsigned int DOF = 48;
-    unsigned int traj_length = 4800;
+    unsigned int traj_length = DOF*NUM_DATAPOINTS; //4800;
     unsigned int feature_length = 100;
     VectorXd oritraj_feature; // 100 x 1
 

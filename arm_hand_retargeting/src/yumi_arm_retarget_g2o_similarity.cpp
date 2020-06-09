@@ -66,7 +66,7 @@
 // Macros
 #define JOINT_DOF 38
 #define PASSPOINT_DOF 48
-#define NUM_DATAPOINTS 100 // pre-defined, fixed
+#define NUM_DATAPOINTS 50 //100 // pre-defined, fixed
 //#define NUM_PASSPOINTS 25 // BlockSolver mush known this at compile time...
 
 
