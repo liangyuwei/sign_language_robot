@@ -67,7 +67,16 @@
 #define JOINT_DOF 38
 #define PASSPOINT_DOF 48
 #define NUM_DATAPOINTS 50 //100 // pre-defined, fixed
-//#define NUM_PASSPOINTS 25 // BlockSolver mush known this at compile time...
+//#define NUM_PASSPOINTS 25 // BlockSolver must known this at compile time... yet it could also be dynamic!!! BlockSolver<-1, -1>
+
+// weights for different parts of cost
+#define K_COL 2.0
+#define K_POS_LIMIT 5.0
+#define K_WRIST_ORI 2.0
+#define K_WRIST_POS 2.0
+#define K_ELBOW_POS 2.0
+#define K_FINGER 2.0
+#define K_SIMILARITY 5.0
 
 
 using namespace g2o;
@@ -571,8 +580,8 @@ double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q
   // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
 
   // Compute cost for collision avoidance
-  double k_col = 1.0;
-  double cost = k_col * (min_distance + 1) * (min_distance + 1); // 1 for colliding state, -1 for non
+  //double k_col = 1.0;
+  double cost = (min_distance + 1) * (min_distance + 1); // 1 for colliding state, -1 for non
 
   return cost;
 
@@ -598,7 +607,7 @@ double MyUnaryConstraints::compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q
 
 
 
-
+/*
 double MyUnaryConstraints::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
     {
       // Get joint angles
@@ -676,6 +685,7 @@ double MyUnaryConstraints::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_
   return cost;
 
 }
+*/
 
 
 double MyUnaryConstraints::linear_map(double x_, double min_, double max_, double min_hat, double max_hat)
@@ -684,6 +694,7 @@ double MyUnaryConstraints::linear_map(double x_, double min_, double max_, doubl
 }
 
 
+/*
 double MyUnaryConstraints::compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct &fdata)
 {
   // Obtain required data and parameter settings
@@ -741,6 +752,7 @@ double MyUnaryConstraints::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
   return finger_cost;
 
 }
+*/
 
 
 
@@ -794,7 +806,7 @@ void MyUnaryConstraints::computeError()
 
   // total cost
   //double cost = arm_cost + finger_cost + 2.0*collision_cost + 5.0*pos_limit_cost;
-  double cost = 2.0*collision_cost + 5.0*pos_limit_cost;
+  double cost = K_COL * collision_cost + K_POS_LIMIT * pos_limit_cost;
   //std::cout << "Total cost=";
   //std::cout << cost << std::endl;
 
@@ -946,7 +958,7 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
       }
       //std::cout << "debug2: dist = " << dist << std::endl;
 
-      _error(0, 0) = 5.0 * dist;
+      _error(0, 0) = K_SIMILARITY * dist;
     
       
     
@@ -1081,7 +1093,7 @@ double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_
   double wrist_pos_cost = (wrist_pos_cur - wrist_pos_human).norm(); // _human is actually the newly generated trajectory
   double elbow_pos_cost = (elbow_pos_cur - elbow_pos_human).norm();
   double wrist_ori_cost = std::fabs( std::acos (( (wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
-  double cost = 1.0 * wrist_ori_cost + 1.0 * wrist_pos_cost + 1.0 * elbow_pos_cost;
+  double cost = K_WRIST_ORI * wrist_ori_cost + K_WRIST_POS * wrist_pos_cost + K_ELBOW_POS * elbow_pos_cost;
 
 
   // Return cost function value
@@ -1270,7 +1282,7 @@ void TrackingConstraint::computeError()
     //std::cout << finger_cost << ", ";
 
     // total cost
-    cost = arm_cost + finger_cost;
+    cost = arm_cost + K_FINGER * finger_cost; // arm_cost is already weighted in compute_arm_cost()
     //std::cout << "debug: arm_cost = " << arm_cost << ", finger_cost = " << finger_cost << std::endl;
     total_cost += cost;
 
@@ -1316,7 +1328,7 @@ int main(int argc, char *argv[])
   std::string in_file_name = "test_imi_data_YuMi.h5";
   std::string in_group_name = "fengren_1";
   std::string out_file_name = "mocap_ik_results_YuMi_g2o.h5";
-
+  bool continue_optim = false; // If using previously optimized result as the initial value
 
   // Process the terminal arguments
   static struct option long_options[] = 
@@ -1324,6 +1336,7 @@ int main(int argc, char *argv[])
     {"in-h5-filename", required_argument, NULL, 'i'},
     {"in-group-name", required_argument, NULL, 'g'},
     {"out-h5-filename", required_argument, NULL, 'o'},
+    {"continue-optimization", required_argument, NULL, 'c'},
     {"help", no_argument, NULL, 'h'},
     {0, 0, 0, 0}
   };
@@ -1332,7 +1345,7 @@ int main(int argc, char *argv[])
   {
     int opt_index = 0;
     // Get arguments
-    c = getopt_long(argc, argv, "i:g:o:h", long_options, &opt_index);
+    c = getopt_long(argc, argv, "i:g:o:c:h", long_options, &opt_index);
     if (c == -1)
       break;
 
@@ -1346,6 +1359,7 @@ int main(int argc, char *argv[])
         std::cout << "    -i, --in-h5-filename, specify the name of the input h5 file, otherwise a default name specified inside the program will be used. Suffix is required.\n" << std::endl;
         std::cout << "    -g, --in-group-name, specify the group name in the h5 file, which is actually the motion's name.\n" << std::endl;
         std::cout << "    -o, --out-h5-name, specify the name of the output h5 file to store the resultant joint trajectory.\n" << std::endl;
+        std::cout << "    -c, --continue-optimization, If using the previously optimized results stored in out-h5-name as the initial guess.\n" << std::endl;
         return 0;
         break;
 
@@ -1361,6 +1375,10 @@ int main(int argc, char *argv[])
         in_group_name = optarg;
         break;
 
+      case 'c':
+        continue_optim = optarg;
+        break;
+
       default:
         break;
     }
@@ -1369,8 +1387,8 @@ int main(int argc, char *argv[])
   std::cout << "The input h5 file name is: " << in_file_name << std::endl;
   std::cout << "The motion name is: " << in_group_name << std::endl;
   std::cout << "The output h5 file name is: " << out_file_name << std::endl;
-
-
+  std::cout << "The current optimization " << (continue_optim ? "is" : "is not") << " following the previously optimized results." << std::endl; 
+  std::cout << "debug: -c is set as " << (continue_optim ? "true" : "false") << "..." << std::endl;
 
   // Create a struct for storing user-defined data
   my_constraint_struct constraint_data; 
@@ -1437,6 +1455,10 @@ int main(int argc, char *argv[])
   Matrix<double, JOINT_DOF, 1> q_pos_ub = Map<Matrix<double, JOINT_DOF, 1> >(qub.data(), JOINT_DOF, 1);
   constraint_data.q_pos_lb = q_pos_lb;
   constraint_data.q_pos_ub = q_pos_ub;
+
+  // Read previously optimized result
+  std::vector<std::vector<double>> prev_q_results = read_h5(out_file_name, in_group_name, "arm_traj_1"); 
+  std::vector<std::vector<double>> prev_passpoint_results = read_h5(out_file_name, in_group_name, "passpoint_traj_1"); 
 
 
   // Setup KDL FK solver( and set IDs for wrist, elbow and shoulder)
@@ -1506,7 +1528,7 @@ int main(int argc, char *argv[])
 
   // Prepare similarity network
   std::cout << ">>>> Preparing similarity network " << std::endl;
-  std::string model_path = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/traced_model_adam_euclidean_epoch500_bs128_group_split_dataset.pt";
+  std::string model_path = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/trained_model_adam_euclidean_epoch2000_bs1024_group_split_dataset_50p.pt";
   //VectorXd original_traj(4800);
   Matrix<double, PASSPOINT_DOF*NUM_DATAPOINTS, 1> original_traj; // size is known at compile time 
   for (int i = 0; i < read_original_traj.size(); i++)
@@ -1550,7 +1572,17 @@ int main(int argc, char *argv[])
 
     // create vertex
     pv_list[it] = new PassPointVertex();
-    pv_list[it]->setEstimate(pass_point_mat);
+    if(continue_optim)
+    {
+      std::vector<double> prev_passpoint_result = prev_passpoint_results[it]; // 48-dim
+      Matrix<double, PASSPOINT_DOF, 1> prev_passpoint_mat = \
+                Map<Matrix<double, PASSPOINT_DOF, 1>>(prev_passpoint_result.data(), prev_passpoint_result.size());
+      pv_list[it]->setEstimate(prev_passpoint_mat); // use previously optimized result as an initial guess
+    }
+    else
+    {
+      pv_list[it]->setEstimate(pass_point_mat);
+    }
     pv_list[it]->setId(it); // set a unique id
     optimizer.addVertex(pv_list[it]);    
 
@@ -1570,7 +1602,16 @@ int main(int argc, char *argv[])
     // add vertices
     //DualArmDualHandVertex *v = new DualArmDualHandVertex();
     v_list[it] = new DualArmDualHandVertex();
-    v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Zero()); // feed in initial guess
+    if(continue_optim)
+    {
+      std::vector<double> prev_q_result = prev_q_results[it]; // 38-dim
+      Matrix<double, JOINT_DOF, 1> prev_q_mat = Map<Matrix<double, JOINT_DOF, 1>>(prev_q_result.data(), prev_q_result.size());
+      v_list[it]->setEstimate(prev_q_mat); // use previously optimized result as an initial guess
+    }
+    else
+    {
+      v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Zero()); // feed in initial guess
+    }
     v_list[it]->setId(num_passpoints+it); // set a unique id
     optimizer.addVertex(v_list[it]);
 
@@ -1660,7 +1701,6 @@ int main(int argc, char *argv[])
 
   // Start optimization
   std::cout << ">>>> Start optimization:" << std::endl;
-  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   optimizer.initializeOptimization();
   //optimizer.computeInitialGuess();  
   //optimizer.computeActiveErrors();
@@ -1712,11 +1752,14 @@ int main(int argc, char *argv[])
 
 
   // save for fun...
+
+
   //bool saveFlag = optimizer.save("/home/liangyuwei/sign_language_robot_ws/g2o_results/result_before.g2o");
   //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
 
 
-  optimizer.optimize(1); // optimize for a number of iterations
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  optimizer.optimize(200); // optimize for a number of iterations
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Total time used for optimization: " << t_spent.count() << " s" << std::endl;
@@ -1786,7 +1829,7 @@ int main(int argc, char *argv[])
     std::cout << "All information matrices are Positive Semi-Definite." << std::endl;
 
 
-  // Convert and store the results
+  // Convert and store q results (which can be used later for continuing the optimization!!!)
   std::vector<std::vector<double> > q_results;
   Matrix<double, JOINT_DOF, 1> q_tmp;
   std::vector<double> q_vec(JOINT_DOF);
@@ -1798,15 +1841,39 @@ int main(int argc, char *argv[])
       q_vec[d] = q_tmp[d];
     q_results.push_back(q_vec);
     // display for debug
-    std::cout << "original, q_tmp: " << q_tmp.transpose() << std::endl;
+    /*std::cout << "original, q_tmp: " << q_tmp.transpose() << std::endl;
     std::cout << "pushed_back q_result: ";
     for (unsigned int d = 0; d < JOINT_DOF; d++)
       std::cout << q_results[n][d] << " ";
-    std::cout << std::endl;
+    std::cout << std::endl;*/
   }
   std::cout << "q_results size is: " << q_results.size() << " x " << q_results[0].size() << std::endl;
   
-  bool result1 = write_h5(out_file_name, in_group_name, "test_arm_traj_1", NUM_DATAPOINTS, JOINT_DOF, q_results);
+  bool result1 = write_h5(out_file_name, in_group_name, "arm_traj_1", NUM_DATAPOINTS, JOINT_DOF, q_results);
+  std::cout << "q_results stored " << (result1 ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  // Convert and store pass_points results (can be used as a breakpoint for later continuing optimization)
+  std::vector<std::vector<double> > passpoint_results;
+  Matrix<double, PASSPOINT_DOF, 1> passpoint_tmp;
+  std::vector<double> passpoint_vec(PASSPOINT_DOF);
+  for (unsigned int n = 0; n < num_passpoints; n++)
+  {
+    PassPointVertex* vertex_tmp = dynamic_cast<PassPointVertex*>(optimizer.vertex(n));
+    passpoint_tmp = vertex_tmp->estimate();
+    for (unsigned int d = 0; d < PASSPOINT_DOF; d++)
+      passpoint_vec[d] = passpoint_tmp[d];
+    passpoint_results.push_back(passpoint_vec);
+    // display for debug
+    /*std::cout << "original, q_tmp: " << q_tmp.transpose() << std::endl;
+    std::cout << "pushed_back q_result: ";
+    for (unsigned int d = 0; d < JOINT_DOF; d++)
+      std::cout << q_results[n][d] << " ";
+    std::cout << std::endl;*/
+  }
+  std::cout << "passpoint_results size is: " << passpoint_results.size() << " x " << passpoint_results[0].size() << std::endl;
+  
+  bool result2 = write_h5(out_file_name, in_group_name, "passpoint_traj_1", num_passpoints, PASSPOINT_DOF, passpoint_results);
+  std::cout << "passpoint_results stored " << (result2 ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
 
   return 0;
