@@ -70,13 +70,13 @@
 //#define NUM_PASSPOINTS 25 // BlockSolver must known this at compile time... yet it could also be dynamic!!! BlockSolver<-1, -1>
 
 // weights for different parts of cost
-#define K_COL 2.0
-#define K_POS_LIMIT 5.0
-#define K_WRIST_ORI 2.0
-#define K_WRIST_POS 2.0
-#define K_ELBOW_POS 2.0
-#define K_FINGER 2.0
-#define K_SIMILARITY 5.0
+#define K_COL 10.0
+#define K_POS_LIMIT 10.0
+#define K_WRIST_ORI 5.0
+#define K_WRIST_POS 5.0
+#define K_ELBOW_POS 5.0
+#define K_FINGER 5.0
+#define K_SIMILARITY 2.0
 
 
 using namespace g2o;
@@ -1426,7 +1426,9 @@ int main(int argc, char *argv[])
 
   
   unsigned int num_passpoints = read_pass_points.size();
-  
+
+  std::cout << "Number of pass points: " << num_passpoints << std::endl;
+
   //std::cout << "size: " << read_original_traj.size() << " x " << read_original_traj[0].size() << std::endl;
   //std::cout << "test: " << read_original_traj[0][0] << " " << read_original_traj[1][0] << " " << read_original_traj[2][0] << std::endl;
   //std::cout << "number of pass points: " << num_passpoints << std::endl;
