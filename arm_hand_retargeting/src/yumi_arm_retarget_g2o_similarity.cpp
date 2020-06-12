@@ -72,11 +72,12 @@
 // weights for different parts of cost
 #define K_COL 10.0
 #define K_POS_LIMIT 10.0
-#define K_WRIST_ORI 5.0
-#define K_WRIST_POS 5.0
-#define K_ELBOW_POS 5.0
-#define K_FINGER 5.0
-#define K_SIMILARITY 2.0
+#define K_WRIST_ORI 3.0
+#define K_WRIST_POS 3.0
+#define K_ELBOW_POS 3.0
+#define K_FINGER 3.0
+#define K_SIMILARITY 1.0
+#define K_SMOOTHNESS 10.0
 
 
 using namespace g2o;
@@ -549,6 +550,10 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
 
     void computeError();
 
+    // functions for recording costs
+    double return_pos_limit_cost();
+    double return_col_cost();
+
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
     virtual bool write( std::ostream& out ) const {return true;}
@@ -754,7 +759,56 @@ double MyUnaryConstraints::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 }
 */
 
+double MyUnaryConstraints::return_col_cost()
+{
 
+  // get the current joint value
+  // _vertices is a VertexContainer type, a std::vector<Vertex*>
+  const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
+  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+  // Get joint angles
+  Matrix<double, 7, 1> q_cur_l, q_cur_r;
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = x.block<7, 1>(0, 0);
+  q_cur_r = x.block<7, 1>(7, 0);
+  q_cur_finger_l = x.block<12, 1>(14, 0);
+  q_cur_finger_r = x.block<12, 1>(26, 0); 
+  
+  // 3
+  double collision_cost = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
+  //std::cout << "Collision cost=";
+  //std::cout << collision_cost << ", ";
+
+
+  return collision_cost;
+}
+
+double MyUnaryConstraints::return_pos_limit_cost()
+{
+
+  // get the current joint value
+  // _vertices is a VertexContainer type, a std::vector<Vertex*>
+  const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
+  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+  // Get joint angles
+  Matrix<double, 7, 1> q_cur_l, q_cur_r;
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = x.block<7, 1>(0, 0);
+  q_cur_r = x.block<7, 1>(7, 0);
+  q_cur_finger_l = x.block<12, 1>(14, 0);
+  q_cur_finger_r = x.block<12, 1>(26, 0); 
+  
+
+  // 4
+  double pos_limit_cost = compute_pos_limit_cost(x, _measurement);
+  //std::cout << "Pos limit cost=";
+  //std::cout << pos_limit_cost << "; ";
+
+
+  return pos_limit_cost;
+}
 
 void MyUnaryConstraints::computeError()
 {
@@ -856,7 +910,7 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
       const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
       // Compute smoothness cost
-      _error(0, 0) = 10.0 * (x0 - x1).norm();
+      _error(0, 0) = K_SMOOTHNESS * (x0 - x1).norm();
       //std::cout << "Smoothness cost=";
       //std::cout << _error(0, 0) << std::endl;
 
@@ -868,6 +922,19 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
       total_smoothness += t_spent.count();
 
     }
+
+    // function for recording cost hsitory
+    double return_smoothness_cost()
+    {
+      // Get the values of the two vertices
+      const DualArmDualHandVertex *v0 = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
+      const DualArmDualHandVertex *v1 = static_cast<const DualArmDualHandVertex*>(_vertices[1]);
+      const Matrix<double, JOINT_DOF, 1> x0 = v0->estimate(); 
+      const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
+
+      return (x0 - x1).norm();
+    }
+
 
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
@@ -904,7 +971,7 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
     boost::shared_ptr<SimilarityNetwork> &similarity_network_ptr;
     
 
-    // functions to compute costs
+    // function to compute costs
     void computeError()
     {
 
@@ -960,7 +1027,42 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
 
       _error(0, 0) = K_SIMILARITY * dist;
     
-      
+    }
+
+    // function for recording cost history
+    double return_similarity_cost()
+    {
+
+      // Get pass_points as stack
+      int num_passpoints = _vertices.size(); // VertexContainer, i.e. std::vector<Vertex*>
+      MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
+      for (int n = 0; n < num_passpoints; n++)
+      { 
+        const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
+        pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1        
+      }
+    
+      // Generate new trajectory
+      MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+
+
+      // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
+      MatrixXd y_seq_tmp = y_seq.transpose();
+      VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), PASSPOINT_DOF*NUM_DATAPOINTS, 1);
+
+      // compute similariity distance(it would do the normalization)
+      double dist = 0;
+      try{
+        dist = similarity_network_ptr->compute_distance(new_traj);
+      }
+      catch (Exception ex)
+      {
+        std::cout << "Error in similarity network" << std::endl;
+        exit(-1);
+      }
+      //std::cout << "debug2: dist = " << dist << std::endl;
+
+      return dist;
     
     }
 
@@ -1016,12 +1118,156 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct &fdata);
     void computeError();
 
+    // functions for recording cost history
+    std::vector<double> return_finger_cost_history();
+    double return_wrist_pos_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
+    std::vector<double> return_wrist_pos_cost_history();
+    double return_wrist_ori_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
+    std::vector<double> return_wrist_ori_cost_history();
+    double return_elbow_pos_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
+    std::vector<double> return_elbow_pos_cost_history();
+
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
     virtual bool write( std::ostream& out ) const {return true;}
     
 };
 
+
+double TrackingConstraint::return_wrist_pos_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
+{
+      // Get joint angles
+      KDL::JntArray q_in(q_cur.size()); 
+      for (unsigned int i = 0; i < q_cur.size(); ++i)
+      {
+        q_in(i) = q_cur(i);
+      }
+
+      // Do FK using KDL, get the current elbow/wrist/shoulder state
+      KDL::Frame wrist_cart_out; // Output homogeneous transformation
+      int result;
+      result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1);
+      if (result < 0){
+        ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+        exit(-1);
+      }
+      else{
+        //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+      }
+
+      // Preparations
+      Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
+
+      Vector3d wrist_pos_human;
+      if (left_or_right) // left arm
+      {
+        wrist_pos_human = fdata.l_wrist_pos_goal;
+
+        fdata.l_wrist_cur = wrist_pos_cur;
+      }
+      else // right arm
+      {
+        wrist_pos_human = fdata.r_wrist_pos_goal;
+
+        fdata.r_wrist_cur = wrist_pos_cur;
+
+      }
+
+
+  // Compute cost function
+  double wrist_pos_cost = (wrist_pos_cur - wrist_pos_human).norm(); // _human is actually the newly generated trajectory
+
+  // Return cost function value
+  return wrist_pos_cost;
+
+}
+
+double TrackingConstraint::return_wrist_ori_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
+{
+      // Get joint angles
+      KDL::JntArray q_in(q_cur.size()); 
+      for (unsigned int i = 0; i < q_cur.size(); ++i)
+      {
+        q_in(i) = q_cur(i);
+      }
+
+      // Do FK using KDL, get the current elbow/wrist/shoulder state
+      KDL::Frame wrist_cart_out, shoulder_cart_out; // Output homogeneous transformation
+      int result;
+      result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1);
+      if (result < 0){
+        ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+        exit(-1);
+      }
+      else{
+        //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+      }
+
+      // Preparations
+      Matrix3d wrist_ori_cur = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out.M.data, 3, 3); 
+
+      Matrix3d wrist_ori_human;
+      if (left_or_right) // left arm
+      {
+        wrist_ori_human = fdata.l_wrist_ori_goal;
+      }
+      else // right arm
+      {
+        wrist_ori_human = fdata.r_wrist_ori_goal;
+      }
+
+
+  // Compute cost function
+  double wrist_ori_cost = std::fabs( std::acos (( (wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
+
+  // Return cost function value
+  return wrist_ori_cost;
+
+}
+
+double TrackingConstraint::return_elbow_pos_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
+{
+      // Get joint angles
+      KDL::JntArray q_in(q_cur.size()); 
+      for (unsigned int i = 0; i < q_cur.size(); ++i)
+      {
+        q_in(i) = q_cur(i);
+      }
+
+      // Do FK using KDL, get the current elbow/wrist/shoulder state
+      KDL::Frame elbow_cart_out; // Output homogeneous transformation
+      int result;
+      result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
+      if (result < 0){
+        ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+        exit(-1);
+      }
+      else{
+        //ROS_INFO_STREAM("FK solver succeeded for elbow link.");
+      }
+     
+
+      // Preparations
+      Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
+
+      Vector3d elbow_pos_human;
+      if (left_or_right) // left arm
+      {
+        elbow_pos_human = fdata.l_elbow_pos_goal;
+      }
+      else // right arm
+      {
+        elbow_pos_human = fdata.r_elbow_pos_goal;
+      }
+
+
+  // Compute cost function
+  double elbow_pos_cost = (elbow_pos_cur - elbow_pos_human).norm();
+
+  // Return cost function value
+  return elbow_pos_cost;
+
+}
 
 double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
     {
@@ -1033,7 +1279,7 @@ double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_
       }
 
       // Do FK using KDL, get the current elbow/wrist/shoulder state
-      KDL::Frame elbow_cart_out, wrist_cart_out, shoulder_cart_out; // Output homogeneous transformation
+      KDL::Frame elbow_cart_out, wrist_cart_out;//, shoulder_cart_out; // Output homogeneous transformation
       int result;
       result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
       if (result < 0){
@@ -1051,6 +1297,7 @@ double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_
       else{
         //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
       }
+      /*
       result = fk_solver.JntToCart(q_in, shoulder_cart_out, num_shoulder_seg+1);
       if (result < 0){
         ROS_INFO_STREAM("FK solver failed when processing shoulder link, something went wrong");
@@ -1059,18 +1306,19 @@ double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_
       else{
         //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
       }
+      */
 
       // Preparations
       Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
       Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
       Matrix3d wrist_ori_cur = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out.M.data, 3, 3); 
-      Vector3d shoulder_pos_cur = Map<Vector3d>(shoulder_cart_out.p.data, 3, 1);
+      //Vector3d shoulder_pos_cur = Map<Vector3d>(shoulder_cart_out.p.data, 3, 1);
 
-      Vector3d shoulder_pos_human, elbow_pos_human, wrist_pos_human;
+      Vector3d elbow_pos_human, wrist_pos_human; //,shoulder_pos_human
       Matrix3d wrist_ori_human;
       if (left_or_right) // left arm
       {
-        shoulder_pos_human = fdata.l_shoulder_pos_goal;
+        //shoulder_pos_human = fdata.l_shoulder_pos_goal;
         elbow_pos_human = fdata.l_elbow_pos_goal;
         wrist_pos_human = fdata.l_wrist_pos_goal;
         wrist_ori_human = fdata.l_wrist_ori_goal;
@@ -1079,7 +1327,7 @@ double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_
       }
       else // right arm
       {
-        shoulder_pos_human = fdata.r_shoulder_pos_goal;
+        //shoulder_pos_human = fdata.r_shoulder_pos_goal;
         elbow_pos_human = fdata.r_elbow_pos_goal;
         wrist_pos_human = fdata.r_wrist_pos_goal;
         wrist_ori_human = fdata.r_wrist_ori_goal;
@@ -1166,6 +1414,286 @@ double TrackingConstraint::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 
 }
 
+
+std::vector<double> TrackingConstraint::return_finger_cost_history()
+{
+
+  // Get pass_points as stack
+  MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
+  for (unsigned int n = 0; n < num_passpoints; n++) 
+  { 
+    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
+    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
+  }
+
+  // Generate new trajectory
+  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+
+  // iterate to compute costs
+  std::vector<double> finger_cost_history;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    // _vertices is a VertexContainer type, a std::vector<Vertex*>
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+    //std::cout << "debug: x size is: " << x.rows() << " x " << x.cols() << std::endl;
+    //std::cout << "debug: x = \n" << x.transpose() << std::endl;
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    unsigned int point_id = n; //_measurement.point_id;
+    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
+
+    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
+    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
+    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
+    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
+    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
+    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
+    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
+
+
+    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
+    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
+    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
+    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
+    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
+
+    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
+
+
+    // Compute unary costs
+    // 2
+    double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
+    finger_cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
+    //std::cout << "Finger cost=";
+  
+    finger_cost_history.push_back(finger_cost);
+
+  }
+
+  return finger_cost_history;
+
+}
+
+
+std::vector<double> TrackingConstraint::return_wrist_pos_cost_history()
+{
+
+  // Get pass_points as stack
+  //unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
+  MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
+  //pass_points.resize(num_passpoints, PASSPOINT_DOF);
+  for (unsigned int n = 0; n < num_passpoints; n++) 
+  { 
+    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
+    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
+  }
+  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
+  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
+  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
+
+  // Generate new trajectory
+  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+
+  // iterate to compute costs
+  std::vector<double> wrist_pos_costs;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    unsigned int point_id = n; //_measurement.point_id;
+    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
+
+    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
+    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
+    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
+    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
+    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
+    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
+    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
+
+
+    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
+    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
+    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
+    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
+    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
+
+    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
+
+    // Compute unary costs
+    double wrist_pos_cost = return_wrist_pos_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
+    wrist_pos_cost += return_wrist_pos_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+
+    wrist_pos_costs.push_back(wrist_pos_cost);
+
+  }
+
+  return wrist_pos_costs;
+
+}
+
+
+std::vector<double> TrackingConstraint::return_wrist_ori_cost_history()
+{
+
+  // Get pass_points as stack
+  //unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
+  MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
+  //pass_points.resize(num_passpoints, PASSPOINT_DOF);
+  for (unsigned int n = 0; n < num_passpoints; n++) 
+  { 
+    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
+    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
+  }
+  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
+  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
+  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
+
+  // Generate new trajectory
+  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+
+  // iterate to compute costs
+  std::vector<double> wrist_ori_costs;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    unsigned int point_id = n; //_measurement.point_id;
+    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
+
+    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
+    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
+    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
+    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
+    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
+    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
+    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
+
+
+    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
+    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
+    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
+    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
+    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
+
+    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
+
+    // Compute unary costs
+    double wrist_ori_cost = return_wrist_ori_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
+    wrist_ori_cost += return_wrist_ori_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+
+    wrist_ori_costs.push_back(wrist_ori_cost);
+
+  }
+
+  return wrist_ori_costs;
+
+}
+
+
+std::vector<double> TrackingConstraint::return_elbow_pos_cost_history()
+{
+
+  // Get pass_points as stack
+  //unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
+  MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
+  //pass_points.resize(num_passpoints, PASSPOINT_DOF);
+  for (unsigned int n = 0; n < num_passpoints; n++) 
+  { 
+    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
+    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
+  }
+  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
+  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
+  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
+
+  // Generate new trajectory
+  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+
+  // iterate to compute costs
+  std::vector<double> elbow_pos_costs;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    unsigned int point_id = n; //_measurement.point_id;
+    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
+
+    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
+    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
+    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
+    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
+    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
+    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
+    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
+
+
+    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
+    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
+    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
+    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
+    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
+
+    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
+
+    // Compute unary costs
+    double elbow_pos_cost = return_elbow_pos_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
+    elbow_pos_cost += return_elbow_pos_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+
+    elbow_pos_costs.push_back(elbow_pos_cost);
+
+  }
+
+  return elbow_pos_costs;
+
+}
 
 
 void TrackingConstraint::computeError()
@@ -1294,7 +1822,6 @@ void TrackingConstraint::computeError()
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   total_tracking += t_spent.count();
-
 
 
 }
@@ -1754,14 +2281,72 @@ int main(int argc, char *argv[])
 
 
   // save for fun...
-
-
   //bool saveFlag = optimizer.save("/home/liangyuwei/sign_language_robot_ws/g2o_results/result_before.g2o");
   //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
 
+  std::vector<std::vector<double> > col_cost_history;
+  std::vector<std::vector<double> > pos_limit_cost_history;
+  std::vector<std::vector<double> > wrist_pos_cost_history;
+  std::vector<std::vector<double> > wrist_ori_cost_history;
+  std::vector<std::vector<double> > elbow_pos_cost_history;
+  std::vector<std::vector<double> > finger_cost_history;
+  std::vector<std::vector<double> > similarity_cost_history;
+  std::vector<std::vector<double> > smoothness_cost_history;
 
+  // Start optimization and store cost history
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-  optimizer.optimize(200); // optimize for a number of iterations
+  unsigned int num_records = 20; 
+  unsigned int per_iterations = 10; // record data for every 10 iterations
+  // num_iterations = num_records * per_iterations
+  for (unsigned int n = 0; n < num_records; n++)
+  {
+    // optimize for a number of iterations
+    unsigned int iter = optimizer.optimize(per_iterations);
+
+    // 1
+    std::cout << "Recording unary edges' values, ";
+    std::vector<double> col_cost;
+    std::vector<double> pos_limit_cost;
+    for (unsigned int t = 0; t < unary_edges.size(); t++)
+    {
+      col_cost.push_back(unary_edges[t]->return_col_cost());
+      pos_limit_cost.push_back(unary_edges[t]->return_pos_limit_cost());
+    }
+    col_cost_history.push_back(col_cost);
+    pos_limit_cost_history.push_back(pos_limit_cost);
+    // 2
+    std::cout << "smoothness edges' values, ";
+    std::vector<double> smoothness_cost;
+    for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+    {
+      smoothness_cost.push_back(smoothness_edges[t]->return_smoothness_cost());
+    }
+    smoothness_cost_history.push_back(smoothness_cost);
+    // 3
+    std::cout << "tracking edge's value, ";
+    std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+    std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
+    std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
+    std::vector<double> finger_cost = tracking_edge->return_finger_cost_history();
+    wrist_pos_cost_history.push_back(wrist_pos_cost);
+    wrist_ori_cost_history.push_back(wrist_ori_cost);
+    elbow_pos_cost_history.push_back(elbow_pos_cost);
+    finger_cost_history.push_back(finger_cost);
+    // 4
+    std::cout << "similarity edge's value" << std::endl;
+    std::vector<double> similarity_cost;
+    similarity_cost.push_back(similarity_edge->return_similarity_cost());
+    similarity_cost_history.push_back(similarity_cost);
+
+    std::cout << " -- " << n+1 << "/" << num_records \
+              << " for every " << per_iterations << " iterations." << std::endl;
+
+    // Terminate the process if early stopping
+    if(iter < per_iterations) 
+      break;
+
+  }
+
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Total time used for optimization: " << t_spent.count() << " s" << std::endl;
@@ -1771,6 +2356,41 @@ int main(int argc, char *argv[])
 
   std::cout << ">>>> Optimization done." << std::endl;
   
+
+  // Store the cost history
+  std::cout << ">>>> Storing the cost history..." << std::endl;
+  bool result_flag = write_h5(out_file_name, in_group_name, "col_cost_history", \
+                              col_cost_history.size(), col_cost_history[0].size(), col_cost_history);
+  std::cout << "col_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  
+  result_flag = write_h5(out_file_name, in_group_name, "pos_limit_cost_history", \
+                         pos_limit_cost_history.size(), pos_limit_cost_history[0].size(), pos_limit_cost_history);
+  std::cout << "pos_limit_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "wrist_pos_cost_history", \
+                         wrist_pos_cost_history.size(), wrist_pos_cost_history[0].size(), wrist_pos_cost_history);
+  std::cout << "wrist_pos_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "wrist_ori_cost_history", \
+                         wrist_ori_cost_history.size(), wrist_ori_cost_history[0].size(), wrist_ori_cost_history);
+  std::cout << "wrist_ori_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "elbow_pos_cost_history", \
+                         elbow_pos_cost_history.size(), elbow_pos_cost_history[0].size(), elbow_pos_cost_history);
+  std::cout << "elbow_pos_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "finger_cost_history", \
+                         finger_cost_history.size(), finger_cost_history[0].size(), finger_cost_history);
+  std::cout << "finger_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "similarity_cost_history", \
+                         similarity_cost_history.size(), similarity_cost_history[0].size(), similarity_cost_history);
+  std::cout << "similarity_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "smoothness_cost_history", \
+                         smoothness_cost_history.size(), smoothness_cost_history[0].size(), smoothness_cost_history);
+  std::cout << "smoothness_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
 
   // Statistics:
   std::cout << "Statistics: " << std::endl;
