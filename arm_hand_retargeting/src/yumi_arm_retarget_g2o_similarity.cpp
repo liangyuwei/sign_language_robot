@@ -76,7 +76,7 @@
 #define K_WRIST_POS 3.0
 #define K_ELBOW_POS 3.0
 #define K_FINGER 3.0
-#define K_SIMILARITY 1.0
+#define K_SIMILARITY 10.0
 #define K_SMOOTHNESS 10.0
 
 
@@ -2296,7 +2296,7 @@ int main(int argc, char *argv[])
   // Start optimization and store cost history
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   unsigned int num_records = 20; 
-  unsigned int per_iterations = 10; // record data for every 10 iterations
+  unsigned int per_iterations = 5; // record data for every 10 iterations
   // num_iterations = num_records * per_iterations
   for (unsigned int n = 0; n < num_records; n++)
   {
@@ -2501,16 +2501,6 @@ int main(int argc, char *argv[])
   return 0;
 
 }
-
-
-
-
-
-
-
-
-
-
 
 
 
