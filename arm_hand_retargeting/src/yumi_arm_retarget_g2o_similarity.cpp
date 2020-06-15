@@ -6,6 +6,7 @@
 #include <math.h>
 #include <iostream>
 #include <chrono>
+#include <string>
 
 // For acos, fabs
 #include <cmath>
@@ -76,13 +77,14 @@
 #define K_WRIST_POS 3.0
 #define K_ELBOW_POS 3.0
 #define K_FINGER 3.0
-#define K_SIMILARITY 10.0
+#define K_SIMILARITY 50.0 //1000.0 // 1.0 // 10.0
 #define K_SMOOTHNESS 10.0
 
 
 using namespace g2o;
 using namespace Eigen;
 using namespace H5;
+
 
 unsigned int count_col = 0;
 unsigned int count_sim = 0;
@@ -307,6 +309,115 @@ KDL::ChainFkSolverPos_recursive setup_right_kdl(my_constraint_struct &constraint
   //ROS_INFO_STREAM("Joint dimension is: " << kdl_chain.getNrOfJoints()); // 6 joints, 8 segments, checked!
 
   return fk_solver;
+
+}
+
+bool write_h5_3d(const std::string file_name, const std::string group_name, const std::string dataset_name, const int LAYER, const int ROW, const int COL, std::vector<std::vector<std::vector<double> > > data_vector)
+{
+  // Set up file name and dataset name
+  const H5std_string FILE_NAME(file_name);
+  const H5std_string GROUP_NAME(group_name);
+  const H5std_string DATASET_NAME(dataset_name);
+
+  // Convert 2-dim std::vector to 2-dim raw buffer(array)
+  double data[LAYER][ROW][COL];
+  for (int k = 0; k < LAYER; k++)
+  {
+    for (int j = 0; j < ROW; j++)
+    {
+      for (int i = 0; i < COL; i++)    
+        data[k][j][i] = data_vector[k][j][i];
+    }
+  }
+
+  try
+  {
+
+    // Shutdown auto-print of error information
+    herr_t status = H5Eset_auto(H5E_DEFAULT, NULL, NULL);
+
+    // Create a file(create, fail if it exists)
+    H5Fcreate(FILE_NAME.c_str(), H5F_ACC_EXCL, H5P_DEFAULT, H5P_DEFAULT);
+    
+    // Create a file (must be an existing file)
+    H5File file( FILE_NAME, H5F_ACC_RDWR );
+
+    // Create a group (if exists, destroy it, and re-create another)
+    Group group;
+    status = H5Lget_info(file.getId(), GROUP_NAME.c_str(), NULL, H5P_DEFAULT);
+    if (status==0)
+    {
+      std::cout << "The group already exists, open it." << std::endl;
+      group = file.openGroup(GROUP_NAME);
+    }
+    else
+    {
+      std::cout << "The group doesn't exist, create one." << std::endl;
+      group = file.createGroup(GROUP_NAME);
+    }
+
+  
+    // Set up datatype and dataspace for the dataset to be store
+    hsize_t dimsf[3];              // dataset dimensions
+    dimsf[0] = LAYER;
+    dimsf[1] = ROW;
+    dimsf[2] = COL;
+    DataSpace dataspace(3, dimsf);
+    IntType datatype( PredType::NATIVE_DOUBLE );
+    datatype.setOrder( H5T_ORDER_LE );
+
+
+    // Way 1 - Create a dataset within a 'group'
+    status = H5Lget_info(group.getId(), DATASET_NAME.c_str(), NULL, H5P_DEFAULT);
+    if (status == 0)
+    {
+      std::cout << "The dataset already exists, remove it and re-create another one." << std::endl;
+      group.unlink(DATASET_NAME.c_str());
+    }
+    else
+    {
+      std::cout << "The dataset doesn't exist, create one." << std::endl;
+    }
+    DataSet dataset1 = group.createDataSet(DATASET_NAME, datatype, dataspace);
+
+
+    // Way 2 - Create a new dataset within the 'file'
+    //DataSet dataset2 = file.createDataSet( DATASET_NAME, datatype, dataspace );
+
+
+    //Write the data to the dataset using default memory space, file space, and transfer properties.
+    dataset1.write( data, PredType::NATIVE_DOUBLE );
+    //dataset2.write( data, PredType::NATIVE_DOUBLE );
+
+  } // File and group will be closed as their instances go out of scope
+
+  // catch failure caused by the H5File operations
+  catch( FileIException error )
+  {
+    error.printErrorStack();
+    return -1;
+  }
+  // catch failure caused by the DataSet operations
+  catch( DataSetIException error )
+  {
+    error.printErrorStack();
+    return -1;
+  }
+  // catch failure caused by the DataSpace operations
+  catch( DataSpaceIException error )
+  {
+    error.printErrorStack();
+    return -1;
+  }
+  // catch failure caused by the DataSpace operations
+  catch( DataTypeIException error )
+  {
+    error.printErrorStack();
+    return -1;
+  }
+
+  // Finish
+  return true;
 
 }
 
@@ -961,6 +1072,7 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
     {
       // resize the number of vertices this edge connects to
       //std::cout << "resizing similarity constraint..." << std::endl;
+      this->num_vertices = num_vertices;
       resize(num_vertices);
     }
   
@@ -970,6 +1082,10 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
     boost::shared_ptr<TrajectoryGenerator> &trajectory_generator_ptr;
     boost::shared_ptr<SimilarityNetwork> &similarity_network_ptr;
     
+    
+    // intermediate
+    unsigned int num_vertices;
+
 
     // function to compute costs
     void computeError()
@@ -1070,8 +1186,66 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
     virtual bool read( std::istream& in ) {return true;}
     virtual bool write( std::ostream& out ) const {return true;}
 
+    // Re-implement linearizeOplus() for recording Jacobians of this edge
+    //virtual void linearizeOplus();
+    MatrixXd output_jacobian(); 
     
 };
+
+MatrixXd SimilarityConstraint::output_jacobian()
+{
+  MatrixXd jacobians(this->num_vertices, PASSPOINT_DOF);
+  for (unsigned int n = 0; n < this->num_vertices; n++)
+  {
+    for (unsigned int p = 0; p < PASSPOINT_DOF; p++)
+      jacobians(n, p) = _jacobianOplus[n](0, p);
+  }
+
+  //std::cout << "debug: " << _jacobianOplus.size() << " x " << _jacobianOplus[0].rows() << " x " << _jacobianOplus[0].cols() << std::endl;
+  
+  return jacobians;
+}
+
+// Re-implemented linearizeOplus() for recording Jacobians
+/*
+void SimilarityConstraint::linearizeOplus()
+{
+  std::cout << "computing numeric differentiation for Similarity Edge..." << std::endl;
+  for (unsigned int n = 0; n < this->num_vertices; n++)
+  {
+    // Get the current estimate
+    PassPointVertex* v = static_cast<PassPointVertex*>(_vertices[n]);
+    Matrix<double, PASSPOINT_DOF, 1> x = v->estimate();
+
+    // Perform numeric differentiation
+    double eps = 0.5;
+    for (unsigned int p = 0; p < PASSPOINT_DOF; p++)
+    {
+      Matrix<double, PASSPOINT_DOF, 1> delta_x = Matrix<double, PASSPOINT_DOF, 1>::Zero();
+      delta_x[p] = eps;
+      
+      // Assign and compute errors
+      v->setEstimate(x+delta_x);
+      this->computeError();
+      double e_plus = _error(0, 0);
+      v->setEstimate(x-delta_x);
+      this->computeError();
+      double e_minus = _error(0, 0);
+
+      // Reset the original vertex estimate 
+      v->setEstimate(x);
+      delta_x[p] = 0;
+
+      // Compute and set numeric derivative
+      _jacobianOplus[n](0, p) = (e_plus - e_minus) / (2*eps);
+    }
+
+  }
+
+  std::cout << "debug: one line of jacobian is " << _jacobianOplus[0].row(0) << std::endl;
+
+}
+*/
 
 
 
@@ -2293,10 +2467,13 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double> > similarity_cost_history;
   std::vector<std::vector<double> > smoothness_cost_history;
 
+  std::vector<std::vector<std::vector<double> > > jacobian_history;
+
+
   // Start optimization and store cost history
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   unsigned int num_records = 20; 
-  unsigned int per_iterations = 5; // record data for every 10 iterations
+  unsigned int per_iterations = 5;//10; // record data for every 10 iterations
   // num_iterations = num_records * per_iterations
   for (unsigned int n = 0; n < num_records; n++)
   {
@@ -2341,6 +2518,22 @@ int main(int argc, char *argv[])
     std::cout << " -- " << n+1 << "/" << num_records \
               << " for every " << per_iterations << " iterations." << std::endl;
 
+
+    // Save Jacobian of similarity constraint
+    MatrixXd jacobians(num_passpoints, PASSPOINT_DOF);
+    jacobians = similarity_edge->output_jacobian();
+    std::vector<std::vector<double> > jacobian_vec(num_passpoints, std::vector<double>(PASSPOINT_DOF));
+    for (unsigned int i = 0; i < num_passpoints; i++)
+    {
+      for (unsigned int j = 0; j < PASSPOINT_DOF; j++)
+      {
+        jacobian_vec[i][j] = jacobians(i, j);
+      }
+    }
+    jacobian_history.push_back(jacobian_vec);
+    std::cout << "debug: jacobians = \n" << jacobians << std::endl;
+
+
     // Terminate the process if early stopping
     if(iter < per_iterations) 
       break;
@@ -2355,7 +2548,7 @@ int main(int argc, char *argv[])
   //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
 
   std::cout << ">>>> Optimization done." << std::endl;
-  
+
 
   // Store the cost history
   std::cout << ">>>> Storing the cost history..." << std::endl;
@@ -2390,6 +2583,12 @@ int main(int argc, char *argv[])
   result_flag = write_h5(out_file_name, in_group_name, "smoothness_cost_history", \
                          smoothness_cost_history.size(), smoothness_cost_history[0].size(), smoothness_cost_history);
   std::cout << "smoothness_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  
+  // Store the jacobian history
+  result_flag = write_h5_3d(out_file_name, in_group_name, "jacobian_history", \
+                            jacobian_history.size(), jacobian_history[0].size(), jacobian_history[0][0].size(), jacobian_history);
+  std::cout << "jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
 
   // Statistics:
