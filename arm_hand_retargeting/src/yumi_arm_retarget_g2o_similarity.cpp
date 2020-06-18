@@ -77,7 +77,7 @@
 #define K_WRIST_POS 3.0
 #define K_ELBOW_POS 3.0
 #define K_FINGER 3.0
-#define K_SIMILARITY 50.0 //1000.0 // 1.0 // 10.0
+#define K_SIMILARITY 20.0//1000.0 // 1.0 // 10.0
 #define K_SMOOTHNESS 10.0
 
 
@@ -2203,9 +2203,9 @@ int main(int argc, char *argv[])
   std::unique_ptr<Block> solver_ptr( new Block(std::move(linearSolver)) ); // Matrix block solver
 
   // Choose update rule
-  OptimizationAlgorithmLevenberg *solver = new OptimizationAlgorithmLevenberg(std::move(solver_ptr));
+  //OptimizationAlgorithmLevenberg *solver = new OptimizationAlgorithmLevenberg(std::move(solver_ptr));
   //OptimizationAlgorithmGaussNewton *solver = new OptimizationAlgorithmGaussNewton(std::move(solver_ptr));
-  //OptimizationAlgorithmDogleg *solver = new OptimizationAlgorithmDogleg(solver_ptr);
+  OptimizationAlgorithmDogleg *solver = new OptimizationAlgorithmDogleg(std::move(solver_ptr));
 
   // Construct an optimizer (a graph model)
   SparseOptimizer optimizer;
@@ -2473,7 +2473,7 @@ int main(int argc, char *argv[])
   // Start optimization and store cost history
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   unsigned int num_records = 20; 
-  unsigned int per_iterations = 5;//10; // record data for every 10 iterations
+  unsigned int per_iterations = 10; // record data for every 10 iterations
   // num_iterations = num_records * per_iterations
   for (unsigned int n = 0; n < num_records; n++)
   {
@@ -2536,7 +2536,10 @@ int main(int argc, char *argv[])
 
     // Terminate the process if early stopping
     if(iter < per_iterations) 
+    {
+      std::cout << "Stopped after " << n * per_iterations + iter << " iterations." << std::endl;
       break;
+    }
 
   }
 
