@@ -16,7 +16,8 @@ add_compile_options(-std=c++14)#(-std=c++11)#
 set(CMAKE_PREFIX_PATH "/home/liangyuwei/libtorch")
 find_package(Torch REQUIRED)
 #set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS})
-include_directories(${TORCH_INCLUDE_DIRS})#(include/)#
+include_directories(
+  include ${catkin_INCLUDE_DIRS}${TORCH_INCLUDE_DIRS})#(include/)#
 #set(CUDNN_INCLUDE_DIR "")
 
 
@@ -275,6 +276,8 @@ target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorc
 #add_executable(TEST_generate_trajectory_from_viewpoints src/generate_trajectory_from_viewpoints.cpp)
 #target_link_libraries(TEST_generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
+add_executable(TEST_generate_trajectory_using_DMP src/generate_trajectory_using_DMP.cpp)
+target_link_libraries(TEST_generate_trajectory_using_DMP ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 #add_executable(distance_computation src/distance_computation.cpp)
 #target_link_libraries(distance_computation ${catkin_LIBRARIES} ${Boost_LIBRARIES})
