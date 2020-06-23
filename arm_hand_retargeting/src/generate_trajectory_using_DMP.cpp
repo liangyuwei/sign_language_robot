@@ -243,6 +243,12 @@ DMPTrajectoryGenerator::DMPTrajectoryGenerator(std::string file_name, std::strin
   this->rw_start = convert_to_matrixxd(read_h5(file_name, group_name, "rw_start"));
   //std::cout << "debug: goal size = " << this->lrw_goal.rows() << " x " << this->lrw_goal.cols() << std::endl;
 
+  // orientation and glove angle trajectories
+  this->l_wrist_quat_traj = convert_to_matrixxd(read_h5(file_name, group_name, "l_wrist_quat_resampled"));
+  this->r_wrist_quat_traj = convert_to_matrixxd(read_h5(file_name, group_name, "r_wrist_quat_resampled"));
+  this->l_glove_angle_traj = convert_to_matrixxd(read_h5(file_name, group_name, "l_glove_angle_resampled"));
+  this->r_glove_angle_traj = convert_to_matrixxd(read_h5(file_name, group_name, "r_glove_angle_resampled"));
+
 }
 
 /* Reproduction Test: using original starts and goals */
@@ -477,7 +483,8 @@ DMP_trajs DMPTrajectoryGenerator::generate_trajectories(MatrixXd lrw_new_goal, M
                                                        unsigned int num_datapoints)
 {
   // num_datapoints - expected number of path points of the generated trajectory
-  
+  // Output: a DMP_trajs struct, containing trajectories with the size of 3 x 50(num_datapoints)
+
   // Compute relative position trajectories
   MatrixXd y_lrw = this->generate_trajectory(lrw_new_goal, lrw_new_start, Yr_lrw, num_datapoints);
   MatrixXd y_lew = this->generate_trajectory(lew_new_goal, lew_new_start, Yr_lew, num_datapoints);

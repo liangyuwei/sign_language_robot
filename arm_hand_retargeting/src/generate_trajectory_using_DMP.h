@@ -21,6 +21,7 @@ using namespace H5;
 
 struct DMP_trajs
 {
+  // size is 3 x N
   MatrixXd y_lrw;
   MatrixXd y_lew;
   MatrixXd y_rew;
@@ -70,9 +71,13 @@ class DMPTrajectoryGenerator
   
     std::string file_name, group_name;
 
+    // Store orientation and glove angle data in here
+    // size is 50 x DOF
+    MatrixXd l_wrist_quat_traj, r_wrist_quat_traj, l_glove_angle_traj, r_glove_angle_traj; // 50 x DOF
+
+
     // convert to MatrixXd
     MatrixXd convert_to_matrixxd(std::vector<std::vector<double>> input);
-
     
     // debug
     bool save_eigen_matrix_h5(MatrixXd data, std::string name);
@@ -97,7 +102,7 @@ class DMPTrajectoryGenerator
     //MatrixXd generate_trajectories(MatrixXd lrw_new_goal); // input new goals and starts and return generalized trajectories
     MatrixXd generate_trajectory(MatrixXd new_goal, MatrixXd new_start, MatrixXd Yr, unsigned int num_datapoints);
 
-    DMP_trajs generate_trajectories(MatrixXd lrw_new_goal, MatrixXd lrw_new_start,
+    DMP_trajs generate_trajectories(MatrixXd lrw_new_goal, MatrixXd lrw_new_start, // column vectors
                                     MatrixXd lew_new_goal, MatrixXd lew_new_start,
                                     MatrixXd rew_new_goal, MatrixXd rew_new_start,
                                     MatrixXd rw_new_goal, MatrixXd rw_new_start,
