@@ -225,6 +225,9 @@ target_link_libraries(collision_checking_yumi ${catkin_LIBRARIES} ${Boost_LIBRAR
 add_library(generate_trajectory_from_viewpoints src/generate_trajectory_from_viewpoints.cpp)
 target_link_libraries(generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
+add_library(generate_trajectory_using_DMP src/generate_trajectory_using_DMP.cpp)
+target_link_libraries(generate_trajectory_using_DMP ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+
 
 add_library(similarity_network_pytorch STATIC src/similarity_network_pytorch.cpp)
 target_link_libraries(similarity_network_pytorch PRIVATE ${TORCH_LIBRARIES} ${HDF5_CXX_LIBRARIES}) # link HDF5 together with TORCH fixes the linking error... i.e. undefined reference to symbol 'GOMP_parallel@@GOMP_4.0
@@ -255,7 +258,7 @@ target_link_libraries(similarity_network_pytorch PRIVATE ${TORCH_LIBRARIES} ${HD
 
 
 add_executable(yumi_arm_retarget_g2o_similarity src/yumi_arm_retarget_g2o_similarity.cpp)
-target_link_libraries(yumi_arm_retarget_g2o_similarity ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES} ${G2O_LIBRARIES} collision_checking_yumi generate_trajectory_from_viewpoints)
+target_link_libraries(yumi_arm_retarget_g2o_similarity ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES} ${G2O_LIBRARIES} collision_checking_yumi generate_trajectory_using_DMP) #generate_trajectory_from_viewpoints)
 #target_link_libraries(yumi_arm_retarget_g2o_similarity collision_checking_yumi)
 #target_link_libraries(yumi_arm_retarget_g2o_similarity ${G2O_LIBRARIES} ) # use g2o with pytorch similarity network
 target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorch)
@@ -276,8 +279,8 @@ target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorc
 #add_executable(TEST_generate_trajectory_from_viewpoints src/generate_trajectory_from_viewpoints.cpp)
 #target_link_libraries(TEST_generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
-add_executable(TEST_generate_trajectory_using_DMP src/generate_trajectory_using_DMP.cpp)
-target_link_libraries(TEST_generate_trajectory_using_DMP ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+#add_executable(TEST_generate_trajectory_using_DMP src/generate_trajectory_using_DMP.cpp)
+#target_link_libraries(TEST_generate_trajectory_using_DMP ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 #add_executable(distance_computation src/distance_computation.cpp)
 #target_link_libraries(distance_computation ${catkin_LIBRARIES} ${Boost_LIBRARIES})

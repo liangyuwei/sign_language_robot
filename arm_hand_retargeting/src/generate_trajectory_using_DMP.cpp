@@ -253,7 +253,7 @@ void DMPTrajectoryGenerator::debug_repro()
                                            this->lew_goal, this->lew_start,
                                            this->rew_goal, this->rew_start,
                                            this->rw_goal, this->rw_start,
-                                           400);
+                                           50); //400); // complete reproduction, or interpolated
 
   // Save to h5 for analysis in MATLAB
   save_eigen_matrix_h5(result.y_lrw, "TEST_y_lrw");
@@ -388,51 +388,41 @@ void DMPTrajectoryGenerator::interpolate_hseq(MatrixXd pass_points)
 */
 
 
-/* Comput y(x) using this->h_seq and this->f_seq */
-/*
-void DMPTrajectoryGenerator::compute_yseq()
-{
-  
-  // Preparation
-  unsigned int num_datapoints = this->f_seq.rows();
-  MatrixXd y_seq(this->f_seq.rows(), this->f_seq.cols());
-  
-  // For pos/angle data
-  for (unsigned int pg_id = 0; pg_id < this->pos_and_glove_id.rows(); pg_id++)
-  {
-    unsigned int dof_id = (unsigned int) this->pos_and_glove_id(pg_id) - 1; 
-    // simply add up
-    y_seq.col(dof_id) = this->h_seq.col(dof_id) + this->f_seq.col(dof_id);
-  }
-      
-  // For quaternion data
-  for (unsigned int n = 0; n < num_datapoints; n++)
-  {
-    for (unsigned int q_id = 0; q_id < 2; q_id++)   
-    {
-      unsigned int dof_id = (unsigned int) quat_id(q_id*4) - 1; // start from 0
-      // get quaternion
-      Quaterniond hq(h_seq(n, dof_id), h_seq(n, dof_id+1), h_seq(n, dof_id+2), h_seq(n, dof_id+3));  
-      Quaterniond fq(f_seq(n, dof_id), f_seq(n, dof_id+1), f_seq(n, dof_id+2), f_seq(n, dof_id+3)); 
-      
-      Quaterniond yq = hq * fq;
-      // store result
-      y_seq.block(n, dof_id, 1, 4) << yq.w(), yq.x(), yq.y(), yq.z();
-    
-    }
-  
-  }
-  
-  this->y_seq = y_seq;
-
-}
-*/
-
 
 MatrixXd DMPTrajectoryGenerator::interpolate_trajectory(MatrixXd original_trajectory, unsigned int num_datapoints)
 {
+  // Prep
+  VectorXd t_ori(train_nbData);
+  double dt_ori = 1.0 / (train_nbData-1);
+  for (unsigned int i = 0; i < train_nbData; i++)
+    t_ori[i] = 1 - dt_ori*i;
+  std::cout << "debug: t_ori = " << t_ori.transpose() << std::endl;
   
+  VectorXd t_interp(num_datapoints);
+  double dt_interp = 1.0 / (num_datapoints-1);
+  for (unsigned int i = 0; i < num_datapoints; i++)
+    t_interp[i] = 1 - dt_interp*i;
+  std::cout << "debug: t_interp = " << t_interp.transpose() << std::endl;
+    
+  // Linear interpolation
+  MatrixXd interp_trajectory(original_trajectory.rows(), num_datapoints); // initialization
+  for (unsigned int t = 0; t < num_datapoints-1; t++) // skip the last
+  {
+    for (unsigned int n = 0; n < train_nbData-1; n++) // skip the last
+    {
+      if (t_interp[t] <= t_ori[n] && t_interp[t] > t_ori[n+1]) // find the interval
+      {
+        double ratio = (t_interp[t] - t_ori[n]) / (t_ori[n+1] - t_ori[n]);
+        interp_trajectory.block(0, t, 3, 1) = original_trajectory.block(0, n, 3, 1) 
+                                    + ratio * (original_trajectory.block(0, n+1, 3, 1) - original_trajectory.block(0, n, 3, 1));
+        break; // skip to interpolate next point
+      }
+    }
+  }
+  // set the last point
+  interp_trajectory.block(0, num_datapoints-1, 3, 1) = original_trajectory.block(0, train_nbData-1, 3, 1);
 
+  return interp_trajectory;
 
 }
 
@@ -468,11 +458,12 @@ MatrixXd DMPTrajectoryGenerator::generate_trajectory(MatrixXd new_goal, MatrixXd
   }
 
   // Interpolate to get expected number of path points
-
+  MatrixXd repro_interp(3, num_datapoints);
+  repro_interp = this->interpolate_trajectory(repro, num_datapoints);
 
 
   // return the result
-  return repro;
+  return repro_interp;
  
 }
 
@@ -517,7 +508,7 @@ DMP_trajs DMPTrajectoryGenerator::generate_trajectories(MatrixXd lrw_new_goal, M
 
 
 
-
+/*
 int main(int argc, char **argv)
 {
 
@@ -528,13 +519,13 @@ int main(int argc, char **argv)
   DMPTrajectoryGenerator DMPTrajGen(file_name, group_name);
 
   // debug: Reproduction
-  //DMPTrajGen.debug_repro();
-  DMPTrajGen.debug_generalize();
+  DMPTrajGen.debug_repro();
+  //DMPTrajGen.debug_generalize();
 
 
   return 0;
 
 }
 
-
+*/
 
