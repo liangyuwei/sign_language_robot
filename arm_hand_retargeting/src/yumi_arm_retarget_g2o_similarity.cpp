@@ -73,14 +73,14 @@
 //#define NUM_PASSPOINTS 25 // BlockSolver must known this at compile time... yet it could also be dynamic!!! BlockSolver<-1, -1>
 
 // weights for different parts of cost
-#define K_COL 10.0
-#define K_POS_LIMIT 10.0
-#define K_WRIST_ORI 3.0
-#define K_WRIST_POS 3.0
-#define K_ELBOW_POS 3.0
-#define K_FINGER 3.0
-#define K_SIMILARITY 20.0//1000.0 // 1.0 // 10.0
-#define K_SMOOTHNESS 10.0
+#define K_COL 1.0
+#define K_POS_LIMIT 1.0
+#define K_WRIST_ORI 1.0
+#define K_WRIST_POS 1.0
+#define K_ELBOW_POS 1.0
+#define K_FINGER 1.0
+#define K_SIMILARITY 1.0//1000.0 // 1.0 // 10.0
+#define K_SMOOTHNESS 1.0
 
 
 using namespace g2o;
@@ -1192,8 +1192,8 @@ class SimilarityConstraint : public BaseUnaryEdge<1, my_constraint_struct, DMPSt
         new_traj.block(n*PASSPOINT_DOF+13, 0, 4, 1) = trajectory_generator_ptr->r_wrist_quat_traj.block(n, 0, 1, 4).transpose();
         new_traj.block(n*PASSPOINT_DOF+17, 0, 3, 1) = result.y_re.block(0, n, 3, 1);
         // hands:
-        new_traj.block(n*PASSPOINT_DOF+20, 0, 14, 1) = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose(); // N x 14
-        new_traj.block(n*PASSPOINT_DOF+34, 0, 14, 1) = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose();
+        new_traj.block(n*PASSPOINT_DOF+20, 0, 14, 1) = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // N x 14
+        new_traj.block(n*PASSPOINT_DOF+34, 0, 14, 1) = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0;
       }
 
 
@@ -1273,8 +1273,8 @@ class SimilarityConstraint : public BaseUnaryEdge<1, my_constraint_struct, DMPSt
         new_traj.block(n*PASSPOINT_DOF+13, 0, 4, 1) = trajectory_generator_ptr->r_wrist_quat_traj.block(n, 0, 1, 4).transpose();
         new_traj.block(n*PASSPOINT_DOF+17, 0, 3, 1) = result.y_re.block(0, n, 3, 1);
         // hands:
-        new_traj.block(n*PASSPOINT_DOF+20, 0, 14, 1) = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose(); // N x 14
-        new_traj.block(n*PASSPOINT_DOF+34, 0, 14, 1) = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose();
+        new_traj.block(n*PASSPOINT_DOF+20, 0, 14, 1) = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // N x 14
+        new_traj.block(n*PASSPOINT_DOF+34, 0, 14, 1) = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0;
       }
 
 
@@ -1731,8 +1731,8 @@ std::vector<double> TrackingConstraint::return_finger_cost_history()
     q_cur_finger_r = x.block<12, 1>(26, 0); 
     
     // Set new goals(expected trajectory) to _measurement
-    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose(); // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose(); // size is 50 x DOF
+    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // size is 50 x DOF
 
     // Compute unary costs
     double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
@@ -2040,8 +2040,8 @@ void TrackingConstraint::computeError()
     _measurement.r_elbow_pos_goal = result.y_re.block(0, n, 3, 1); // Vector3d is column vector
 
     // hand parts:
-    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose(); // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose(); // size is 50 x DOF
+    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // size is 50 x DOF
 
     /*
     std::cout << "l_wrist_pos_goal: \n" << _measurement.l_wrist_pos_goal.transpose() << "\n"
@@ -2614,8 +2614,51 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double> > jacobian_history; // for DMP, store in 2d
   
 
+  // PreIteration
+  std::cout << ">>>> Pre Iteration..." << std::endl;
+  /*
+  // fix joints and optimize dmp starts and goals...
+  for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+  {
+    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
+    vertex_tmp->setFixed(true);
+  }
+  optimizer.optimize(10);
+  // reset
+  for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+  {
+    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
+    vertex_tmp->setFixed(false);
+  }
+  // check the results
+  Matrix<double, DMPPOINTS_DOF, 1> dmp_vertex_tmp_mat;
+  DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
+  dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
+  std::cout << "pre-iteration result: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;
+  */
+
+
+  // fix DMP starts and goals (good for lowering tracking cost quickly, also for tracking orientation and glove angle ahead of position trajectory!!!)
+  DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
+  dmp_vertex_tmp->setFixed(true);
+  // optimize for a few iterations
+  optimizer.optimize(10);
+  // reset
+  dmp_vertex_tmp->setFixed(false);
+  // check the results
+  Matrix<double, JOINT_DOF, 1> q_result_tmp = v_list[0]->estimate();
+  std::cout << std::endl << "Joint values for the path point 1/" << NUM_DATAPOINTS << ": " << q_result_tmp.transpose() << std::endl; // check if the setId() method can be used to get the value
+
+  q_result_tmp = v_list[1]->estimate();
+  std::cout << std::endl << "Joint values for the path point 2/" << NUM_DATAPOINTS << ": " << q_result_tmp.transpose() << std::endl; // check if the setId() method can be used to get the value
+
+  q_result_tmp = v_list[2]->estimate();
+  std::cout << std::endl << "Joint values for the path point 3/" << NUM_DATAPOINTS << ": " << q_result_tmp.transpose() << std::endl; // check if the setId() method can be used to get the value
+  
+
 
   // Start optimization and store cost history
+  std::cout << ">>>> Start optimization of the whole graph" << std::endl;
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   unsigned int num_records = 20; 
   unsigned int per_iterations = 10; // record data for every 10 iterations
