@@ -402,13 +402,13 @@ MatrixXd DMPTrajectoryGenerator::interpolate_trajectory(MatrixXd original_trajec
   double dt_ori = 1.0 / (train_nbData-1);
   for (unsigned int i = 0; i < train_nbData; i++)
     t_ori[i] = 1 - dt_ori*i;
-  std::cout << "debug: t_ori = " << t_ori.transpose() << std::endl;
+  //std::cout << "debug: t_ori = " << t_ori.transpose() << std::endl;
   
   VectorXd t_interp(num_datapoints);
   double dt_interp = 1.0 / (num_datapoints-1);
   for (unsigned int i = 0; i < num_datapoints; i++)
     t_interp[i] = 1 - dt_interp*i;
-  std::cout << "debug: t_interp = " << t_interp.transpose() << std::endl;
+  //std::cout << "debug: t_interp = " << t_interp.transpose() << std::endl;
     
   // Linear interpolation
   MatrixXd interp_trajectory(original_trajectory.rows(), num_datapoints); // initialization
@@ -495,7 +495,7 @@ DMP_trajs DMPTrajectoryGenerator::generate_trajectories(MatrixXd lrw_new_goal, M
   MatrixXd y_lw = y_rw + y_lrw;
   MatrixXd y_le = y_lw + y_lew;
 
-  std::cout << "debug: new traj size = " << y_lrw.rows() << " x " << y_lrw.cols() << std::endl;
+  //std::cout << "debug: new traj size = " << y_lrw.rows() << " x " << y_lrw.cols() << std::endl;
 
 
   // Return the result

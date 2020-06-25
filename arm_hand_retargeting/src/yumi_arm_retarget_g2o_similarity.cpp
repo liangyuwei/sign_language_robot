@@ -1088,29 +1088,26 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
 
 
 /* Define constraint for evaluating trajectory similarity */
-class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, E>, dimension and measurement datatype
+/* Convert to UnaryEdge for use with DMPStartsGoalsVertex */
+class SimilarityConstraint : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGoalsVertex> // <D, E>, dimension and measurement datatype
 {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     
-    SimilarityConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, boost::shared_ptr<SimilarityNetwork> &_similarity_network_ptr, unsigned int num_vertices) : trajectory_generator_ptr(_trajectory_generator_ptr), similarity_network_ptr(_similarity_network_ptr) 
+    SimilarityConstraint(boost::shared_ptr<DMPTrajectoryGenerator> &_trajectory_generator_ptr, boost::shared_ptr<SimilarityNetwork> &_similarity_network_ptr) : trajectory_generator_ptr(_trajectory_generator_ptr), similarity_network_ptr(_similarity_network_ptr) 
     {
       // resize the number of vertices this edge connects to
       //std::cout << "resizing similarity constraint..." << std::endl;
-      this->num_vertices = num_vertices;
-      resize(num_vertices);
+      //this->num_vertices = num_vertices;
+      //resize(num_vertices);
     }
   
     ~SimilarityConstraint(){};    
 
     // trajectory generator and similarity network
-    boost::shared_ptr<TrajectoryGenerator> &trajectory_generator_ptr;
+    boost::shared_ptr<DMPTrajectoryGenerator> &trajectory_generator_ptr;
     boost::shared_ptr<SimilarityNetwork> &similarity_network_ptr;
     
-    
-    // intermediate
-    unsigned int num_vertices;
-
 
     // function to compute costs
     void computeError()
@@ -1121,6 +1118,8 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
 
       //std::cout << "Computing Similarity Constraint..." << std::endl;
 
+      // 1 - Use residuals and pass points to generate new trajectories
+      /*
       // Get pass_points as stack
       int num_passpoints = _vertices.size(); // VertexContainer, i.e. std::vector<Vertex*>
       MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
@@ -1138,16 +1137,65 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
       std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
       total_traj += t_spent.count();
       //std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
-      
-      // statistics
-      count_traj++;  
-
-
+      count_traj++;
       // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
       MatrixXd y_seq_tmp = y_seq.transpose();
       VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), PASSPOINT_DOF*NUM_DATAPOINTS, 1);
       //std::cout << "debug: original y_seq = " << y_seq << std::endl;
       //std::cout << "debug: reshaped y_seq = " << y_seq_tmp.transpose() << std::endl;
+
+      */
+
+
+      // 2 - Use DMP to generate new trajectories
+      const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+      Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+      MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+      MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+      MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+      MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+      MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+      MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+      MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+      MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+
+      /*
+      std::cout << "debug: \nx = " << x.transpose() << std::endl
+                << "lrw_new_goal = " << lrw_new_goal.transpose() << ", lrw_new_start = " << lrw_new_start.transpose() << std::endl
+                << "lew_new_goal = " << lew_new_goal.transpose() << ", lew_new_start = " << lew_new_start.transpose() << std::endl
+                << "rew_new_goal = " << rew_new_goal.transpose() << ", rew_new_start = " << rew_new_start.transpose() << std::endl
+                << "rw_new_goal = " << rw_new_goal.transpose() << ", rw_new_start = " << rw_new_start.transpose() << std::endl;
+      */
+      std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();  
+      DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal, lrw_new_start, // column vectors
+                                                                      lew_new_goal, lew_new_start,
+                                                                      rew_new_goal, rew_new_start,
+                                                                      rw_new_goal, rw_new_start,
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+      std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+      total_traj += t_spent1.count();
+
+      count_traj++;  
+
+      // combine with the resampled orientation and glove angle trajectories to become a whole
+      // order: path point 1 (48 DOF) - path point 2(48 DOF) - ... ... - path point 50 (48 DOF); btw, a column vectory
+      VectorXd new_traj(PASSPOINT_DOF*NUM_DATAPOINTS);
+      for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+      {
+        // left arm:
+        new_traj.block(n*PASSPOINT_DOF, 0, 3, 1) = result.y_lw.block(0, n, 3, 1); // 3 x N
+        new_traj.block(n*PASSPOINT_DOF+3, 0, 4, 1) = trajectory_generator_ptr->l_wrist_quat_traj.block(n, 0, 1, 4).transpose(); // N x 4
+        new_traj.block(n*PASSPOINT_DOF+7, 0, 3, 1) = result.y_le.block(0, n, 3, 1);
+        // right arm:
+        new_traj.block(n*PASSPOINT_DOF+10, 0, 3, 1) = result.y_rw.block(0, n, 3, 1);
+        new_traj.block(n*PASSPOINT_DOF+13, 0, 4, 1) = trajectory_generator_ptr->r_wrist_quat_traj.block(n, 0, 1, 4).transpose();
+        new_traj.block(n*PASSPOINT_DOF+17, 0, 3, 1) = result.y_re.block(0, n, 3, 1);
+        // hands:
+        new_traj.block(n*PASSPOINT_DOF+20, 0, 14, 1) = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose(); // N x 14
+        new_traj.block(n*PASSPOINT_DOF+34, 0, 14, 1) = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose();
+      }
+
 
       // compute similariity distance(it would do the normalization)
       double dist = 0;
@@ -1173,7 +1221,8 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
     // function for recording cost history
     double return_similarity_cost()
     {
-
+      // 1 - Use residuals and pass points to generate new trajectories
+      /*
       // Get pass_points as stack
       int num_passpoints = _vertices.size(); // VertexContainer, i.e. std::vector<Vertex*>
       MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
@@ -1190,6 +1239,44 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
       // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
       MatrixXd y_seq_tmp = y_seq.transpose();
       VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), PASSPOINT_DOF*NUM_DATAPOINTS, 1);
+      */
+
+      // 2 - Use DMP to generate new trajectories
+      const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+      Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+      MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+      MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+      MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+      MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+      MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+      MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+      MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+      MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+
+      DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal, lrw_new_start, // column vectors
+                                                                      lew_new_goal, lew_new_start,
+                                                                      rew_new_goal, rew_new_start,
+                                                                      rw_new_goal, rw_new_start,
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+
+      // combine with the resampled orientation and glove angle trajectories to become a whole
+      // order: path point 1 (48 DOF) - path point 2(48 DOF) - ... ... - path point 50 (48 DOF); btw, a column vectory
+      VectorXd new_traj(PASSPOINT_DOF*NUM_DATAPOINTS);
+      for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+      {
+        // left arm:
+        new_traj.block(n*PASSPOINT_DOF, 0, 3, 1) = result.y_lw.block(0, n, 3, 1); // 3 x N
+        new_traj.block(n*PASSPOINT_DOF+3, 0, 4, 1) = trajectory_generator_ptr->l_wrist_quat_traj.block(n, 0, 1, 4).transpose(); // N x 4
+        new_traj.block(n*PASSPOINT_DOF+7, 0, 3, 1) = result.y_le.block(0, n, 3, 1);
+        // right arm:
+        new_traj.block(n*PASSPOINT_DOF+10, 0, 3, 1) = result.y_rw.block(0, n, 3, 1);
+        new_traj.block(n*PASSPOINT_DOF+13, 0, 4, 1) = trajectory_generator_ptr->r_wrist_quat_traj.block(n, 0, 1, 4).transpose();
+        new_traj.block(n*PASSPOINT_DOF+17, 0, 3, 1) = result.y_re.block(0, n, 3, 1);
+        // hands:
+        new_traj.block(n*PASSPOINT_DOF+20, 0, 14, 1) = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose(); // N x 14
+        new_traj.block(n*PASSPOINT_DOF+34, 0, 14, 1) = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose();
+      }
+
 
       // compute similariity distance(it would do the normalization)
       double dist = 0;
@@ -1219,12 +1306,20 @@ class SimilarityConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D
 
 MatrixXd SimilarityConstraint::output_jacobian()
 {
+  // 1 - Use residuals and pass points
+  /*
   MatrixXd jacobians(this->num_vertices, PASSPOINT_DOF);
   for (unsigned int n = 0; n < this->num_vertices; n++)
   {
     for (unsigned int p = 0; p < PASSPOINT_DOF; p++)
       jacobians(n, p) = _jacobianOplus[n](0, p);
   }
+  */
+
+  // 2 - Use DMP 
+  MatrixXd jacobians(1, DMPPOINTS_DOF);
+  for (unsigned int d = 0; d < DMPPOINTS_DOF; d++)
+    jacobians(0, d) = _jacobianOplusXi(0, d); // simply do a copy..?
 
   //std::cout << "debug: " << _jacobianOplus.size() << " x " << _jacobianOplus[0].rows() << " x " << _jacobianOplus[0].cols() << std::endl;
   
@@ -1282,7 +1377,7 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     // Constructor and destructor
-    TrackingConstraint(boost::shared_ptr<TrajectoryGenerator> &_trajectory_generator_ptr, 
+    TrackingConstraint(boost::shared_ptr<DMPTrajectoryGenerator> &_trajectory_generator_ptr, 
                       KDL::ChainFkSolverPos_recursive &_left_fk_solver, 
                       KDL::ChainFkSolverPos_recursive &_right_fk_solver, 
                       //unsigned int num_passpoints,
@@ -1617,28 +1712,15 @@ double TrackingConstraint::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 
 std::vector<double> TrackingConstraint::return_finger_cost_history()
 {
-
-  // Get pass_points as stack
-  MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
-  for (unsigned int n = 0; n < num_passpoints; n++) 
-  { 
-    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
-    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
-  }
-
-  // Generate new trajectory
-  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
-
+  
   // iterate to compute costs
   std::vector<double> finger_cost_history;
   for (unsigned int n = 0; n < num_datapoints; n++)
   {
     // get the current joint value
     // _vertices is a VertexContainer type, a std::vector<Vertex*>
-    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
     const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
-    //std::cout << "debug: x size is: " << x.rows() << " x " << x.cols() << std::endl;
-    //std::cout << "debug: x = \n" << x.transpose() << std::endl;
 
     // Get joint angles
     Matrix<double, 7, 1> q_cur_l, q_cur_r;
@@ -1649,33 +1731,12 @@ std::vector<double> TrackingConstraint::return_finger_cost_history()
     q_cur_finger_r = x.block<12, 1>(26, 0); 
     
     // Set new goals(expected trajectory) to _measurement
-    unsigned int point_id = n; //_measurement.point_id;
-    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
-
-    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
-    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
-    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
-    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
-    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
-    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
-    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
-
-
-    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
-    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
-    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
-    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
-    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
-
-    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
-
+    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose(); // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose(); // size is 50 x DOF
 
     // Compute unary costs
-    // 2
     double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
     finger_cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
-    //std::cout << "Finger cost=";
   
     finger_cost_history.push_back(finger_cost);
 
@@ -1688,29 +1749,29 @@ std::vector<double> TrackingConstraint::return_finger_cost_history()
 
 std::vector<double> TrackingConstraint::return_wrist_pos_cost_history()
 {
-
-  // Get pass_points as stack
-  //unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
-  MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
-  //pass_points.resize(num_passpoints, PASSPOINT_DOF);
-  for (unsigned int n = 0; n < num_passpoints; n++) 
-  { 
-    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
-    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
-  }
-  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
-  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
-  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
-
-  // Generate new trajectory
-  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+  // Get trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal, lrw_new_start, // column vectors
+                                                                   lew_new_goal, lew_new_start,
+                                                                   rew_new_goal, rew_new_start,
+                                                                   rw_new_goal, rw_new_start,
+                                                                   num_datapoints);
 
   // iterate to compute costs
   std::vector<double> wrist_pos_costs;
   for (unsigned int n = 0; n < num_datapoints; n++)
   {
     // get the current joint value
-    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
     const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
 
     // Get joint angles
@@ -1722,26 +1783,8 @@ std::vector<double> TrackingConstraint::return_wrist_pos_cost_history()
     q_cur_finger_r = x.block<12, 1>(26, 0); 
     
     // Set new goals(expected trajectory) to _measurement
-    unsigned int point_id = n; //_measurement.point_id;
-    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
-
-    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
-    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
-    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
-    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
-    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
-    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
-    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
-
-
-    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
-    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
-    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
-    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
-    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
-
-    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
+    _measurement.l_wrist_pos_goal = result.y_lw.block(0, n, 3, 1); // Vector3d
+    _measurement.r_wrist_pos_goal = result.y_rw.block(0, n, 3, 1); // Vector3d
 
     // Compute unary costs
     double wrist_pos_cost = return_wrist_pos_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
@@ -1759,28 +1802,12 @@ std::vector<double> TrackingConstraint::return_wrist_pos_cost_history()
 std::vector<double> TrackingConstraint::return_wrist_ori_cost_history()
 {
 
-  // Get pass_points as stack
-  //unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
-  MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
-  //pass_points.resize(num_passpoints, PASSPOINT_DOF);
-  for (unsigned int n = 0; n < num_passpoints; n++) 
-  { 
-    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
-    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
-  }
-  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
-  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
-  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
-
-  // Generate new trajectory
-  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
-
   // iterate to compute costs
   std::vector<double> wrist_ori_costs;
   for (unsigned int n = 0; n < num_datapoints; n++)
   {
     // get the current joint value
-    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
     const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
 
     // Get joint angles
@@ -1792,26 +1819,19 @@ std::vector<double> TrackingConstraint::return_wrist_ori_cost_history()
     q_cur_finger_r = x.block<12, 1>(26, 0); 
     
     // Set new goals(expected trajectory) to _measurement
-    unsigned int point_id = n; //_measurement.point_id;
-    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
-
-    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
-    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
-    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
-    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
+    Quaterniond q_l(trajectory_generator_ptr->l_wrist_quat_traj(n, 0), 
+                    trajectory_generator_ptr->l_wrist_quat_traj(n, 1),
+                    trajectory_generator_ptr->l_wrist_quat_traj(n, 2),
+                    trajectory_generator_ptr->l_wrist_quat_traj(n, 3));
     Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
     _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
-    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
-
-
-    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
-    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
+    Quaterniond q_r(trajectory_generator_ptr->r_wrist_quat_traj(n, 0), 
+                    trajectory_generator_ptr->r_wrist_quat_traj(n, 1),
+                    trajectory_generator_ptr->r_wrist_quat_traj(n, 2),
+                    trajectory_generator_ptr->r_wrist_quat_traj(n, 3));
     Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
     _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
-    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
 
-    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
 
     // Compute unary costs
     double wrist_ori_cost = return_wrist_ori_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
@@ -1828,29 +1848,29 @@ std::vector<double> TrackingConstraint::return_wrist_ori_cost_history()
 
 std::vector<double> TrackingConstraint::return_elbow_pos_cost_history()
 {
-
-  // Get pass_points as stack
-  //unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
-  MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
-  //pass_points.resize(num_passpoints, PASSPOINT_DOF);
-  for (unsigned int n = 0; n < num_passpoints; n++) 
-  { 
-    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
-    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
-  }
-  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
-  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
-  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
-
-  // Generate new trajectory
-  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
+  // Generate new trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal, lrw_new_start, // column vectors
+                                                                   lew_new_goal, lew_new_start,
+                                                                   rew_new_goal, rew_new_start,
+                                                                   rw_new_goal, rw_new_start,
+                                                                   num_datapoints);
 
   // iterate to compute costs
   std::vector<double> elbow_pos_costs;
   for (unsigned int n = 0; n < num_datapoints; n++)
   {
     // get the current joint value
-    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
     const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
 
     // Get joint angles
@@ -1862,26 +1882,8 @@ std::vector<double> TrackingConstraint::return_elbow_pos_cost_history()
     q_cur_finger_r = x.block<12, 1>(26, 0); 
     
     // Set new goals(expected trajectory) to _measurement
-    unsigned int point_id = n; //_measurement.point_id;
-    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
-
-    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
-    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
-    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
-    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
-    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
-    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
-    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
-
-
-    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
-    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
-    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
-    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
-    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
-
-    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
+    _measurement.l_elbow_pos_goal = result.y_le.block(0, n, 3, 1); // Vector3d
+    _measurement.r_elbow_pos_goal = result.y_re.block(0, n, 3, 1); // Vector3d is column vector
 
     // Compute unary costs
     double elbow_pos_cost = return_elbow_pos_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
@@ -1904,7 +1906,6 @@ void TrackingConstraint::computeError()
   // statistics
   count_tracking++;  
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-
 
   // 1 - Use residual and pass points to generate new trajectries
   /*
@@ -1938,7 +1939,7 @@ void TrackingConstraint::computeError()
   */
 
   // 2 - Use DMP to generate new trajectories
-  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[num_datapoints]); // the last vertex connected
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
   Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
   MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
   MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
@@ -1949,11 +1950,13 @@ void TrackingConstraint::computeError()
   MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
   MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
 
+  /*
   std::cout << "debug: \nx = " << x.transpose() << std::endl
-            << "lrw_new_goal = " << lrw_new_goal.transpose() << ", lrw_new_start = " << lrw_new_start << std::endl
-            << "lew_new_goal = " << lew_new_goal.transpose() << ", lew_new_start = " << lew_new_start << std::endl
-            << "rew_new_goal = " << rew_new_goal.transpose() << ", rew_new_start = " << rew_new_start << std::endl
-            << "rw_new_goal = " << rw_new_goal.transpose() << ", rw_new_start = " << rw_new_start << std::endl;
+            << "lrw_new_goal = " << lrw_new_goal.transpose() << ", lrw_new_start = " << lrw_new_start.transpose() << std::endl
+            << "lew_new_goal = " << lew_new_goal.transpose() << ", lew_new_start = " << lew_new_start.transpose() << std::endl
+            << "rew_new_goal = " << rew_new_goal.transpose() << ", rew_new_start = " << rew_new_start.transpose() << std::endl
+            << "rw_new_goal = " << rw_new_goal.transpose() << ", rw_new_start = " << rw_new_start.transpose() << std::endl;
+  */
 
   std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();  
   DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal, lrw_new_start, // column vectors
@@ -1975,7 +1978,7 @@ void TrackingConstraint::computeError()
   {
     // get the current joint value
     // _vertices is a VertexContainer type, a std::vector<Vertex*>
-    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+num_passpoints]);
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
     const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
     //std::cout << "debug: x size is: " << x.rows() << " x " << x.cols() << std::endl;
     //std::cout << "debug: x = \n" << x.transpose() << std::endl;
@@ -2013,34 +2016,32 @@ void TrackingConstraint::computeError()
     _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
     */
 
+
     // 2 - Use DMP to generate new position trajectories, orientation & glove trajs are resampled and loaded in DMPTrajectoryGenerator
     // Set new goals(expected trajectory) to _measurement
-    unsigned int point_id = n; //_measurement.point_id;
-    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
-
     // left arm part:
-    _measurement.l_wrist_pos_goal = DMP_trajs.lw.block(0, n, 3, 1); // Vector3d
+    _measurement.l_wrist_pos_goal = result.y_lw.block(0, n, 3, 1); // Vector3d
     Quaterniond q_l(trajectory_generator_ptr->l_wrist_quat_traj(n, 0), 
                     trajectory_generator_ptr->l_wrist_quat_traj(n, 1),
                     trajectory_generator_ptr->l_wrist_quat_traj(n, 2),
                     trajectory_generator_ptr->l_wrist_quat_traj(n, 3));
     Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
     _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
-    _measurement.l_elbow_pos_goal = DMP_trajs.le.block(0, n, 3, 1); // Vector3d
+    _measurement.l_elbow_pos_goal = result.y_le.block(0, n, 3, 1); // Vector3d
 
     // right arm part:
-    _measurement.r_wrist_pos_goal = DMP_trajs.rw.block(0, n, 3, 1); // Vector3d
+    _measurement.r_wrist_pos_goal = result.y_rw.block(0, n, 3, 1); // Vector3d
     Quaterniond q_r(trajectory_generator_ptr->r_wrist_quat_traj(n, 0), 
                     trajectory_generator_ptr->r_wrist_quat_traj(n, 1),
                     trajectory_generator_ptr->r_wrist_quat_traj(n, 2),
                     trajectory_generator_ptr->r_wrist_quat_traj(n, 3));
     Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
     _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
-    _measurement.r_elbow_pos_goal = DMP_trajs.re.block(0, n, 3, 1); // Vector3d is column vector
+    _measurement.r_elbow_pos_goal = result.y_re.block(0, n, 3, 1); // Vector3d is column vector
 
     // hand parts:
-    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14); // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14); // size is 50 x DOF
+    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose(); // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose(); // size is 50 x DOF
 
     /*
     std::cout << "l_wrist_pos_goal: \n" << _measurement.l_wrist_pos_goal.transpose() << "\n"
@@ -2212,13 +2213,12 @@ int main(int argc, char *argv[])
 
   std::cout << ">>>> Reading data from h5 file" << std::endl;
 
-  std::vector<std::vector<double>> read_pass_points = read_h5(in_file_name, in_group_name, "pass_points"); 
+  //std::vector<std::vector<double>> read_pass_points = read_h5(in_file_name, in_group_name, "pass_points"); 
   std::vector<std::vector<double>> read_original_traj = read_h5(in_file_name, in_group_name, "resampled_normalized_flattened_oritraj"); 
 
-  
-  unsigned int num_passpoints = read_pass_points.size();
+  //unsigned int num_passpoints = read_pass_points.size();
+  //std::cout << "Number of pass points: " << num_passpoints << std::endl;
 
-  std::cout << "Number of pass points: " << num_passpoints << std::endl;
 
   //std::cout << "size: " << read_original_traj.size() << " x " << read_original_traj[0].size() << std::endl;
   //std::cout << "test: " << read_original_traj[0][0] << " " << read_original_traj[1][0] << " " << read_original_traj[2][0] << std::endl;
@@ -2250,8 +2250,14 @@ int main(int argc, char *argv[])
   constraint_data.q_pos_ub = q_pos_ub;
 
   // Read previously optimized result
-  std::vector<std::vector<double>> prev_q_results = read_h5(out_file_name, in_group_name, "arm_traj_1"); 
-  std::vector<std::vector<double>> prev_passpoint_results = read_h5(out_file_name, in_group_name, "passpoint_traj_1"); 
+  std::vector<std::vector<double>> prev_q_results; 
+  //std::vector<std::vector<double>> prev_passpoint_results = read_h5(out_file_name, in_group_name, "passpoint_traj_1"); 
+  std::vector<std::vector<double>> prev_dmp_starts_goals_results;
+  if (continue_optim)
+  {
+    prev_q_results = read_h5(out_file_name, in_group_name, "arm_traj_1"); 
+    prev_dmp_starts_goals_results = read_h5(out_file_name, in_group_name, "dmp_starts_goals_1");
+  }
 
 
   // Setup KDL FK solver( and set IDs for wrist, elbow and shoulder)
@@ -2293,9 +2299,9 @@ int main(int argc, char *argv[])
   std::unique_ptr<Block> solver_ptr( new Block(std::move(linearSolver)) ); // Matrix block solver
 
   // Choose update rule
-  //OptimizationAlgorithmLevenberg *solver = new OptimizationAlgorithmLevenberg(std::move(solver_ptr));
+  OptimizationAlgorithmLevenberg *solver = new OptimizationAlgorithmLevenberg(std::move(solver_ptr));
   //OptimizationAlgorithmGaussNewton *solver = new OptimizationAlgorithmGaussNewton(std::move(solver_ptr));
-  OptimizationAlgorithmDogleg *solver = new OptimizationAlgorithmDogleg(std::move(solver_ptr));
+  //OptimizationAlgorithmDogleg *solver = new OptimizationAlgorithmDogleg(std::move(solver_ptr));
 
   // Construct an optimizer (a graph model)
   SparseOptimizer optimizer;
@@ -2316,10 +2322,7 @@ int main(int argc, char *argv[])
 
   // Prepare trajectory generator
   std::cout << ">>>> Preparing trajectory generator " << std::endl;
-  boost::shared_ptr<TrajectoryGenerator> trajectory_generator_ptr;
-  // residuals + pass points
-  //trajectory_generator_ptr.reset( new TrajectoryGenerator(in_file_name, in_group_name) );  
-  // dmp encoding relative position trajectories
+  boost::shared_ptr<DMPTrajectoryGenerator> trajectory_generator_ptr;
   trajectory_generator_ptr.reset( new DMPTrajectoryGenerator(in_file_name, in_group_name) );  
 
 
@@ -2346,7 +2349,7 @@ int main(int argc, char *argv[])
   TrackingConstraint* tracking_edge;
   SimilarityConstraint* similarity_edge;
 
-  similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr, num_passpoints);
+  similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr);
   similarity_edge->setId(0);
 
 //  tracking_edge = new TrackingConstraint(trajectory_generator_ptr, 
@@ -2361,7 +2364,7 @@ int main(int argc, char *argv[])
 
   /* Edge order: similarity(0), tracking(1), unary(2 ~ num_datapoints+1), smoothness()*/
   /* Vertex order: pass_points(0 ~ num_passpoints-1), datapoints(num_passpoints ~ num_passpoints+num_datapoints-1) */
-  /* Vertex order(with DMP): DMP starts and goals (1), datapoints(1~num_datapoints)*/
+  /* Vertex new order(with DMP): DMP starts and goals (1), datapoints(1~num_datapoints)*/
 
   // For pass points
   /*
@@ -2404,49 +2407,42 @@ int main(int argc, char *argv[])
 
   // For DMP
   std::cout << ">>>> Adding DMP vertex, similarity edge and tracking edge " << std::endl;
-  for (unsigned int it = 0; it < num_passpoints; it++)
+  // preparation
+  dmp_vertex = new DMPStartsGoalsVertex();
+  Matrix<double, DMPPOINTS_DOF, 1> DMP_ori_starts_goals; // lrw, lew, rew, rw; goal, start. 
+  if (continue_optim)
   {
-    // preparation
-    std::vector<double> pass_point = read_pass_points[it]; // 48-dim
-    Matrix<double, PASSPOINT_DOF, 1> pass_point_mat = Map<Matrix<double, PASSPOINT_DOF, 1>>(pass_point.data(), pass_point.size());
-    //std::cout << "Check size: " << std::endl;
-    //std::cout << "std::vector: " << pass_point[0] << ", " << pass_point[1] << ", " << pass_point[2] << std::endl;
-    //std::cout << "Matrix: " << pass_point_mat[0] << ", " << pass_point_mat[1] << ", " << pass_point_mat[2] << std::endl;
-
-    // create vertex
-    pv_list[it] = new PassPointVertex();
-    if(continue_optim)
-    {
-      std::vector<double> prev_passpoint_result = prev_passpoint_results[it]; // 48-dim
-      Matrix<double, PASSPOINT_DOF, 1> prev_passpoint_mat = \
-                Map<Matrix<double, PASSPOINT_DOF, 1>>(prev_passpoint_result.data(), prev_passpoint_result.size());
-      pv_list[it]->setEstimate(prev_passpoint_mat); // use previously optimized result as an initial guess
-    }
-    else
-    {
-      pv_list[it]->setEstimate(pass_point_mat);
-    }
-    pv_list[it]->setId(it); // set a unique id
-    optimizer.addVertex(pv_list[it]);    
-
-    // connect to edge
-    similarity_edge->setVertex(it, optimizer.vertex(it));
-
-    tracking_edge->setVertex(it, optimizer.vertex(it));
-
+    std::vector<double> prev_dmp_starts_goals = prev_dmp_starts_goals_results[0];
+    for (unsigned int d = 0; d < DMPPOINTS_DOF; d++)
+      DMP_ori_starts_goals[d] = prev_dmp_starts_goals[d];
   }
+  else
+  {
+    DMP_ori_starts_goals.block(0, 0, 3, 1) = trajectory_generator_ptr->lrw_goal.transpose(); // 1 x 3
+    DMP_ori_starts_goals.block(3, 0, 3, 1) = trajectory_generator_ptr->lrw_start.transpose();
+
+    DMP_ori_starts_goals.block(6, 0, 3, 1) = trajectory_generator_ptr->lew_goal.transpose();
+    DMP_ori_starts_goals.block(9, 0, 3, 1) = trajectory_generator_ptr->lew_start.transpose();
+
+    DMP_ori_starts_goals.block(12, 0, 3, 1) = trajectory_generator_ptr->rew_goal.transpose();
+    DMP_ori_starts_goals.block(15, 0, 3, 1) = trajectory_generator_ptr->rew_start.transpose();
+
+    DMP_ori_starts_goals.block(18, 0, 3, 1) = trajectory_generator_ptr->rw_goal.transpose();
+    DMP_ori_starts_goals.block(21, 0, 3, 1) = trajectory_generator_ptr->rw_start.transpose();
+  }
+  dmp_vertex->setEstimate(DMP_ori_starts_goals);
+  dmp_vertex->setId(0);
+  optimizer.addVertex(dmp_vertex);    
+
+  // connect to edge
+  tracking_edge->setVertex(0, optimizer.vertex(0));
+  similarity_edge->setVertex(0, optimizer.vertex(0));  
   similarity_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
   optimizer.addEdge(similarity_edge);
 
 
-
-
-
-
-
-
   
-  std::cout << ">>>> Adding vertices, unary edges and tracking_error edges " << std::endl;  
+  std::cout << ">>>> Adding joint angle vertices, unary edges and tracking_error edges " << std::endl;  
   for (unsigned int it = 0; it < NUM_DATAPOINTS; ++it)
   {
     // add vertices
@@ -2462,7 +2458,7 @@ int main(int argc, char *argv[])
     {
       v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Zero()); // feed in initial guess
     }
-    v_list[it]->setId(num_passpoints+it); // set a unique id
+    v_list[it]->setId(1+it); // set a unique id
     optimizer.addVertex(v_list[it]);
 
     /*
@@ -2516,7 +2512,7 @@ int main(int argc, char *argv[])
     // add unary edges
     MyUnaryConstraints *unary_edge = new MyUnaryConstraints(left_fk_solver, right_fk_solver, dual_arm_dual_hand_collision_ptr);
     unary_edge->setId(it+2); // similarity and tracking edges ahead of it
-    unary_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
+    unary_edge->setVertex(0, optimizer.vertex(1+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
     unary_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
     unary_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
     optimizer.addEdge(unary_edge);
@@ -2525,7 +2521,7 @@ int main(int argc, char *argv[])
     
     
     // add tracking edges
-    tracking_edge->setVertex(num_passpoints+it, optimizer.vertex(num_passpoints+it)); 
+    tracking_edge->setVertex(1+it, optimizer.vertex(1+it)); 
  
   }
   tracking_edge->setMeasurement(constraint_data);
@@ -2539,8 +2535,8 @@ int main(int argc, char *argv[])
     // Add binary edges
     SmoothnessConstraint *smoothness_edge = new SmoothnessConstraint();
     smoothness_edge->setId(NUM_DATAPOINTS+2+it); // set a unique ID
-    smoothness_edge->setVertex(0, optimizer.vertex(num_passpoints+it)); //v_list[it]);
-    smoothness_edge->setVertex(1, optimizer.vertex(num_passpoints+it+1)); //v_list[it+1]); // binary edge, connects only 2 vertices, i.e. i=0 and i=1
+    smoothness_edge->setVertex(0, optimizer.vertex(it+1)); //v_list[it]);
+    smoothness_edge->setVertex(1, optimizer.vertex(it+2)); //v_list[it+1]); // binary edge, connects only 2 vertices, i.e. i=0 and i=1
     smoothness_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // Information type correct
     optimizer.addEdge(smoothness_edge);
 
@@ -2614,7 +2610,9 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double> > similarity_cost_history;
   std::vector<std::vector<double> > smoothness_cost_history;
 
-  std::vector<std::vector<std::vector<double> > > jacobian_history;
+  //std::vector<std::vector<std::vector<double> > > jacobian_history; // for pass points, store in 3d
+  std::vector<std::vector<double> > jacobian_history; // for DMP, store in 2d
+  
 
 
   // Start optimization and store cost history
@@ -2667,15 +2665,12 @@ int main(int argc, char *argv[])
 
 
     // Save Jacobian of similarity constraint
-    MatrixXd jacobians(num_passpoints, PASSPOINT_DOF);
+    MatrixXd jacobians(1, DMPPOINTS_DOF);    
     jacobians = similarity_edge->output_jacobian();
-    std::vector<std::vector<double> > jacobian_vec(num_passpoints, std::vector<double>(PASSPOINT_DOF));
-    for (unsigned int i = 0; i < num_passpoints; i++)
+    std::vector<double> jacobian_vec(DMPPOINTS_DOF); // from MatrixXd to std::vector<std::vector<double>>
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
     {
-      for (unsigned int j = 0; j < PASSPOINT_DOF; j++)
-      {
-        jacobian_vec[i][j] = jacobians(i, j);
-      }
+      jacobian_vec[j] = jacobians(0, j);
     }
     jacobian_history.push_back(jacobian_vec);
     std::cout << "debug: jacobians = \n" << jacobians << std::endl;
@@ -2736,9 +2731,15 @@ int main(int argc, char *argv[])
 
   
   // Store the jacobian history
-  result_flag = write_h5_3d(out_file_name, in_group_name, "jacobian_history", \
+  // 1 - use residuals and pass points
+  //result_flag = write_h5_3d(out_file_name, in_group_name, "jacobian_history", \
                             jacobian_history.size(), jacobian_history[0].size(), jacobian_history[0][0].size(), jacobian_history);
+  //std::cout << "jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  // 2 - use DMP
+  result_flag = write_h5(out_file_name, in_group_name, "jacobian_history", \
+                            jacobian_history.size(), jacobian_history[0].size(), jacobian_history);
   std::cout << "jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
 
 
   // Statistics:
@@ -2806,7 +2807,7 @@ int main(int argc, char *argv[])
   std::vector<double> q_vec(JOINT_DOF);
   for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
   {
-    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(num_passpoints+n));
+    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
     q_tmp = vertex_tmp->estimate();
     for (unsigned int d = 0; d < JOINT_DOF; d++)
       q_vec[d] = q_tmp[d];
@@ -2824,6 +2825,7 @@ int main(int argc, char *argv[])
   std::cout << "q_results stored " << (result1 ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
   // Convert and store pass_points results (can be used as a breakpoint for later continuing optimization)
+  /*
   std::vector<std::vector<double> > passpoint_results;
   Matrix<double, PASSPOINT_DOF, 1> passpoint_tmp;
   std::vector<double> passpoint_vec(PASSPOINT_DOF);
@@ -2835,16 +2837,35 @@ int main(int argc, char *argv[])
       passpoint_vec[d] = passpoint_tmp[d];
     passpoint_results.push_back(passpoint_vec);
     // display for debug
-    /*std::cout << "original, q_tmp: " << q_tmp.transpose() << std::endl;
-    std::cout << "pushed_back q_result: ";
-    for (unsigned int d = 0; d < JOINT_DOF; d++)
-      std::cout << q_results[n][d] << " ";
-    std::cout << std::endl;*/
+    //std::cout << "original, q_tmp: " << q_tmp.transpose() << std::endl;
+    //std::cout << "pushed_back q_result: ";
+    //for (unsigned int d = 0; d < JOINT_DOF; d++)
+    //  std::cout << q_results[n][d] << " ";
+    //std::cout << std::endl;
   }
   std::cout << "passpoint_results size is: " << passpoint_results.size() << " x " << passpoint_results[0].size() << std::endl;
   
   bool result2 = write_h5(out_file_name, in_group_name, "passpoint_traj_1", num_passpoints, PASSPOINT_DOF, passpoint_results);
   std::cout << "passpoint_results stored " << (result2 ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  */
+
+  // Convert and store optimized DMP starts and goals (can be used as a breakpoint for later continuing optimization)
+  std::vector<std::vector<double> > dmp_starts_goals_store;
+  Matrix<double, DMPPOINTS_DOF, 1> dmp_starts_goals_tmp;
+  std::vector<double> dmp_starts_goals_vec(DMPPOINTS_DOF);
+
+  DMPStartsGoalsVertex* vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
+  dmp_starts_goals_tmp = vertex_tmp->estimate();
+  for (unsigned int d = 0; d < DMPPOINTS_DOF; d++)
+      dmp_starts_goals_vec[d] = dmp_starts_goals_tmp[d];
+  dmp_starts_goals_store.push_back(dmp_starts_goals_vec);
+  
+  std::cout << "dmp_results size is: " << dmp_starts_goals_store.size() << " x " << dmp_starts_goals_store[0].size() << std::endl;
+  
+  bool result2 = write_h5(out_file_name, in_group_name, "dmp_starts_goals_1", dmp_starts_goals_store.size(), dmp_starts_goals_store[0].size(), dmp_starts_goals_store);
+  std::cout << "dmp results stored " << (result2 ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
 
 
   return 0;

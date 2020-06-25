@@ -47,11 +47,11 @@ class DMPTrajectoryGenerator
 
     
     // Variables
-    unsigned int train_nbData = 400; // number of resampled path points used in learning DMP, which is also related to Yr data
+    unsigned int train_nbData = 100; //400; // number of resampled path points used in learning DMP, which is also related to Yr data
     //unsigned int num_datapoints = 50; // expected number of output trajectory !!!
     double kP = 64;
     double kV = sqrt(2.0*kP); // spring and damping factors
-    double dt = 0.01;
+    double dt = 0.04; //0.01;  // increase dt as train_nbData decreases, stay in accordance to MATLAB
 
     MatrixXd sIn; // 400 x 1, share the same time profile
     
