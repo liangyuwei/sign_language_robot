@@ -612,8 +612,15 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
     virtual void oplusImpl(const double *update) // update rule
     {
       for (unsigned int i = 0; i < JOINT_DOF; ++i)
+      {
         _estimate[i] += update[i];//Map<Matrix<double, JOINT_DOF, 1> >(update, JOINT_DOF, 1);
+        last_update(i, 0) = update[i]; // record updates
+      }
+
     }
+
+
+    Matrix<double, JOINT_DOF, 1> last_update;
 
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
@@ -635,8 +642,15 @@ class DMPStartsGoalsVertex : public BaseVertex<DMPPOINTS_DOF, Matrix<double, DMP
     virtual void oplusImpl(const double *update) // update rule
     {
       for (unsigned int i = 0; i < DMPPOINTS_DOF; ++i)
+      {
         _estimate[i] += update[i];
+        last_update(i, 0) = update[i]; // record updates
+      }
+
     }
+
+
+    Matrix<double, DMPPOINTS_DOF, 1> last_update;
 
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
@@ -1113,6 +1127,8 @@ class SimilarityConstraint : public BaseUnaryEdge<1, my_constraint_struct, DMPSt
     void computeError()
     {
 
+      std::cout << "Similarity edge is called !" << std::endl;
+
       // statistics
       count_sim++;  
 
@@ -1389,13 +1405,14 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
       // resize the number of vertices this edge connects to
       //std::cout << "resizing tracking constraint..." << std::endl;
       //resize(num_datapoints+num_passpoints);
+      this->num_vertices = num_datapoints + 1;
       resize(num_datapoints+1); // q path points plus one DMP vertex
     }
     ~TrackingConstraint(){};    
 
     // numbers
     unsigned int num_datapoints, num_passpoints;
-
+    unsigned int num_vertices;
 
     // trajectory generator
     //boost::shared_ptr<TrajectoryGenerator> &trajectory_generator_ptr;
@@ -1422,11 +1439,30 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     double return_elbow_pos_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
     std::vector<double> return_elbow_pos_cost_history();
 
+    MatrixXd output_jacobian();
+
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
     virtual bool write( std::ostream& out ) const {return true;}
     
 };
+
+
+/* Output just the jacobians for DMP starts_and_goals vertex */
+MatrixXd TrackingConstraint::output_jacobian()
+{
+  // TrackingConstraint is a MultiEdge, _jacobianOplus contains jacobians for DMP starts_and_goals vertex and q vertices!!! 
+  MatrixXd jacobians(1, DMPPOINTS_DOF);
+  for (unsigned int n = 0; n < 1; n++) // the first item is for DMP starts_and_goals vertex !
+  {
+    for (unsigned int p = 0; p < DMPPOINTS_DOF; p++)
+      jacobians(n, p) = _jacobianOplus[n](0, p);
+  }
+
+  //std::cout << "debug: " << _jacobianOplus.size() << " x " << _jacobianOplus[0].rows() << " x " << _jacobianOplus[0].cols() << std::endl;
+  
+  return jacobians;
+}
 
 
 double TrackingConstraint::return_wrist_pos_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
@@ -1901,7 +1937,7 @@ std::vector<double> TrackingConstraint::return_elbow_pos_cost_history()
 void TrackingConstraint::computeError()
 {
 
-  //std::cout << "Computing Tracking Constraint..." << std::endl;
+  std::cout << "Tracking Edge is called!" << std::endl;
 
   // statistics
   count_tracking++;  
@@ -2121,6 +2157,7 @@ int main(int argc, char *argv[])
   std::string in_group_name = "fengren_1";
   std::string out_file_name = "mocap_ik_results_YuMi_g2o.h5";
   bool continue_optim = false; // If using previously optimized result as the initial value
+  bool pre_iteration = false; // whether load pre-iteration results or perform a new round of pre-iterations
 
   // Process the terminal arguments
   static struct option long_options[] = 
@@ -2129,6 +2166,7 @@ int main(int argc, char *argv[])
     {"in-group-name", required_argument, NULL, 'g'},
     {"out-h5-filename", required_argument, NULL, 'o'},
     {"continue-optimization", required_argument, NULL, 'c'},
+    {"pre-iteration", required_argument, NULL, 'p'},    
     {"help", no_argument, NULL, 'h'},
     {0, 0, 0, 0}
   };
@@ -2137,7 +2175,7 @@ int main(int argc, char *argv[])
   {
     int opt_index = 0;
     // Get arguments
-    c = getopt_long(argc, argv, "i:g:o:c:h", long_options, &opt_index);
+    c = getopt_long(argc, argv, "i:g:o:c:p:h", long_options, &opt_index);
     if (c == -1)
       break;
 
@@ -2152,6 +2190,7 @@ int main(int argc, char *argv[])
         std::cout << "    -g, --in-group-name, specify the group name in the h5 file, which is actually the motion's name.\n" << std::endl;
         std::cout << "    -o, --out-h5-name, specify the name of the output h5 file to store the resultant joint trajectory.\n" << std::endl;
         std::cout << "    -c, --continue-optimization, If using the previously optimized results stored in out-h5-name as the initial guess.\n" << std::endl;
+        std::cout << "    -p, --pre-iteration, Whether load pre-iteration results from out-h5-name file or start a new round of pre-iteration.\n" << std::endl;
         return 0;
         break;
 
@@ -2171,6 +2210,10 @@ int main(int argc, char *argv[])
         continue_optim = optarg;
         break;
 
+      case 'p':
+        pre_iteration = optarg;
+        break;
+
       default:
         break;
     }
@@ -2181,6 +2224,7 @@ int main(int argc, char *argv[])
   std::cout << "The output h5 file name is: " << out_file_name << std::endl;
   std::cout << "The current optimization " << (continue_optim ? "is" : "is not") << " following the previously optimized results." << std::endl; 
   std::cout << "debug: -c is set as " << (continue_optim ? "true" : "false") << "..." << std::endl;
+  std::cout << "debug: -p is set as " << (pre_iteration ? "true" : "false") << "..." << std::endl;
 
   // Create a struct for storing user-defined data
   my_constraint_struct constraint_data; 
@@ -2616,14 +2660,153 @@ int main(int argc, char *argv[])
 
   // PreIteration
   std::cout << ">>>> Pre Iteration..." << std::endl;
-  /*
+  if(pre_iteration)
+  { 
+    std::cout << "Load pre-iteration results from last time..." << std::endl;
+    // read from file
+    std::vector<std::vector<double>> preiter_q_results; 
+    preiter_q_results = read_h5(out_file_name, in_group_name, "preiter_arm_traj_1"); 
+    // convert to Matrix and assign to q vertices
+    for (unsigned int it = 0; it < NUM_DATAPOINTS; it++)
+    {
+      // convert
+      std::vector<double> preiter_q_result = preiter_q_results[it]; // 38-dim
+      Matrix<double, JOINT_DOF, 1> preiter_q_mat = Map<Matrix<double, JOINT_DOF, 1>>(preiter_q_result.data(), preiter_q_result.size());
+      // assign
+      DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+it));
+      vertex_tmp->setEstimate(preiter_q_mat);
+    }
+  }
+  else
+  {
+    std::cout << "Start a new run of pre-iteration..." << std::endl;
+    /*
+    // fix joints and optimize dmp starts and goals...
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
+      vertex_tmp->setFixed(true);
+    }
+    optimizer.optimize(10);
+    // reset
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
+      vertex_tmp->setFixed(false);
+    }
+    // check the results
+    Matrix<double, DMPPOINTS_DOF, 1> dmp_vertex_tmp_mat;
+    DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
+    dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
+    std::cout << "pre-iteration result: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;
+    */
+
+    std::cout << "before pre-iteration: " << std::endl;
+    std::vector<double> wrist_pos_cost_tmp = tracking_edge->return_wrist_pos_cost_history();
+    std::vector<double> wrist_ori_cost_tmp = tracking_edge->return_wrist_ori_cost_history();
+    std::vector<double> elbow_pos_cost_tmp = tracking_edge->return_elbow_pos_cost_history();
+    std::vector<double> finger_cost_tmp = tracking_edge->return_finger_cost_history();
+    std::cout << "wrist_pos_cost = ";
+    for (unsigned int s = 0; s < wrist_pos_cost_tmp.size(); s++)
+      std::cout << wrist_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "wrist_ori_cost = ";
+    for (unsigned int s = 0; s < wrist_ori_cost_tmp.size(); s++)
+      std::cout << wrist_ori_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "elbow_pos_cost = ";
+    for (unsigned int s = 0; s < elbow_pos_cost_tmp.size(); s++)
+      std::cout << elbow_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "finger_cost = ";
+    for (unsigned int s = 0; s < finger_cost_tmp.size(); s++)
+      std::cout << finger_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+
+    // fix DMP starts and goals (good for lowering tracking cost quickly, also for tracking orientation and glove angle ahead of position trajectory!!!)
+    DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
+    dmp_vertex_tmp->setFixed(true);
+    // optimize for a few iterations
+    optimizer.optimize(40); //(80); // 40 is enough for now... not much improvement after 40 iterations
+    // reset
+    dmp_vertex_tmp->setFixed(false);
+    // check the results
+    Matrix<double, JOINT_DOF, 1> q_result_tmp = v_list[0]->estimate();
+    std::cout << std::endl << "Joint values for the path point 1/" << NUM_DATAPOINTS << ": " << q_result_tmp.transpose() << std::endl; // check if the setId() method can be used to get the value
+
+    q_result_tmp = v_list[1]->estimate();
+    std::cout << std::endl << "Joint values for the path point 2/" << NUM_DATAPOINTS << ": " << q_result_tmp.transpose() << std::endl; // check if the setId() method can be used to get the value
+
+    q_result_tmp = v_list[2]->estimate();
+    std::cout << std::endl << "Joint values for the path point 3/" << NUM_DATAPOINTS << ": " << q_result_tmp.transpose() << std::endl; // check if the setId() method can be used to get the value
+
+    // for comparison
+    std::cout << "after pre-iteration: " << std::endl;
+    wrist_pos_cost_tmp = tracking_edge->return_wrist_pos_cost_history();
+    wrist_ori_cost_tmp = tracking_edge->return_wrist_ori_cost_history();
+    elbow_pos_cost_tmp = tracking_edge->return_elbow_pos_cost_history();
+    finger_cost_tmp = tracking_edge->return_finger_cost_history();
+    std::cout << "wrist_pos_cost = ";
+    for (unsigned int s = 0; s < wrist_pos_cost_tmp.size(); s++)
+      std::cout << wrist_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "wrist_ori_cost = ";
+    for (unsigned int s = 0; s < wrist_ori_cost_tmp.size(); s++)
+      std::cout << wrist_ori_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "elbow_pos_cost = ";
+    for (unsigned int s = 0; s < elbow_pos_cost_tmp.size(); s++)
+      std::cout << elbow_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "finger_cost = ";
+    for (unsigned int s = 0; s < finger_cost_tmp.size(); s++)
+      std::cout << finger_cost_tmp[s] << " ";
+    std::cout << std::endl;  
+
+    // store preIteration results for reuse
+    std::vector<std::vector<double> > preiter_q_results;
+    Matrix<double, JOINT_DOF, 1> preiter_q_tmp;
+    std::vector<double> preiter_q_vec(JOINT_DOF);
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
+      preiter_q_tmp = vertex_tmp->estimate();
+      for (unsigned int d = 0; d < JOINT_DOF; d++)
+        preiter_q_vec[d] = preiter_q_tmp[d];
+      preiter_q_results.push_back(preiter_q_vec);
+      // display for debug
+      /*std::cout << "original, q_tmp: " << q_tmp.transpose() << std::endl;
+      std::cout << "pushed_back q_result: ";
+      for (unsigned int d = 0; d < JOINT_DOF; d++)
+        std::cout << q_results[n][d] << " ";
+      std::cout << std::endl;*/
+    }
+    bool preiter_result = write_h5(out_file_name, in_group_name, "preiter_arm_traj_1", NUM_DATAPOINTS, JOINT_DOF, preiter_q_results);
+    std::cout << "PreIteration results stored " << (preiter_result ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  }
+
+
+  // pre-post iteration...
   // fix joints and optimize dmp starts and goals...
+  std::cout << "Fix q vertices and try to optimize dmp starts and goals..." << std::endl;
+  Matrix<double, DMPPOINTS_DOF, 1> dmp_vertex_tmp_mat;
+  DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
+  dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
+  std::cout << "before pre-post-iteration: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;  
   for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
   {
     DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
     vertex_tmp->setFixed(true);
   }
-  optimizer.optimize(10);
+  optimizer.optimize(100);
   // reset
   for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
   {
@@ -2631,37 +2814,21 @@ int main(int argc, char *argv[])
     vertex_tmp->setFixed(false);
   }
   // check the results
-  Matrix<double, DMPPOINTS_DOF, 1> dmp_vertex_tmp_mat;
-  DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
   dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
-  std::cout << "pre-iteration result: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;
-  */
+  std::cout << "after pre-post-iteration: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;
 
-
-  // fix DMP starts and goals (good for lowering tracking cost quickly, also for tracking orientation and glove angle ahead of position trajectory!!!)
-  DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
-  dmp_vertex_tmp->setFixed(true);
-  // optimize for a few iterations
-  optimizer.optimize(10);
-  // reset
-  dmp_vertex_tmp->setFixed(false);
-  // check the results
-  Matrix<double, JOINT_DOF, 1> q_result_tmp = v_list[0]->estimate();
-  std::cout << std::endl << "Joint values for the path point 1/" << NUM_DATAPOINTS << ": " << q_result_tmp.transpose() << std::endl; // check if the setId() method can be used to get the value
-
-  q_result_tmp = v_list[1]->estimate();
-  std::cout << std::endl << "Joint values for the path point 2/" << NUM_DATAPOINTS << ": " << q_result_tmp.transpose() << std::endl; // check if the setId() method can be used to get the value
-
-  q_result_tmp = v_list[2]->estimate();
-  std::cout << std::endl << "Joint values for the path point 3/" << NUM_DATAPOINTS << ": " << q_result_tmp.transpose() << std::endl; // check if the setId() method can be used to get the value
-  
 
 
   // Start optimization and store cost history
   std::cout << ">>>> Start optimization of the whole graph" << std::endl;
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   unsigned int num_records = 20; 
-  unsigned int per_iterations = 10; // record data for every 10 iterations
+  unsigned int per_iterations = 5; // record data for every 10 iterations
+
+  //DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
+  std::cout << "debug: DMP starts_and_goals vertex " << (dmp_vertex_tmp->fixed()? "is" : "is not") << " fixed during optimization." << std::endl;
+
+
   // num_iterations = num_records * per_iterations
   for (unsigned int n = 0; n < num_records; n++)
   {
@@ -2716,7 +2883,33 @@ int main(int argc, char *argv[])
       jacobian_vec[j] = jacobians(0, j);
     }
     jacobian_history.push_back(jacobian_vec);
-    std::cout << "debug: jacobians = \n" << jacobians << std::endl;
+    //std::cout << "debug: jacobians = \n" << jacobians << std::endl;
+
+
+    // Display jacobians of similarity edge and tracking edge w.r.t DMP starts and goals vertex, and display the updates
+    std::cout << "Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+    jacobians = Matrix<double, DMPPOINTS_DOF, 1>::Zero(); // reset
+    std::cout << "Jacobians reset = " << jacobians.transpose() << std::endl;
+    jacobians = tracking_edge->output_jacobian();
+    std::cout << "Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+    DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));  
+    Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
+    std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
+
+    // debug:
+    double cost_tmp;
+    tracking_edge->computeError();
+    cost_tmp = tracking_edge->error()[0];
+    std::cout << "Tracking edge's values: " << cost_tmp << std::endl;
+    std::cout << "Tracking edge all right!" << std::endl;
+    // debug:
+    std::cout << "Similarity edge's value: ";
+    similarity_edge->computeError();
+    cost_tmp = similarity_edge->error()[0];
+    std::cout << cost_tmp << std::endl;
+    std::cout << "Similarity edge all right!" << std::endl;
+
+
 
 
     // Terminate the process if early stopping
