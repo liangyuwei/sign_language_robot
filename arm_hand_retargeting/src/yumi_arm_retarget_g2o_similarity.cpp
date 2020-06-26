@@ -102,6 +102,10 @@ double total_unary = 0;
 double total_smoothness = 0;
 double total_tracking = 0;
 
+unsigned int num_update = 0;
+unsigned int num_track = 0;
+unsigned int num_sim = 0;
+
 typedef struct {
 
   // Human motion data
@@ -641,11 +645,14 @@ class DMPStartsGoalsVertex : public BaseVertex<DMPPOINTS_DOF, Matrix<double, DMP
   
     virtual void oplusImpl(const double *update) // update rule
     {
+      //std::cout << "debug: update DMP starts and goals " << std::endl;
+      num_update++;
       for (unsigned int i = 0; i < DMPPOINTS_DOF; ++i)
       {
         _estimate[i] += update[i];
         last_update(i, 0) = update[i]; // record updates
       }
+      std::cout << "debug: current update = " << last_update.transpose() << std::endl;
 
     }
 
@@ -1127,6 +1134,8 @@ class SimilarityConstraint : public BaseUnaryEdge<1, my_constraint_struct, DMPSt
     void computeError()
     {
 
+      num_sim++;
+
       std::cout << "Similarity edge is called !" << std::endl;
 
       // statistics
@@ -1315,8 +1324,9 @@ class SimilarityConstraint : public BaseUnaryEdge<1, my_constraint_struct, DMPSt
     virtual bool write( std::ostream& out ) const {return true;}
 
     // Re-implement linearizeOplus() for recording Jacobians of this edge
-    //virtual void linearizeOplus();
+    virtual void linearizeOplus();
     MatrixXd output_jacobian(); 
+    void set_jacobian(); // set _jacobianOplusXi for debug: see if _jacobianOplusXi and _jacobianOplus share common memory...
     
 };
 
@@ -1342,10 +1352,29 @@ MatrixXd SimilarityConstraint::output_jacobian()
   return jacobians;
 }
 
+// change _jacobianOplusXi for debug
+void SimilarityConstraint::set_jacobian()
+{
+  for (unsigned int d = 0; d < DMPPOINTS_DOF; d++)
+    _jacobianOplusXi(0, d) = 0.3; // set to 0.1 for debug
+}
+
 // Re-implemented linearizeOplus() for recording Jacobians
-/*
 void SimilarityConstraint::linearizeOplus()
 {
+  std::cout << "similarity numeric differentiation..." << std::endl;
+
+  std::cout << "debug: ";
+  for (unsigned int p = 0; p < DMPPOINTS_DOF; p++)
+      std::cout << _jacobianOplusXi(0, p) << " "; // set to 0.2 for debug
+  std::cout << std::endl;
+
+
+  for (unsigned int d = 0; d < DMPPOINTS_DOF; d++)
+    _jacobianOplusXi(0, d) = 0.1; // set to 0.1 for debug
+
+
+  /*
   std::cout << "computing numeric differentiation for Similarity Edge..." << std::endl;
   for (unsigned int n = 0; n < this->num_vertices; n++)
   {
@@ -1379,9 +1408,11 @@ void SimilarityConstraint::linearizeOplus()
   }
 
   std::cout << "debug: one line of jacobian is " << _jacobianOplus[0].row(0) << std::endl;
+  */
+
 
 }
-*/
+
 
 
 
@@ -1441,6 +1472,9 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
 
     MatrixXd output_jacobian();
 
+    // Re-implement numeric differentiation
+    virtual void linearizeOplus();
+
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
     virtual bool write( std::ostream& out ) const {return true;}
@@ -1462,6 +1496,33 @@ MatrixXd TrackingConstraint::output_jacobian()
   //std::cout << "debug: " << _jacobianOplus.size() << " x " << _jacobianOplus[0].rows() << " x " << _jacobianOplus[0].cols() << std::endl;
   
   return jacobians;
+}
+
+void TrackingConstraint::linearizeOplus()
+{
+  std::cout << "tracking numeric differentiation..." << std::endl;
+  std::cout << "_jacobianOplus size = " << _jacobianOplus.size() << " x " 
+            << _jacobianOplus[0].rows() << " x " 
+            << _jacobianOplus[0].cols() << std::endl
+            << "or " << _jacobianOplus[1].rows() << " x " << _jacobianOplus[1].cols() << std::endl;
+
+  std::cout << "debug: ";
+  for (unsigned int p = 0; p < DMPPOINTS_DOF; p++)
+      std::cout << _jacobianOplus[0](0, p) << " "; // set to 0.2 for debug
+  std::cout << std::endl;
+  
+  // TrackingConstraint is a MultiEdge, _jacobianOplus contains jacobians for DMP starts_and_goals vertex and q vertices!!! 
+  for (unsigned int p = 0; p < DMPPOINTS_DOF; p++)
+      _jacobianOplus[0](0, p) = 0.2; // set to 0.2 for debug
+
+  for (unsigned int n = 1; n <= this->num_datapoints; n++) // the first item is for DMP starts_and_goals vertex !
+  {
+    for (unsigned int p = 0; p < DMPPOINTS_DOF; p++)
+      _jacobianOplus[n](0, p) = 0.0;
+  }
+
+  //std::cout << "debug: " << _jacobianOplus.size() << " x " << _jacobianOplus[0].rows() << " x " << _jacobianOplus[0].cols() << std::endl;
+  
 }
 
 
@@ -1936,6 +1997,7 @@ std::vector<double> TrackingConstraint::return_elbow_pos_cost_history()
 
 void TrackingConstraint::computeError()
 {
+  num_track++;
 
   std::cout << "Tracking Edge is called!" << std::endl;
 
@@ -2806,7 +2868,30 @@ int main(int argc, char *argv[])
     DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
     vertex_tmp->setFixed(true);
   }
-  optimizer.optimize(100);
+
+  optimizer.optimize(1);
+  MatrixXd jacobians(1, DMPPOINTS_DOF);    
+  jacobians = similarity_edge->output_jacobian();
+  std::cout << "Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+  jacobians = Matrix<double, DMPPOINTS_DOF, 1>::Zero(); // reset
+  std::cout << "Jacobians reset = " << jacobians.transpose() << std::endl;
+  std::cout << "Set _jacobianOplusXi in similarity edge for debug..." << std::endl;
+  similarity_edge->set_jacobian(); // set _jacobianOplusXi to 0.3, and see if _jacobianOplus in tracking edge changes
+  jacobians = tracking_edge->output_jacobian();
+  std::cout << "Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+  Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
+  std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
+
+  optimizer.optimize(1);
+  jacobians = similarity_edge->output_jacobian();  
+  std::cout << "Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+  jacobians = Matrix<double, DMPPOINTS_DOF, 1>::Zero(); // reset
+  std::cout << "Jacobians reset = " << jacobians.transpose() << std::endl;
+  jacobians = tracking_edge->output_jacobian();
+  std::cout << "Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+  last_update = dmp_vertex_tmp->last_update;
+  std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
+
   // reset
   for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
   {
@@ -2816,7 +2901,7 @@ int main(int argc, char *argv[])
   // check the results
   dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
   std::cout << "after pre-post-iteration: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;
-
+  std::cout << "debug: num_update = " << num_update << ", num_track = " << num_track << ", num_sim = " << num_sim << std::endl;
 
 
   // Start optimization and store cost history
