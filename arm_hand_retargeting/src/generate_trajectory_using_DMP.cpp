@@ -495,6 +495,8 @@ DMP_trajs DMPTrajectoryGenerator::generate_trajectories(MatrixXd lrw_new_goal, M
   MatrixXd y_lw = y_rw + y_lrw;
   MatrixXd y_le = y_lw + y_lew;
 
+  //std::cout << "debug: original lrw_new_goal = " << lrw_new_goal << std::endl
+  //          << "generated lrw_new_goal = " << y_lrw.block(0, 0, 3, 1).transpose() << std::endl;
   //std::cout << "debug: new traj size = " << y_lrw.rows() << " x " << y_lrw.cols() << std::endl;
 
 
