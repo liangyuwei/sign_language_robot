@@ -100,7 +100,7 @@ class DMPTrajectoryGenerator
     // Combining the pipeline
     //Matrix<double, >
     //MatrixXd generate_trajectories(MatrixXd lrw_new_goal); // input new goals and starts and return generalized trajectories
-    MatrixXd generate_trajectory(MatrixXd new_goal, MatrixXd new_start, MatrixXd Yr, unsigned int num_datapoints);
+    MatrixXd generate_trajectory(Matrix<double, 1, 3> new_goal, Matrix<double, 1, 3> new_start, MatrixXd Yr, unsigned int num_datapoints);
 
     DMP_trajs generate_trajectories(MatrixXd lrw_new_goal, MatrixXd lrw_new_start, // column vectors
                                     MatrixXd lew_new_goal, MatrixXd lew_new_start,

@@ -434,19 +434,22 @@ MatrixXd DMPTrajectoryGenerator::interpolate_trajectory(MatrixXd original_trajec
 
 
 
-MatrixXd DMPTrajectoryGenerator::generate_trajectory(MatrixXd new_goal, MatrixXd new_start, MatrixXd Yr, unsigned int num_datapoints)
+MatrixXd DMPTrajectoryGenerator::generate_trajectory(Matrix<double, 1, 3> new_goal, Matrix<double, 1, 3> new_start, MatrixXd Yr, unsigned int num_datapoints)
 {
-  // Input: new_goal, new_start - 1 x 3
+  // Input: new_goal, new_start - 1 x 3 !!!
   //        Yr - 3 x 400
+  //        Setting type of new_start and new_goal to Matrix<double, 1, 3> provides safety when passing MatrixXd to this function
   // Output: repro - 3 x 400
+
+  //std::cout << "debug: new_goal = " << new_goal << ", new_start = " << new_start << std::endl;
 
   // Prep
   Matrix<double, 3, 1> xStart;
   for (unsigned int i = 0; i < new_start.cols(); i++)
-    xStart(i) = new_start(0, i);
+    xStart[i] = new_start(0, i);
   Matrix<double, 3, 1> xTar;
   for (unsigned int i = 0; i < new_goal.cols(); i++)
-    xTar(i) = new_goal(0, i);    
+    xTar[i] = new_goal(0, i);    
 
   Matrix<double, 3, 1> x = xStart;
   Matrix<double, 3, 1> dx = Matrix<double, 3, 1>::Zero();
@@ -460,6 +463,12 @@ MatrixXd DMPTrajectoryGenerator::generate_trajectory(MatrixXd new_goal, MatrixXd
     ddx = kP * (xTar - x) - kV * dx + sIn(t) * Yr.col(t).cwiseProduct((xTar-xStart).cwiseAbs());
     dx = dx + ddx * this->dt;
     x = x + dx * this->dt;
+    /*
+    std::cout << "debug: xTar = " << xTar.transpose() << ", xStart = " << xStart.transpose() 
+              << ", xTar-x = " << (xTar-x).transpose() << ", xTar-xStart = " << (xTar-xStart).transpose() << std::endl;
+    std::cout << "debug: Yr.col(t) = " << Yr.col(t).transpose() << ", Yr*g = " << Yr.col(t).cwiseProduct((xTar-xStart).cwiseAbs()).transpose() << std::endl;
+    std::cout << "debug: ddx = " << ddx.transpose() << ", dx = " << dx.transpose() << ", x = " << x.transpose() << std::endl;
+    */
     repro.col(t) = x;
   }
 
@@ -483,6 +492,7 @@ DMP_trajs DMPTrajectoryGenerator::generate_trajectories(MatrixXd lrw_new_goal, M
                                                        unsigned int num_datapoints)
 {
   // num_datapoints - expected number of path points of the generated trajectory
+  // Input: new_goals, new_starts - 1 x 3 size
   // Output: a DMP_trajs struct, containing trajectories with the size of 3 x 50(num_datapoints)
 
   // Compute relative position trajectories
