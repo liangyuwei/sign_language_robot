@@ -1580,10 +1580,11 @@ void TrackingConstraint::linearizeOplus()
 
 
   // normalize the jacobians of DMP starts and goals 
+  /*
   this->jacobians_for_dmp = this->jacobians_for_dmp.normalized();
   for (unsigned int n = 0; n < DMPPOINTS_DOF; n++)
     _jacobianOplus[0](0, n) = this->jacobians_for_dmp[n];
-
+  */
 
 
   // print jacobians for debug
@@ -2562,20 +2563,20 @@ int main(int argc, char *argv[])
   // Process the terminal arguments
   static struct option long_options[] = 
   {
-    {"in-h5-filename", required_argument, NULL, 'i'},
-    {"in-group-name", required_argument, NULL, 'g'},
-    {"out-h5-filename", required_argument, NULL, 'o'},
+    {"in-h5-filename",        required_argument, NULL, 'i'},
+    {"in-group-name",         required_argument, NULL, 'g'},
+    {"out-h5-filename",       required_argument, NULL, 'o'},
     {"continue-optimization", required_argument, NULL, 'c'},
-    {"pre-iteration", required_argument, NULL, 'p'},    
-    {"help", no_argument, NULL, 'h'},
-    {0, 0, 0, 0}
+    {"pre-iteration",               no_argument, NULL, 'p'},    
+    {"help",                        no_argument, NULL, 'h'},
+    {0,                                       0,    0,   0}
   };
   int c;
   while(1)
   {
     int opt_index = 0;
     // Get arguments
-    c = getopt_long(argc, argv, "i:g:o:c:p:h", long_options, &opt_index);
+    c = getopt_long(argc, argv, "i:g:o:c:ph", long_options, &opt_index);
     if (c == -1)
       break;
 
@@ -2607,11 +2608,11 @@ int main(int argc, char *argv[])
         break;
 
       case 'c':
-        continue_optim = optarg;
+        continue_optim = true;
         break;
 
       case 'p':
-        pre_iteration = optarg;
+        pre_iteration = true;
         break;
 
       default:
@@ -2863,6 +2864,7 @@ int main(int argc, char *argv[])
   else
   {
     // move right wrist starts and goals
+    /*
     std::cout << ">>>> Move the whole trajectories to be symmetric to x-z plane, as initial guess" << std::endl;
     double rw_g_y = trajectory_generator_ptr->rw_goal(0, 1); // 1 x 3
     double lw_g_y = rw_g_y + trajectory_generator_ptr->lrw_goal(0, 1);
@@ -2876,6 +2878,7 @@ int main(int argc, char *argv[])
     trajectory_generator_ptr->rw_start(0, 1) = -half_s_y;
     std::cout << "Moved right wrist start = " << trajectory_generator_ptr->rw_start << std::endl;
     std::cout << "Moved right wrist goal = " << trajectory_generator_ptr->rw_goal << std::endl;
+    */
 
     DMP_ori_starts_goals.block(0, 0, 3, 1) = trajectory_generator_ptr->lrw_goal.transpose(); // 1 x 3
     DMP_ori_starts_goals.block(3, 0, 3, 1) = trajectory_generator_ptr->lrw_start.transpose();
@@ -3018,8 +3021,12 @@ int main(int argc, char *argv[])
   
 
   // Try optimizing without similarity edge
-  bool remove_result = optimizer.removeEdge(similarity_edge); // must call .initializeOptimization() after removing edges
-  std::cout << "Removing similarity edge " << (remove_result? "successfully" : "unsuccessfully") << "!" << std::endl;
+  // remove edges before .initializeOptimization()!!!
+  //std::cout << ">>>> Removing edges for debug before .initializeOptimization()" << std::endl;
+  //bool remove_result = optimizer.removeEdge(similarity_edge); // must call .initializeOptimization() after removing edges
+  //std::cout << "Removing similarity edge " << (remove_result? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+
 
   // Start optimization
   std::cout << ">>>> Start optimization:" << std::endl;
@@ -3090,7 +3097,7 @@ int main(int argc, char *argv[])
   //std::vector<std::vector<std::vector<double> > > jacobian_history; // for pass points, store in 3d
   std::vector<std::vector<double> > sim_jacobian_history; // for DMP, store in 2d
   std::vector<std::vector<double> > track_jacobian_history; // for DMP, store in 2d
-  
+  std::vector<std::vector<double> > dmp_update_history;
 
   // PreIteration
   K_COL = 1.0; // difference is 4... jacobian would be 4 * K_COL
@@ -3249,6 +3256,7 @@ int main(int argc, char *argv[])
 
 
   // Set new initial guess for DMP
+  /*
   MatrixXd wrist_pos_offsets(3, NUM_DATAPOINTS);
   wrist_pos_offsets = tracking_edge->return_wrist_pos_offsets(); // only the right wrist's 
   std::cout << ">>>> Set new initial guess for DMP starts and goals " << std::endl;
@@ -3277,7 +3285,7 @@ int main(int argc, char *argv[])
   bool result5 = write_h5(out_file_name, in_group_name, "dmp_starts_goals_moved_pulled", dmp_starts_goals_store1.size(), dmp_starts_goals_store1[0].size(), dmp_starts_goals_store1);
   std::cout << "dmp results stored " << (result5 ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
-
+  */
 
   // Consider do DMP optimization before q optimization
   K_WRIST_ORI = 5.0; //50.0;
@@ -3315,6 +3323,12 @@ int main(int argc, char *argv[])
     std::cout << "Last Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
     Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
     std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
+
+    // store dmp updates
+    std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+      dmp_update_vec[j] = last_update(j, 0);
+    dmp_update_history.push_back(dmp_update_vec);
 
     // Terminate the process if early stopping
     if(iter < iters_per_trail) 
@@ -3355,11 +3369,11 @@ int main(int argc, char *argv[])
   K_SIMILARITY = 10.0; //1000.0 // 1.0 // 10.0
   K_SMOOTHNESS = 3.0;
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-  unsigned int num_records = 30; 
+  unsigned int num_records = 50; 
   unsigned int per_iterations = 5; // record data for every 10 iterations
 
-  //DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
-  std::cout << "debug: DMP starts_and_goals vertex " << (dmp_vertex_tmp->fixed()? "is" : "is not") << " fixed during optimization." << std::endl;
+  DMPStartsGoalsVertex* dmp_vertex_tmp_check = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
+  std::cout << "debug: DMP starts_and_goals vertex " << (dmp_vertex_tmp_check->fixed()? "is" : "is not") << " fixed during optimization." << std::endl;
 
   // num_iterations = num_records * per_iterations
   for (unsigned int n = 0; n < num_records; n++)
@@ -3425,7 +3439,6 @@ int main(int argc, char *argv[])
 
     //std::cout << "debug: jacobians = \n" << jacobians << std::endl;
 
-
     // Display jacobians of similarity edge and tracking edge w.r.t DMP starts and goals vertex, and display the updates
     jacobians = similarity_edge->output_jacobian();    
     std::cout << "Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
@@ -3435,11 +3448,24 @@ int main(int argc, char *argv[])
     Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
     std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
 
+    // store dmp updates
+    std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+      dmp_update_vec[j] = last_update(j, 0);
+    dmp_update_history.push_back(dmp_update_vec);
+
     // debug:
     double cost_tmp;
     tracking_edge->computeError();
     cost_tmp = tracking_edge->error()[0];
     std::cout << "Tracking edge's values: " << cost_tmp << std::endl;
+    
+    // debug:
+    std::cout << "Details:\n wrist_pos_cost = " << wrist_pos_cost
+              << "\n wrist_ori_cost = " << wrist_ori_cost
+              << "\n elbow_pos_cost = " << elbow_pos_cost
+              << "\n finger_cost = " << finger_cost << std::endl;
+
     // debug:
     /*
     std::cout << "Similarity edge's value: ";
@@ -3511,9 +3537,14 @@ int main(int argc, char *argv[])
   result_flag = write_h5(out_file_name, in_group_name, "sim_jacobian_history", \
                             sim_jacobian_history.size(), sim_jacobian_history[0].size(), sim_jacobian_history);
   std::cout << "sim_jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  
   result_flag = write_h5(out_file_name, in_group_name, "track_jacobian_history", \
                             track_jacobian_history.size(), track_jacobian_history[0].size(), track_jacobian_history);
   std::cout << "track_jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "dmp_update_history", \
+                            dmp_update_history.size(), dmp_update_history[0].size(), dmp_update_history);
+  std::cout << "dmp_update_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
 
   // Statistics:
