@@ -1397,6 +1397,7 @@ void SimilarityConstraint::linearizeOplus()
   Matrix<double, DMPPOINTS_DOF, 1> delta_x = Matrix<double, DMPPOINTS_DOF, 1>::Zero();
   double eps = 0.1; // 3; //0.1;//10; // even setting to 10 doesn't yields nonzero number... similarity network is not well or useless ? 
   double e_plus, e_minus;
+  std::cout << "debug: similarity error = ";
   for (unsigned int n = 0; n < DMPPOINTS_DOF; n++)
   {
     // foward
@@ -1416,7 +1417,8 @@ void SimilarityConstraint::linearizeOplus()
 
     // Compute and set numeric derivative
     _jacobianOplusXi(0, n) = (e_plus - e_minus) / (2*eps);
-    
+    std::cout << e_plus - e_minus << " ";
+
     // Store jacobians for debug
     this->jacobians_for_dmp(0, n) = _jacobianOplusXi(0, n);
 
@@ -1424,6 +1426,11 @@ void SimilarityConstraint::linearizeOplus()
 
   // Recover the original vertex value 
   v->setEstimate(x);
+  std::cout << std::endl;
+
+  // display for debug
+  std::cout << "debug: similarity jacobians = " << this->jacobians_for_dmp << std::endl;
+
 
 }
 
@@ -1522,7 +1529,7 @@ MatrixXd TrackingConstraint::output_jacobian()
 void TrackingConstraint::linearizeOplus()
 {
 
-  double dmp_eps = 0.1; //0.02; // maybe below 0.05
+  double dmp_eps = 0.02; //0.02; // maybe below 0.05
   double q_arm_eps = 0.5; // may need tests
   double q_finger_eps = 1.0 * M_PI / 180; // in radius
   double e_plus, e_minus;
@@ -1533,6 +1540,7 @@ void TrackingConstraint::linearizeOplus()
   DMPStartsGoalsVertex *v = dynamic_cast<DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
   Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
   Matrix<double, DMPPOINTS_DOF, 1> delta_x = Matrix<double, DMPPOINTS_DOF, 1>::Zero();
+  std::cout << "debug: error = ";
   for (unsigned int n = 0; n < DMPPOINTS_DOF; n++)
   {
     // set delta
@@ -1551,6 +1559,8 @@ void TrackingConstraint::linearizeOplus()
 
     // set and store jacobians 
     _jacobianOplus[0](0, n) = (e_plus - e_minus) / (2*dmp_eps); // for DMP starts and goals
+    std::cout << e_plus - e_minus << " ";
+
 
     // set bounds for DMP jacobians
     /*
@@ -1566,12 +1576,23 @@ void TrackingConstraint::linearizeOplus()
   }
   // reset vertex value
   v->setEstimate(x);
-  
-  // print jacobians for debug
-  //std::cout << "debug: jacobians = " << this->jacobians_for_dmp << std::endl;
+  std::cout << std::endl;                                                                                                                                                             
 
-  /*
+
+  // normalize the jacobians of DMP starts and goals 
+  this->jacobians_for_dmp = this->jacobians_for_dmp.normalized();
+  for (unsigned int n = 0; n < DMPPOINTS_DOF; n++)
+    _jacobianOplus[0](0, n) = this->jacobians_for_dmp[n];
+
+
+
+  // print jacobians for debug
+  std::cout << "debug: tracking jacobians = " << this->jacobians_for_dmp << std::endl;
+
+  
   // show jacobians for computing condition number
+  // not a useful way to estimate, since J^T*J is bound to be a rank 1 matrix, and thus yielding huge condition number
+  /*
   MatrixXd JTJ = _jacobianOplus[0].transpose() * _jacobianOplus[0]; // Matrix<double, DMPPOINTS_DOF, DMPPOINTS_DOF> 
   //std::cout << "debug: J^T * J = " << JTJ << std::endl;
   double lpnorm = JTJ.colwise().lpNorm<1>().maxCoeff(); // L1 norm (column norm)
@@ -1697,6 +1718,10 @@ void TrackingConstraint::linearizeOplus()
       // reset delta
       delta_q_arm[d] = 0.0;
     }
+    //std::cout << "debug: jacobians w.r.t left arm joints of datapoint " << (n+1) << "/" << num_datapoints 
+    //          << " = " << _jacobianOplus[n+1].block(0, 0, 1, 7) << std::endl;
+    //std::cout << "debug: jacobians w.r.t right arm joints of datapoint " << (n+1) << "/" << num_datapoints 
+    //          << " = " << _jacobianOplus[n+1].block(0, 7, 1, 7) << std::endl;
 
 
     // (2) - jacobians for fingers
@@ -1720,6 +1745,10 @@ void TrackingConstraint::linearizeOplus()
       // reset delta
       delta_q_finger[d] = 0.0;
     }
+    //std::cout << "debug: jacobians w.r.t left finger joints of datapoint " << (n+1) << "/" << num_datapoints 
+    //            << " = " << _jacobianOplus[n+1].block(0, 14, 1, 12) << std::endl;
+    //std::cout << "debug: jacobians w.r.t right finger joints of datapoint " << (n+1) << "/" << num_datapoints 
+    //          << " = " << _jacobianOplus[n+1].block(0, 26, 1, 12) << std::endl;
 
   }
 
@@ -2988,13 +3017,18 @@ int main(int argc, char *argv[])
   }
   
 
+  // Try optimizing without similarity edge
+  bool remove_result = optimizer.removeEdge(similarity_edge); // must call .initializeOptimization() after removing edges
+  std::cout << "Removing similarity edge " << (remove_result? "successfully" : "unsuccessfully") << "!" << std::endl;
+
   // Start optimization
   std::cout << ">>>> Start optimization:" << std::endl;
   optimizer.initializeOptimization();
   //optimizer.computeInitialGuess();  
   //optimizer.computeActiveErrors();
 
-  std::cout << "optimizing graph, vertices: " << optimizer.vertices().size() << std::endl;
+  std::cout << "optimizing graph: " << optimizer.vertices().size() << " vertices, " 
+                                    << optimizer.edges().size() << " edges." << std::endl;
 
   // Test if something wrong with edges computation
   /*
@@ -3200,9 +3234,11 @@ int main(int argc, char *argv[])
   double cost_display = tracking_edge->error()[0];
   std::cout << "Tracking edge's values: " << cost_display << std::endl;  
   // 4
+  /*
   similarity_edge->computeError();
   cost_display = similarity_edge->error()[0];
   std::cout << "Similarity edge's values: " << cost_display << std::endl;  
+  */
   // 5
   std::cout << "Smoothness edges' values: ";
   for (unsigned int t = 0; t < smoothness_edges.size(); t++)
@@ -3262,39 +3298,32 @@ int main(int argc, char *argv[])
     vertex_tmp->setFixed(true);
   }
 
-  optimizer.optimize(30);
-  MatrixXd jacobians(1, DMPPOINTS_DOF);    
-  jacobians = similarity_edge->output_jacobian();
-  std::cout << "Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-  //jacobians = Matrix<double, DMPPOINTS_DOF, 1>::Zero(); // reset
-  //std::cout << "Jacobians reset = " << jacobians.transpose() << std::endl;
-  std::cout << "Set _jacobianOplusXi in similarity edge for debug..." << std::endl;
-  //similarity_edge->set_jacobian(); // set _jacobianOplusXi to 0.3, and see if _jacobianOplus in tracking edge changes
-  jacobians = tracking_edge->output_jacobian();
-  std::cout << "Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-  Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
-  std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
+  // iterate to optimize DMP starts and goals
+  std::cout << "Iterate to optimize DMP starts and goals..." << std::endl;
+  unsigned int num_trials = 50;
+  unsigned int iters_per_trail = 3;
+  for (unsigned int n = 0; n < num_trials; n++)
+  {
+    // optimize for a few iterations
+    unsigned int iter = optimizer.optimize(iters_per_trail);
+    
+    // display jacobians and updates for debug
+    MatrixXd jacobians(1, DMPPOINTS_DOF);    
+    jacobians = similarity_edge->output_jacobian();
+    std::cout << "Last Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+    jacobians = tracking_edge->output_jacobian();
+    std::cout << "Last Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+    Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
+    std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
 
-  optimizer.optimize(20);
-  jacobians = similarity_edge->output_jacobian();  
-  std::cout << "Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-  //jacobians = Matrix<double, DMPPOINTS_DOF, 1>::Zero(); // reset
-  //std::cout << "Jacobians reset = " << jacobians.transpose() << std::endl;
-  jacobians = tracking_edge->output_jacobian();
-  std::cout << "Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-  last_update = dmp_vertex_tmp->last_update;
-  std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
+    // Terminate the process if early stopping
+    if(iter < iters_per_trail) 
+    {
+      std::cout << "Stopped after " << n * iters_per_trail + iter << " iterations." << std::endl;
+      break;
+    }
+  }
 
-  optimizer.optimize(10);
-  jacobians = similarity_edge->output_jacobian();  
-  std::cout << "Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-  //jacobians = Matrix<double, DMPPOINTS_DOF, 1>::Zero(); // reset
-  //std::cout << "Jacobians reset = " << jacobians.transpose() << std::endl;
-  jacobians = tracking_edge->output_jacobian();
-  std::cout << "Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-  last_update = dmp_vertex_tmp->last_update;
-  std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
-  
   // reset
   for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
   {    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
@@ -3368,11 +3397,12 @@ int main(int argc, char *argv[])
     elbow_pos_cost_history.push_back(elbow_pos_cost);
     finger_cost_history.push_back(finger_cost);
     // 4
+    /*
     std::cout << "similarity edge's value" << std::endl;
     std::vector<double> similarity_cost;
     similarity_cost.push_back(similarity_edge->return_similarity_cost());
     similarity_cost_history.push_back(similarity_cost);
-
+    */
     std::cout << " -- " << n+1 << "/" << num_records \
               << " for every " << per_iterations << " iterations." << std::endl;
 
@@ -3411,11 +3441,12 @@ int main(int argc, char *argv[])
     cost_tmp = tracking_edge->error()[0];
     std::cout << "Tracking edge's values: " << cost_tmp << std::endl;
     // debug:
+    /*
     std::cout << "Similarity edge's value: ";
     similarity_edge->computeError();
     cost_tmp = similarity_edge->error()[0];
     std::cout << cost_tmp << std::endl;
-
+    */
 
     // Terminate the process if early stopping
     if(iter < per_iterations) 
@@ -3462,9 +3493,9 @@ int main(int argc, char *argv[])
                          finger_cost_history.size(), finger_cost_history[0].size(), finger_cost_history);
   std::cout << "finger_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
-  result_flag = write_h5(out_file_name, in_group_name, "similarity_cost_history", \
-                         similarity_cost_history.size(), similarity_cost_history[0].size(), similarity_cost_history);
-  std::cout << "similarity_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  //result_flag = write_h5(out_file_name, in_group_name, "similarity_cost_history", \
+  //                       similarity_cost_history.size(), similarity_cost_history[0].size(), similarity_cost_history);
+  //std::cout << "similarity_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
   result_flag = write_h5(out_file_name, in_group_name, "smoothness_cost_history", \
                          smoothness_cost_history.size(), smoothness_cost_history[0].size(), smoothness_cost_history);
