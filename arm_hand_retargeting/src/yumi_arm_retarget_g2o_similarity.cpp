@@ -9,8 +9,11 @@
 #include <string>
 #include <cfloat>
 
-// For acos, fabs
+// For acos, fabs, pow
 #include <cmath>
+
+// For max
+#include <algorithm>
 
 // G2O: infrastructure
 #include <g2o/core/base_vertex.h>
@@ -30,6 +33,7 @@
 #include <g2o/solvers/cholmod/linear_solver_cholmod.h>
 #include <g2o/solvers/csparse/linear_solver_csparse.h>
 #include <g2o/solvers/pcg/linear_solver_pcg.h>
+#include <g2o/solvers/eigen/linear_solver_eigen.h>
 
 // For Eigen
 #include <Eigen/Core>
@@ -94,7 +98,7 @@ double K_ELBOW_POS = 3.0;
 double K_FINGER = 3.0;
 double K_SIMILARITY = 5.0; //1000.0 // 1.0 // 10.0
 double K_SMOOTHNESS = 1.0;
-
+double K_DMPSTARTSGOALS = 1.0;
 
 using namespace g2o;
 using namespace Eigen;
@@ -703,8 +707,133 @@ class PassPointVertex : public BaseVertex<PASSPOINT_DOF, Matrix<double, PASSPOIN
 };
 
 
+/* Define constraint for constraining the change of starts and goals */
+class DMPConstraints : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGoalsVertex>
+{
+  public:
+    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+    DMPConstraints(Matrix<double, 1, 3> lrw_goal, Matrix<double, 1, 3> lrw_start, 
+                   Matrix<double, 1, 3> lew_goal, Matrix<double, 1, 3> lew_start, 
+                   Matrix<double, 1, 3> rew_goal, Matrix<double, 1, 3> rew_start,
+                   Matrix<double, 1, 3> rw_goal, Matrix<double, 1, 3> rw_start)
+    {
+      // set up size
+      /*
+      this->lrw_goal.resize(1, 3);
+      this->lrw_start.resize(1, 3);
+      this->lew_goal.resize(1, 3);
+      this->lew_start.resize(1, 3);
+      this->rew_goal.resize(1, 3);
+      this->rew_start.resize(1, 3);
+      this->rw_goal.resize(1, 3);
+      this->rw_start.resize(1, 3);            
+      this->lrw_vec.resize(1, 3);
+      this->lew_vec.resize(1, 3);
+      this->rew_vec.resize(1, 3);
+      this->rw_vec.resize(1, 3);
+      */
+      
+      // initialization
+      this->lrw_goal = lrw_goal;
+      this->lrw_start = lrw_start;
+      this->lew_goal = lew_goal;
+      this->lew_start = lew_start;
+      this->rew_goal = rew_goal;
+      this->rew_start = rew_start;
+      this->rw_goal = rw_goal;
+      this->rw_start = rw_start;          
 
-/* Define constraint for tracking error */
+      // Get vectors pointing from starts to goals
+      this->lrw_vec = lrw_goal - lrw_start;
+      this->lew_vec = lew_goal - lew_start;
+      this->rew_vec = rew_goal - rew_start;
+      this->rw_vec = rw_goal - rw_start;
+      
+    }
+
+    // Information about the original trajectories
+    Matrix<double, 1, 3> lrw_goal; // 1 x 3
+    Matrix<double, 1, 3> lrw_start;
+    Matrix<double, 1, 3> lew_goal;
+    Matrix<double, 1, 3> lew_start;
+    Matrix<double, 1, 3> rew_goal;
+    Matrix<double, 1, 3> rew_start;
+    Matrix<double, 1, 3> rw_goal;
+    Matrix<double, 1, 3> rw_start;  // original starts and goals
+
+    // Vectors pointing from starts to goals
+    Matrix<double, 1, 3> lrw_vec; // 1 x 3
+    Matrix<double, 1, 3> lew_vec;
+    Matrix<double, 1, 3> rew_vec;
+    Matrix<double, 1, 3> rw_vec;
+
+    // thresholds
+    double max_theta = M_PI / 12.0;  // 15 deg max
+
+    // function to compute cost
+    void computeError()
+    {
+      // Get new DMP starts and goals
+      const DMPStartsGoalsVertex *v = dynamic_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+      Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+      Matrix<double, 3, 1> lrw_new_goal; lrw_new_goal = x.block(0, 0, 3, 1);
+      Matrix<double, 3, 1> lrw_new_start; lrw_new_start = x.block(3, 0, 3, 1);
+      Matrix<double, 3, 1> lew_new_goal; lew_new_goal = x.block(6, 0, 3, 1);
+      Matrix<double, 3, 1> lew_new_start; lew_new_start = x.block(9, 0, 3, 1);
+      Matrix<double, 3, 1> rew_new_goal; rew_new_goal = x.block(12, 0, 3, 1);
+      Matrix<double, 3, 1> rew_new_start; rew_new_start = x.block(15, 0, 3, 1);
+      Matrix<double, 3, 1> rw_new_goal; rw_new_goal = x.block(18, 0, 3, 1);
+      Matrix<double, 3, 1> rw_new_start; rw_new_start = x.block(21, 0, 3, 1);
+
+      // Get new vectors
+      Matrix<double, 3, 1> lrw_new_vec; lrw_new_vec = lrw_new_goal - lrw_new_start;
+      Matrix<double, 3, 1> lew_new_vec; lew_new_vec = lew_new_goal - lew_new_start;
+      Matrix<double, 3, 1> rew_new_vec; rew_new_vec = rew_new_goal - rew_new_start;
+      Matrix<double, 3, 1> rw_new_vec; rw_new_vec = rw_new_goal - rw_new_start;
+
+      // Get angle from acos (in radius, absolute value)
+      double cos_lrw_theta = std::min((double)(this->lrw_vec * lrw_new_vec) / (this->lrw_vec.norm() * lrw_new_vec.norm()), 1.0);
+      double cos_lew_theta = std::min((double)(this->lew_vec * lew_new_vec) / (this->lew_vec.norm() * lew_new_vec.norm()), 1.0);
+      double cos_rew_theta = std::min((double)(this->rew_vec * rew_new_vec) / (this->rew_vec.norm() * rew_new_vec.norm()), 1.0);
+      double cos_rw_theta = std::min((double)(this->rw_vec * rw_new_vec) / (this->rw_vec.norm() * rw_new_vec.norm()), 1.0);
+      double lrw_theta = std::fabs(std::acos(cos_lrw_theta));
+      double lew_theta = std::fabs(std::acos(cos_lew_theta));
+      double rew_theta = std::fabs(std::acos(cos_rew_theta));
+      double rw_theta = std::fabs(std::acos(cos_rw_theta));
+
+      /*
+      std::cout << "debug: original lrw_vec = " << this->lrw_vec << ", new lrw_vec = " << lrw_new_vec.transpose() << std::endl;
+      std::cout << "debug: original lew_vec = " << this->lew_vec << ", new lew_vec = " << lew_new_vec.transpose() << std::endl;
+      std::cout << "debug: original rew_vec = " << this->rew_vec << ", new rew_vec = " << rew_new_vec.transpose() << std::endl;
+      std::cout << "debug: original rw_vec = " << this->rw_vec << ", new rw_vec = " << rw_new_vec.transpose() << std::endl;
+
+      std::cout << "debug: " << std::endl << "lrw_theta = " << lrw_theta << "\n"
+                                          << "lew_theta = " << lew_theta << "\n"
+                                          << "rew_theta = " << rew_theta << "\n"
+                                          << "rw_theta = " << rw_theta << std::endl;
+      */
+
+      // set error
+      _error(0, 0) = K_DMPSTARTSGOALS * ( std::pow(std::max(lrw_theta - max_theta, 0.0), 2) +
+                                          std::pow(std::max(lew_theta - max_theta, 0.0), 2) +
+                                          std::pow(std::max(rew_theta - max_theta, 0.0), 2) +
+                                          std::pow(std::max(rw_theta - max_theta, 0.0), 2) ); 
+
+
+    }
+
+    // Compute jacobians
+
+
+    // Read and write, leave blank
+    virtual bool read( std::istream& in ) {return true;}
+    virtual bool write( std::ostream& out ) const {return true;}
+
+};
+
+
+
+/* Define constraint for collision and position limit */
 class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArmDualHandVertex>
 {
   public:
@@ -2740,6 +2869,7 @@ int main(int argc, char *argv[])
   std::unique_ptr<Block::LinearSolverType> linearSolver( new LinearSolverCholmod<Block::PoseMatrixType>()); // Cholmod
   //std::unique_ptr<Block::LinearSolverType> linearSolver( new LinearSolverCSparse<Block::PoseMatrixType>()); // CSparse
   //std::unique_ptr<Block::LinearSolverType> linearSolver( new LinearSolverPCG<Block::PoseMatrixType>()); // PCG
+  //std::unique_ptr<Block::LinearSolverType> linearSolver( new LinearSolverEigen<Block::PoseMatrixType>()); // Eigen
 
   std::unique_ptr<Block> solver_ptr( new Block(std::move(linearSolver)) ); // Matrix block solver
 
@@ -2793,6 +2923,7 @@ int main(int argc, char *argv[])
   //std::vector<TrackingConstraint*> tracking_edges;
   TrackingConstraint* tracking_edge;
   SimilarityConstraint* similarity_edge;
+  DMPConstraints* dmp_edge;
 
   similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr);
   similarity_edge->setId(0);
@@ -2863,7 +2994,7 @@ int main(int argc, char *argv[])
   }
   else
   {
-    // move right wrist starts and goals
+    // move right wrist starts and goals to be symmetric to x-z plane
     /*
     std::cout << ">>>> Move the whole trajectories to be symmetric to x-z plane, as initial guess" << std::endl;
     double rw_g_y = trajectory_generator_ptr->rw_goal(0, 1); // 1 x 3
@@ -3019,6 +3150,19 @@ int main(int argc, char *argv[])
 
   }
   
+
+  std::cout << ">>>> Adding constraints for DMP starts and goals" << std::endl;
+  dmp_edge = new DMPConstraints(trajectory_generator_ptr->lrw_goal, trajectory_generator_ptr->lrw_start,
+                                trajectory_generator_ptr->lew_goal, trajectory_generator_ptr->lew_start,
+                                trajectory_generator_ptr->rew_goal, trajectory_generator_ptr->rew_start,
+                                trajectory_generator_ptr->rw_goal, trajectory_generator_ptr->rw_start);
+  dmp_edge->setId(2*NUM_DATAPOINTS+1); 
+  dmp_edge->setVertex(0, optimizer.vertex(0)); // DMP vertex
+  //dmp_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
+  dmp_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
+  optimizer.addEdge(dmp_edge);
+
+
 
   // Try optimizing without similarity edge
   // remove edges before .initializeOptimization()!!!
@@ -3293,6 +3437,7 @@ int main(int argc, char *argv[])
   K_ELBOW_POS = 5.0;//50.0;
   K_FINGER = 5.0;//50.0;  // how about setting larger tracking errors so that b is bigger...? and 
   K_SIMILARITY = 5.0; //1000.0 // 1.0 // 10.0
+  K_DMPSTARTSGOALS = 10.0; // for constraining DMP starts and goals
   // pre-post iteration...
   // fix joints and optimize dmp starts and goals...
   std::cout << ">>>> Fix q vertices and try to optimize dmp starts and goals..." << std::endl;
@@ -3307,7 +3452,7 @@ int main(int argc, char *argv[])
   }
 
   // iterate to optimize DMP starts and goals
-  std::cout << "Iterate to optimize DMP starts and goals..." << std::endl;
+  std::cout << "Iterate to optimize DMP starts and goals alone..." << std::endl;
   unsigned int num_trials = 50;
   unsigned int iters_per_trail = 3;
   for (unsigned int n = 0; n < num_trials; n++)
@@ -3323,6 +3468,10 @@ int main(int argc, char *argv[])
     std::cout << "Last Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
     Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
     std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
+
+    dmp_edge->computeError();
+    double dmp_error = dmp_edge->error()[0];
+    std::cout << "Constraint value of DMP starts and goals = " << dmp_error << std::endl;
 
     // store dmp updates
     std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
@@ -3447,6 +3596,10 @@ int main(int argc, char *argv[])
     DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));  
     Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
     std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
+
+    dmp_edge->computeError();
+    double dmp_error = dmp_edge->error()[0];
+    std::cout << "Constraint value of DMP starts and goals = " << dmp_error << std::endl;
 
     // store dmp updates
     std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
