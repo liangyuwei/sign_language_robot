@@ -767,7 +767,7 @@ class DMPConstraints : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGo
     double rw_len;
 
     // thresholds
-    double max_theta = M_PI / 18.0;  // 10 deg max
+    double max_theta = M_PI / 36.0;  // 5 deg max
 
     // Store jacobians
     Matrix<double, 1, DMPPOINTS_DOF> orien_jacobians_for_dmp;  // the jacobians of vector orientation cost w.r.t DMP starts and goals
@@ -877,10 +877,15 @@ double DMPConstraints::compute_orien_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
   */
 
   // get orientation error
+  // pow makes the values smaller... 
   double orien_cost = std::pow(std::max(lrw_theta - max_theta, 0.0), 2) +
                       std::pow(std::max(lew_theta - max_theta, 0.0), 2) +
                       std::pow(std::max(rew_theta - max_theta, 0.0), 2) +
-                      std::pow(std::max(rw_theta - max_theta, 0.0), 2) ;
+                      std::pow(std::max(rw_theta - max_theta, 0.0), 2) ; // use pow() so that jacobian increases as the cost rises up, instead of staying the same...                     
+                      /*std::pow( std::max(lrw_theta - max_theta, 0.0) +
+                                 std::max(lew_theta - max_theta, 0.0) +
+                                 std::max(rew_theta - max_theta, 0.0) +
+                                 std::max(rw_theta - max_theta, 0.0), 2);*/
 
   return orien_cost;
 
@@ -925,7 +930,15 @@ double DMPConstraints::compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
   */
 
   // set error
-  double scale_cost = margin;
+  // setting margin for max and min ratios could yield cheating behavior, i.e. the trajectories become very tiny for the manipulators to track under small cost
+  //double max_margin = 0.1; // within 10%
+  //double scale_cost = std::pow(std::max(margin-max_margin, 0.0), 2); // add pow() to allow jacobian increase as the cost rises, instead of staying the same gradient
+  // compromise: set 1.0+-ratio_bound as the region of expected scale
+  double ratio_bound = 0.05; // within +-5%
+  double scale_cost = std::pow( std::max(std::fabs(lrw_ratio - 1.0) - ratio_bound, 0.0) +
+                                std::max(std::fabs(lew_ratio - 1.0) - ratio_bound, 0.0) + 
+                                std::max(std::fabs(rew_ratio - 1.0) - ratio_bound, 0.0) +
+                                std::max(std::fabs(rw_ratio - 1.0) - ratio_bound, 0.0), 2);
 
   return scale_cost;
 
@@ -3650,16 +3663,16 @@ int main(int argc, char *argv[])
 
   // Start optimization and store cost history
   std::cout << ">>>> Start optimization of the whole graph" << std::endl;
-  K_COL = 1.0;
+  K_COL = 10.0;
   K_POS_LIMIT = 3.0;
   K_WRIST_ORI = 1.0;
   K_WRIST_POS = 1.0;
   K_ELBOW_POS = 1.0;
   K_FINGER = 1.0;
-  K_SIMILARITY = 1.0; //1000.0 // 1.0 // 10.0
-  K_SMOOTHNESS = 3.0;
-  K_DMPSTARTSGOALS = 1.0;
-  K_DMPSCALEMARGIN = 1.0;
+  K_SIMILARITY = 100.0; //1000.0 // 1.0 // 10.0
+  K_SMOOTHNESS = 5.0;
+  K_DMPSTARTSGOALS = 20.0;
+  K_DMPSCALEMARGIN = 30.0;
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   unsigned int num_records = 50; 
   unsigned int per_iterations = 5; // record data for every 10 iterations
