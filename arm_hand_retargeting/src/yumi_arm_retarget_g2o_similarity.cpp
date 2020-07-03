@@ -931,14 +931,15 @@ double DMPConstraints::compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
 
   // set error
   // setting margin for max and min ratios could yield cheating behavior, i.e. the trajectories become very tiny for the manipulators to track under small cost
-  //double max_margin = 0.1; // within 10%
+  double max_margin = 0.05; // within 5%
   //double scale_cost = std::pow(std::max(margin-max_margin, 0.0), 2); // add pow() to allow jacobian increase as the cost rises, instead of staying the same gradient
   // compromise: set 1.0+-ratio_bound as the region of expected scale
   double ratio_bound = 0.05; // within +-5%
-  double scale_cost = std::pow( std::max(std::fabs(lrw_ratio - 1.0) - ratio_bound, 0.0) +
-                                std::max(std::fabs(lew_ratio - 1.0) - ratio_bound, 0.0) + 
-                                std::max(std::fabs(rew_ratio - 1.0) - ratio_bound, 0.0) +
-                                std::max(std::fabs(rw_ratio - 1.0) - ratio_bound, 0.0), 2);
+  double scale_cost = std::pow(std::max(std::fabs(lrw_ratio - 1.0) - ratio_bound, 0.0), 2) +
+                      std::pow(std::max(std::fabs(lew_ratio - 1.0) - ratio_bound, 0.0), 2) + 
+                      std::pow(std::max(std::fabs(rew_ratio - 1.0) - ratio_bound, 0.0), 2) +
+                      std::pow(std::max(std::fabs(rw_ratio - 1.0) - ratio_bound, 0.0), 2) +
+                      std::pow(std::max(margin-max_margin, 0.0), 2); // scale to 1, and scale margin cost
 
   return scale_cost;
 
@@ -1673,7 +1674,7 @@ void SimilarityConstraint::linearizeOplus()
   Matrix<double, DMPPOINTS_DOF, 1> delta_x = Matrix<double, DMPPOINTS_DOF, 1>::Zero();
   double eps = 0.1; // 3; //0.1;//10; // even setting to 10 doesn't yields nonzero number... similarity network is not well or useless ? 
   double e_plus, e_minus;
-  std::cout << "debug: similarity error = ";
+  //std::cout << "debug: similarity error = ";
   for (unsigned int n = 0; n < DMPPOINTS_DOF; n++)
   {
     // foward
@@ -1693,7 +1694,7 @@ void SimilarityConstraint::linearizeOplus()
 
     // Compute and set numeric derivative
     _jacobianOplusXi(0, n) = (e_plus - e_minus) / (2*eps);
-    std::cout << e_plus - e_minus << " ";
+    //std::cout << e_plus - e_minus << " ";
 
     // Store jacobians for debug
     this->jacobians_for_dmp(0, n) = _jacobianOplusXi(0, n);
@@ -1702,10 +1703,10 @@ void SimilarityConstraint::linearizeOplus()
 
   // Recover the original vertex value 
   v->setEstimate(x);
-  std::cout << std::endl;
+  //std::cout << std::endl;
 
   // display for debug
-  std::cout << "debug: similarity jacobians = " << this->jacobians_for_dmp << std::endl;
+  //std::cout << "debug: similarity jacobians = " << this->jacobians_for_dmp << std::endl;
 
 
 }
@@ -1816,7 +1817,7 @@ void TrackingConstraint::linearizeOplus()
   DMPStartsGoalsVertex *v = dynamic_cast<DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
   Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
   Matrix<double, DMPPOINTS_DOF, 1> delta_x = Matrix<double, DMPPOINTS_DOF, 1>::Zero();
-  std::cout << "debug: error = ";
+  //std::cout << "debug: error = ";
   for (unsigned int n = 0; n < DMPPOINTS_DOF; n++)
   {
     // set delta
@@ -1835,7 +1836,7 @@ void TrackingConstraint::linearizeOplus()
 
     // set and store jacobians 
     _jacobianOplus[0](0, n) = (e_plus - e_minus) / (2*dmp_eps); // for DMP starts and goals
-    std::cout << e_plus - e_minus << " ";
+    //std::cout << e_plus - e_minus << " ";
 
 
     // set bounds for DMP jacobians
@@ -1852,7 +1853,7 @@ void TrackingConstraint::linearizeOplus()
   }
   // reset vertex value
   v->setEstimate(x);
-  std::cout << std::endl;                                                                                                                                                             
+  //std::cout << std::endl;                                                                                                                                                             
 
 
   // normalize the jacobians of DMP starts and goals 
@@ -1864,7 +1865,7 @@ void TrackingConstraint::linearizeOplus()
 
 
   // print jacobians for debug
-  std::cout << "debug: tracking jacobians = " << this->jacobians_for_dmp << std::endl;
+  //std::cout << "debug: tracking jacobians = " << this->jacobians_for_dmp << std::endl;
 
   
   // show jacobians for computing condition number
@@ -3395,14 +3396,14 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double> > dmp_update_history;
 
   // PreIteration
-  K_COL = 1.0; // difference is 4... jacobian would be 4 * K_COL
-  K_POS_LIMIT = 4.0;
+  K_COL = 10.0; // difference is 4... jacobian would be 4 * K_COL
+  K_POS_LIMIT = 10.0;
   K_WRIST_ORI = 2.0;
   K_WRIST_POS = 2.0;
   K_ELBOW_POS = 2.0;
   K_FINGER = 2.0;
-  K_SIMILARITY = 1.0; //1000.0 // 1.0 // 10.0
-  K_SMOOTHNESS = 4.0;
+  //K_SIMILARITY = 1.0; //1000.0 // 1.0 // 10.0
+  K_SMOOTHNESS = 10.0;
   std::cout << ">>>> Pre Iteration..." << std::endl;
   if(pre_iteration)
   { 
@@ -3516,6 +3517,8 @@ int main(int argc, char *argv[])
     std::cout << "PreIteration results stored " << (preiter_result ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
   }
+  
+
 
   // 1
   std::cout << "Collision costs: ";
@@ -3536,11 +3539,9 @@ int main(int argc, char *argv[])
   double cost_display = tracking_edge->error()[0];
   std::cout << "Tracking edge's values: " << cost_display << std::endl;  
   // 4
-  /*
   similarity_edge->computeError();
   cost_display = similarity_edge->error()[0];
   std::cout << "Similarity edge's values: " << cost_display << std::endl;  
-  */
   // 5
   std::cout << "Smoothness edges' values: ";
   for (unsigned int t = 0; t < smoothness_edges.size(); t++)
@@ -3663,6 +3664,7 @@ int main(int argc, char *argv[])
 
   // Start optimization and store cost history
   std::cout << ">>>> Start optimization of the whole graph" << std::endl;
+  /*
   K_COL = 10.0;
   K_POS_LIMIT = 3.0;
   K_WRIST_ORI = 1.0;
@@ -3673,22 +3675,134 @@ int main(int argc, char *argv[])
   K_SMOOTHNESS = 5.0;
   K_DMPSTARTSGOALS = 20.0;
   K_DMPSCALEMARGIN = 30.0;
+  */
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-  unsigned int num_records = 50; 
-  unsigned int per_iterations = 5; // record data for every 10 iterations
+  //unsigned int num_records = 50; 
+  //unsigned int per_iterations = 5; // record data for every 10 iterations
+
+  unsigned int num_rounds = 200;
+  unsigned int dmp_per_iterations = 10;
+  unsigned int q_per_iterations = 40;
 
   DMPStartsGoalsVertex* dmp_vertex_tmp_check = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
   std::cout << "debug: DMP starts_and_goals vertex " << (dmp_vertex_tmp_check->fixed()? "is" : "is not") << " fixed during optimization." << std::endl;
 
   // num_iterations = num_records * per_iterations
-  for (unsigned int n = 0; n < num_records; n++)
+  for (unsigned int n = 0; n < num_rounds; n++)
   {
-    // optimize for a number of iterations
-    unsigned int iter = optimizer.optimize(per_iterations);
 
+    // 1 - optimize DMP for a number of iterations
+    std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", DMP stage: "<< std::endl;
+    K_WRIST_ORI = 1.0;
+    K_WRIST_POS = 5.0; // 1.0;
+    K_ELBOW_POS = 1.0;
+    K_FINGER = 1.0;
+    K_SIMILARITY = 100.0; //1000.0 // 1.0 // 10.0
+    K_DMPSTARTSGOALS = 50.0; //50.0;
+    K_DMPSCALEMARGIN = 100.0; //50.0;
+    std::cout << "Fix q vertices." << std::endl;
+    // fix q vertices
+    for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
+    {
+      DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+m));
+      vertex_tmp->setFixed(true);
+    }
+    // iterate to optimize DMP
+    std::cout << "Optimizing DMP..." << std::endl;
+    unsigned int dmp_iter = optimizer.optimize(dmp_per_iterations);
     // Save cost history
-    // 1
-    std::cout << ">> Recording unary edges' values, ";
+    // 1)
+    std::cout << "Recording tracking cost, similarity cost and DMP costs..." << std::endl;
+    // 3)
+    std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+    std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
+    std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
+    std::vector<double> finger_cost = tracking_edge->return_finger_cost_history();       
+    wrist_pos_cost_history.push_back(wrist_pos_cost);
+    wrist_ori_cost_history.push_back(wrist_ori_cost);
+    elbow_pos_cost_history.push_back(elbow_pos_cost);
+    finger_cost_history.push_back(finger_cost);
+    // 4)
+    std::vector<double> similarity_cost;
+    similarity_cost.push_back(similarity_edge->return_similarity_cost());
+    similarity_cost_history.push_back(similarity_cost);
+    // 5)
+    std::vector<double> dmp_orien_cost;
+    dmp_orien_cost.push_back(dmp_edge->output_orien_cost());
+    dmp_orien_cost_history.push_back(dmp_orien_cost);
+    std::vector<double> dmp_scale_cost;
+    dmp_scale_cost.push_back(dmp_edge->output_scale_cost());
+    dmp_scale_cost_history.push_back(dmp_scale_cost);
+
+    // Save Jacobians of constraints w.r.t DMP starts and goals
+    std::cout << "Recording DMP jacobians.." << std::endl;
+    MatrixXd jacobians(1, DMPPOINTS_DOF);    
+    // 1)
+    jacobians = similarity_edge->output_jacobian();
+    std::vector<double> jacobian_vec(DMPPOINTS_DOF); // from MatrixXd to std::vector<std::vector<double>>
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+    {
+      jacobian_vec[j] = jacobians(0, j);
+    }
+    sim_jacobian_history.push_back(jacobian_vec);
+    // 2)
+    jacobians = tracking_edge->output_jacobian();
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+    {
+      jacobian_vec[j] = jacobians(0, j);
+    }
+    track_jacobian_history.push_back(jacobian_vec);
+    // 3)
+    jacobians = dmp_edge->output_orien_jacobian();
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+    {
+      jacobian_vec[j] = jacobians(0, j);
+    }
+    orien_jacobian_history.push_back(jacobian_vec);    
+    // 4)
+    jacobians = dmp_edge->output_scale_jacobian();
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+    {
+      jacobian_vec[j] = jacobians(0, j);
+    }
+    scale_jacobian_history.push_back(jacobian_vec);    
+
+    // store dmp updates
+    std::cout << "Recording DMP updates.." << std::endl;
+    std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
+    DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));    
+    Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+      dmp_update_vec[j] = last_update(j, 0);
+    dmp_update_history.push_back(dmp_update_vec);
+
+    // Reset q vertices
+    std::cout << "Activate q vertices." << std::endl;
+    for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
+    {
+      DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+m));
+      vertex_tmp->setFixed(false);
+    }
+
+
+    // 2 - Optimize q vertices
+    K_COL = 10.0; //20.0; //10.0;
+    K_POS_LIMIT = 10.0; //30.0; //20.0; //10.0;
+    K_WRIST_ORI = 3.0; //2.0; //1.0;
+    K_WRIST_POS = 3.0; //2.0; //1.0;
+    K_ELBOW_POS = 1.0;
+    K_FINGER = 3.0; //2.0; //1.0;
+    K_SMOOTHNESS = 10.0; //20.0; //10.0;
+    std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", q stage: "<< std::endl;
+    // Fix DMP starts and goals
+    std::cout << "Fix DMP starts and goals." << std::endl;
+    //DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));    
+    dmp_vertex_tmp->setFixed(true);
+    // optimize for a few iterations
+    std::cout << "Optimizing q..." << std::endl;
+    unsigned int q_iter = optimizer.optimize(q_per_iterations); 
+    // Store cost results
+    std::cout << "Recording collision cost, position limit cost, smoothness cost and tracking cost..." << std::endl;
     std::vector<double> col_cost;
     std::vector<double> pos_limit_cost;
     for (unsigned int t = 0; t < unary_edges.size(); t++)
@@ -3698,120 +3812,35 @@ int main(int argc, char *argv[])
     }
     col_cost_history.push_back(col_cost);
     pos_limit_cost_history.push_back(pos_limit_cost);
-    // 2
-    std::cout << "smoothness edges' values, ";
+    // 2)
     std::vector<double> smoothness_cost;
     for (unsigned int t = 0; t < smoothness_edges.size(); t++)
     {
       smoothness_cost.push_back(smoothness_edges[t]->return_smoothness_cost());
     }
     smoothness_cost_history.push_back(smoothness_cost);
-    // 3
-    std::cout << "tracking edge's value, ";
-    std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
-    std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
-    std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
-    std::vector<double> finger_cost = tracking_edge->return_finger_cost_history();
+    // 3)
+    wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+    wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
+    elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
+    finger_cost = tracking_edge->return_finger_cost_history();   
     wrist_pos_cost_history.push_back(wrist_pos_cost);
     wrist_ori_cost_history.push_back(wrist_ori_cost);
     elbow_pos_cost_history.push_back(elbow_pos_cost);
     finger_cost_history.push_back(finger_cost);
-    // 4
-    std::cout << "similarity edge's value";
-    std::vector<double> similarity_cost;
-    similarity_cost.push_back(similarity_edge->return_similarity_cost());
-    similarity_cost_history.push_back(similarity_cost);
-    // 5 
-    std::cout << "DMP edge's value" << std::endl;
-    std::vector<double> dmp_orien_cost;
-    dmp_orien_cost.push_back(dmp_edge->output_orien_cost());
-    dmp_orien_cost_history.push_back(dmp_orien_cost);
-    std::vector<double> dmp_scale_cost;
-    dmp_scale_cost.push_back(dmp_edge->output_scale_cost());
-    dmp_scale_cost_history.push_back(dmp_scale_cost);
-    // end
-    std::cout << " -- " << n+1 << "/" << num_records \
-              << " for every " << per_iterations << " iterations." << std::endl;
 
+    // reset
+    std::cout << "Activate DMP vertex." << std::endl;
+    dmp_vertex_tmp->setFixed(false);
 
-    // Save Jacobians of constraints w.r.t DMP starts and goals
-    MatrixXd jacobians(1, DMPPOINTS_DOF);    
-    // 1
-    jacobians = similarity_edge->output_jacobian();
-    std::vector<double> jacobian_vec(DMPPOINTS_DOF); // from MatrixXd to std::vector<std::vector<double>>
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-    {
-      jacobian_vec[j] = jacobians(0, j);
-    }
-    sim_jacobian_history.push_back(jacobian_vec);
-    // 2
-    jacobians = tracking_edge->output_jacobian();
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-    {
-      jacobian_vec[j] = jacobians(0, j);
-    }
-    track_jacobian_history.push_back(jacobian_vec);
-    // 3
-    jacobians = dmp_edge->output_orien_jacobian();
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-    {
-      jacobian_vec[j] = jacobians(0, j);
-    }
-    orien_jacobian_history.push_back(jacobian_vec);    
-    // 4
-    jacobians = dmp_edge->output_scale_jacobian();
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-    {
-      jacobian_vec[j] = jacobians(0, j);
-    }
-    scale_jacobian_history.push_back(jacobian_vec);    
-
-
-    // Display jacobians of similarity edge and tracking edge w.r.t DMP starts and goals vertex, and display the updates
-    jacobians = similarity_edge->output_jacobian();    
-    std::cout << "Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-    jacobians = tracking_edge->output_jacobian();
-    std::cout << "Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-    DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));  
-    Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
-    std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
-
-    dmp_edge->computeError();
-    double dmp_error = dmp_edge->error()[0];
-    std::cout << "Constraint value of DMP starts and goals = " << dmp_error << std::endl;
-
-    // store dmp updates
-    std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-      dmp_update_vec[j] = last_update(j, 0);
-    dmp_update_history.push_back(dmp_update_vec);
-
-    // debug:
-    double cost_tmp;
-    tracking_edge->computeError();
-    cost_tmp = tracking_edge->error()[0];
-    std::cout << "Tracking edge's values: " << cost_tmp << std::endl;
-    
-    // debug:
-    std::cout << "Details:\n wrist_pos_cost = " << wrist_pos_cost
-              << "\n wrist_ori_cost = " << wrist_ori_cost
-              << "\n elbow_pos_cost = " << elbow_pos_cost
-              << "\n finger_cost = " << finger_cost << std::endl;
-
-    // debug:
-    /*
-    std::cout << "Similarity edge's value: ";
-    similarity_edge->computeError();
-    cost_tmp = similarity_edge->error()[0];
-    std::cout << cost_tmp << std::endl;
-    */
 
     // Terminate the process if early stopping
-    if(iter < per_iterations) 
+    if(dmp_iter < dmp_per_iterations && q_iter < q_per_iterations) 
     {
-      std::cout << "Stopped after " << n * per_iterations + iter << " iterations." << std::endl;
+      std::cout << "Stopped after " << n * (dmp_per_iterations+q_per_iterations) + dmp_iter + q_iter << " iterations." << std::endl;
       break;
     }
+
 
   }
 
