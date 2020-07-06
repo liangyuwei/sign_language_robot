@@ -1281,7 +1281,7 @@ void MyUnaryConstraints::computeError()
   q_cur_finger_r = x.block<12, 1>(26, 0); 
   
   // Compute unary costs
-/*
+  /*
   // 1
   double arm_cost = compute_arm_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
   arm_cost += compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
@@ -1783,7 +1783,13 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     MatrixXd return_r_wrist_pos_offsets();
     MatrixXd return_l_elbow_pos_offsets();
     MatrixXd return_r_elbow_pos_offsets();
-    
+
+    // return currently executed Cartesian trajectories for debug
+    std::vector<std::vector<double> > return_wrist_pos_traj(bool left_or_right);
+    std::vector<std::vector<double> > return_elbow_pos_traj(bool left_or_right);
+    Vector3d return_wrist_pos(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
+    Vector3d return_elbow_pos(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
+  
 
     MatrixXd output_jacobian();
     Matrix<double, 1, DMPPOINTS_DOF> jacobians_for_dmp;
@@ -1796,6 +1802,165 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     virtual bool write( std::ostream& out ) const {return true;}
     
 };
+
+
+/* Return the wrist position corresponding to current joint configuration */
+Vector3d TrackingConstraint::return_wrist_pos(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
+{
+  // Get joint angles
+  KDL::JntArray q_in(q_cur.size()); 
+  for (unsigned int i = 0; i < q_cur.size(); ++i)
+  {
+    q_in(i) = q_cur(i);
+  }
+
+  // Do FK using KDL, get the current elbow/wrist/shoulder state
+  KDL::Frame wrist_cart_out;//, shoulder_cart_out; // Output homogeneous transformation
+  int result;
+  result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1);
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+    exit(-1);
+  }
+  else{
+    //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+  }
+ 
+  // Preparations
+  Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
+  
+  // return results
+  return wrist_pos_cur;
+
+}
+
+/* Return the elbow position corresponding to current joint configuration */
+Vector3d TrackingConstraint::return_elbow_pos(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
+{
+ // Get joint angles
+  KDL::JntArray q_in(q_cur.size()); 
+  for (unsigned int i = 0; i < q_cur.size(); ++i)
+  {
+    q_in(i) = q_cur(i);
+  }
+
+  // Do FK using KDL, get the current elbow/wrist/shoulder state
+  KDL::Frame elbow_cart_out;//, shoulder_cart_out; // Output homogeneous transformation
+  int result;
+  result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+    exit(-1);
+  }
+  else{
+    //ROS_INFO_STREAM("FK solver succeeded for elbow link.");
+  }
+ 
+  // Preparations
+  Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
+ 
+  // return results
+  return elbow_pos_cur;
+
+}
+
+
+/* Return the current wrist position trajectory via FK */
+std::vector<std::vector<double> > TrackingConstraint::return_wrist_pos_traj(bool left_or_right)
+{
+  // prep
+  std::vector<std::vector<double>> wrist_pos_traj;
+  std::vector<double> cur_wrist_pos(3);
+
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    // _vertices is a VertexContainer type, a std::vector<Vertex*>
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+    //std::cout << "debug: x size is: " << x.rows() << " x " << x.cols() << std::endl;
+    //std::cout << "debug: x = \n" << x.transpose() << std::endl;
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    
+    // Compute unary costs
+    Vector3d cur_wrist_pos_vec;
+    if(left_or_right) 
+    {
+      cur_wrist_pos_vec = return_wrist_pos(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement);
+    }
+    else
+    {
+      cur_wrist_pos_vec = return_wrist_pos(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+    }
+
+    // Copy to std::vector
+    cur_wrist_pos[0] = cur_wrist_pos_vec[0]; 
+    cur_wrist_pos[1] = cur_wrist_pos_vec[1]; 
+    cur_wrist_pos[2] = cur_wrist_pos_vec[2]; 
+    wrist_pos_traj.push_back(cur_wrist_pos);
+
+  }
+
+  return wrist_pos_traj;
+
+}
+
+/* Return the current elbow position trajectory via FK */
+std::vector<std::vector<double> > TrackingConstraint::return_elbow_pos_traj(bool left_or_right)
+{
+  // prep
+  std::vector<std::vector<double>> elbow_pos_traj;
+  std::vector<double> cur_elbow_pos(3);
+
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    // _vertices is a VertexContainer type, a std::vector<Vertex*>
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+    //std::cout << "debug: x size is: " << x.rows() << " x " << x.cols() << std::endl;
+    //std::cout << "debug: x = \n" << x.transpose() << std::endl;
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    
+    // Compute unary costs
+    Vector3d cur_elbow_pos_vec;
+    if(left_or_right) 
+    {
+      cur_elbow_pos_vec = return_elbow_pos(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement);
+    }
+    else
+    {
+      cur_elbow_pos_vec = return_elbow_pos(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+    }
+
+    // Copy to std::vector
+    cur_elbow_pos[0] = cur_elbow_pos_vec[0]; 
+    cur_elbow_pos[1] = cur_elbow_pos_vec[1]; 
+    cur_elbow_pos[2] = cur_elbow_pos_vec[2]; 
+    elbow_pos_traj.push_back(cur_elbow_pos);
+
+  }
+
+  return elbow_pos_traj;
+
+}
+
 
 
 /* Output just the jacobians for DMP starts_and_goals vertex */
@@ -2276,7 +2441,7 @@ double TrackingConstraint::return_elbow_pos_cost(KDL::ChainFkSolverPos_recursive
 }
 
 double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
-    {
+{
       // Get joint angles
       KDL::JntArray q_in(q_cur.size()); 
       for (unsigned int i = 0; i < q_cur.size(); ++i)
@@ -4038,7 +4203,29 @@ int main(int argc, char *argv[])
     std::cout << "PreIteration results stored " << (preiter_result ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
   }
+
+  // Perform FK on pre-iteration results (output functions are alread implemented in TrackingConstraint)
+  std::vector<std::vector<double>> l_wrist_pos_traj, r_wrist_pos_traj, l_elbow_pos_traj, r_elbow_pos_traj;
+  l_wrist_pos_traj = tracking_edge->return_wrist_pos_traj(true);
+  r_wrist_pos_traj = tracking_edge->return_wrist_pos_traj(false);
+  l_elbow_pos_traj = tracking_edge->return_elbow_pos_traj(true);
+  r_elbow_pos_traj = tracking_edge->return_elbow_pos_traj(false);
+  std::cout << ">>>> Storing current executed Cartesian trajectories to h5 file" << std::endl;
+  bool tmp_flag = write_h5(out_file_name, in_group_name, "preiter_l_wrist_pos_traj", \
+                           l_wrist_pos_traj.size(), l_wrist_pos_traj[0].size(), l_wrist_pos_traj);
+  std::cout << "preiter_l_wrist_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
   
+  tmp_flag = write_h5(out_file_name, in_group_name, "preiter_r_wrist_pos_traj", \
+                           r_wrist_pos_traj.size(), r_wrist_pos_traj[0].size(), r_wrist_pos_traj);
+  std::cout << "preiter_r_wrist_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  
+  tmp_flag = write_h5(out_file_name, in_group_name, "preiter_l_elbow_pos_traj", \
+                           l_elbow_pos_traj.size(), l_elbow_pos_traj[0].size(), l_elbow_pos_traj);
+  std::cout << "preiter_l_elbow_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  
+  tmp_flag = write_h5(out_file_name, in_group_name, "preiter_r_elbow_pos_traj", \
+                           r_elbow_pos_traj.size(), r_elbow_pos_traj[0].size(), r_elbow_pos_traj);
+  std::cout << "preiter_r_elbow_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
 
   // 1
@@ -4170,7 +4357,6 @@ int main(int argc, char *argv[])
   dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
   std::cout << "after pre-post-iteration: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;
   std::cout << "debug: num_update = " << num_update << ", num_track = " << num_track << ", num_sim = " << num_sim << std::endl;
-
   // store for comparison and presentation  
   std::vector<std::vector<double> > dmp_starts_goals_store2;
   std::vector<double> dmp_starts_goals_vec2(DMPPOINTS_DOF);
