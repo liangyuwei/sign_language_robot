@@ -1763,13 +1763,27 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     std::vector<double> return_finger_cost_history();
     double return_wrist_pos_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
     std::vector<double> return_wrist_pos_cost_history();
+    std::vector<double> return_l_wrist_pos_cost_history();
+    std::vector<double> return_r_wrist_pos_cost_history();
+
     double return_wrist_ori_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
     std::vector<double> return_wrist_ori_cost_history();
+
     double return_elbow_pos_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
     std::vector<double> return_elbow_pos_cost_history();
+    std::vector<double> return_l_elbow_pos_cost_history();
+    std::vector<double> return_r_elbow_pos_cost_history();
 
     Vector3d return_wrist_pos_offset(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
+    Vector3d return_elbow_pos_offset(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
     MatrixXd return_wrist_pos_offsets();
+
+    // for manual manipulation of DMP starts and goals
+    MatrixXd return_l_wrist_pos_offsets();
+    MatrixXd return_r_wrist_pos_offsets();
+    MatrixXd return_l_elbow_pos_offsets();
+    MatrixXd return_r_elbow_pos_offsets();
+    
 
     MatrixXd output_jacobian();
     Matrix<double, 1, DMPPOINTS_DOF> jacobians_for_dmp;
@@ -2130,6 +2144,49 @@ Vector3d TrackingConstraint::return_wrist_pos_offset(KDL::ChainFkSolverPos_recur
 }
 
 
+Vector3d TrackingConstraint::return_elbow_pos_offset(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
+{
+      // Get joint angles
+      KDL::JntArray q_in(q_cur.size()); 
+      for (unsigned int i = 0; i < q_cur.size(); ++i)
+      {
+        q_in(i) = q_cur(i);
+      }
+
+      // Do FK using KDL, get the current elbow/wrist/shoulder state
+      KDL::Frame elbow_cart_out; // Output homogeneous transformation
+      int result;
+      result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1);
+      if (result < 0){
+        ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+        exit(-1);
+      }
+      else{
+        //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+      }
+
+      // Preparations
+      Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
+
+      Vector3d elbow_pos_human;
+      if (left_or_right) // left arm
+      {
+        elbow_pos_human = fdata.l_elbow_pos_goal;
+      }
+      else // right arm
+      {
+        elbow_pos_human = fdata.r_elbow_pos_goal;
+      }
+
+  // Compute cost function
+  Vector3d elbow_pos_offset = elbow_pos_cur - elbow_pos_human; 
+
+  // Return cost function value
+  return elbow_pos_offset;
+
+
+}
+
 
 double TrackingConstraint::return_wrist_ori_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
 {
@@ -2452,6 +2509,109 @@ std::vector<double> TrackingConstraint::return_wrist_pos_cost_history()
 
 }
 
+/* right wrist cost */
+std::vector<double> TrackingConstraint::return_r_wrist_pos_cost_history()
+{
+  // Get trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
+                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
+                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
+                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+
+  // iterate to compute costs
+  std::vector<double> wrist_pos_costs;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_wrist_pos_goal = result.y_lw.block(0, n, 3, 1); // Vector3d
+    _measurement.r_wrist_pos_goal = result.y_rw.block(0, n, 3, 1); // Vector3d
+
+    // Compute unary costs
+    double wrist_pos_cost = return_wrist_pos_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+
+    wrist_pos_costs.push_back(wrist_pos_cost);
+
+  }
+
+  return wrist_pos_costs;
+
+}
+
+/* left wrist cost */
+std::vector<double> TrackingConstraint::return_l_wrist_pos_cost_history()
+{
+  // Get trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
+                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
+                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
+                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+
+  // iterate to compute costs
+  std::vector<double> wrist_pos_costs;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_wrist_pos_goal = result.y_lw.block(0, n, 3, 1); // Vector3d
+    _measurement.r_wrist_pos_goal = result.y_rw.block(0, n, 3, 1); // Vector3d
+
+    // Compute unary costs
+    double wrist_pos_cost = return_wrist_pos_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
+
+    wrist_pos_costs.push_back(wrist_pos_cost);
+
+  }
+
+  return wrist_pos_costs;
+
+}
+
+
 /* Only the right wrist */
 MatrixXd TrackingConstraint::return_wrist_pos_offsets()
 {
@@ -2502,6 +2662,224 @@ MatrixXd TrackingConstraint::return_wrist_pos_offsets()
   }
 
   return wrist_pos_offsets;
+
+}
+
+
+/*** RIGHT WRIST OFFSET ***/
+MatrixXd TrackingConstraint::return_r_wrist_pos_offsets()
+{
+  // Get trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
+                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
+                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
+                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+
+  // iterate to compute costs
+  std::vector<double> wrist_pos_costs;
+  MatrixXd wrist_pos_offsets(3, num_datapoints);
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_wrist_pos_goal = result.y_lw.block(0, n, 3, 1); // Vector3d
+    _measurement.r_wrist_pos_goal = result.y_rw.block(0, n, 3, 1); // Vector3d
+
+    // Compute unary costs
+    // only the right wrist
+    Vector3d wrist_pos_offset = return_wrist_pos_offset(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+
+    wrist_pos_offsets.block(0, n, 3, 1) = wrist_pos_offset;
+
+  }
+
+  return wrist_pos_offsets;
+
+}
+
+
+/*** LEFT WRIST OFFSET ***/
+MatrixXd TrackingConstraint::return_l_wrist_pos_offsets()
+{
+  // Get trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
+                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
+                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
+                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+
+  // iterate to compute costs
+  std::vector<double> wrist_pos_costs;
+  MatrixXd wrist_pos_offsets(3, num_datapoints);
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_wrist_pos_goal = result.y_lw.block(0, n, 3, 1); // Vector3d
+    _measurement.r_wrist_pos_goal = result.y_rw.block(0, n, 3, 1); // Vector3d
+
+    // Compute unary costs
+    // only the right wrist
+    Vector3d wrist_pos_offset = return_wrist_pos_offset(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement);
+
+    wrist_pos_offsets.block(0, n, 3, 1) = wrist_pos_offset;
+
+  }
+
+  return wrist_pos_offsets;
+
+}
+
+
+/*** RIGHT ELBOW OFFSET ***/
+MatrixXd TrackingConstraint::return_r_elbow_pos_offsets()
+{
+  // Get trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
+                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
+                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
+                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+
+  // iterate to compute costs
+  std::vector<double> elbow_pos_costs;
+  MatrixXd elbow_pos_offsets(3, num_datapoints);
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_elbow_pos_goal = result.y_le.block(0, n, 3, 1); // Vector3d
+    _measurement.r_elbow_pos_goal = result.y_re.block(0, n, 3, 1); // Vector3d is column vector
+
+
+    // Compute unary costs
+    // only the right elbow
+    Vector3d elbow_pos_offset = return_elbow_pos_offset(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+
+    elbow_pos_offsets.block(0, n, 3, 1) = elbow_pos_offset;
+
+  }
+
+  return elbow_pos_offsets;
+
+}
+
+
+/*** LEFT ELBOW OFFSET ***/
+MatrixXd TrackingConstraint::return_l_elbow_pos_offsets()
+{
+  // Get trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
+                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
+                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
+                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+
+  // iterate to compute costs
+  std::vector<double> elbow_pos_costs;
+  MatrixXd elbow_pos_offsets(3, num_datapoints);
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_elbow_pos_goal = result.y_le.block(0, n, 3, 1); // Vector3d
+    _measurement.r_elbow_pos_goal = result.y_re.block(0, n, 3, 1); // Vector3d is column vector
+
+
+    // Compute unary costs
+    // only the right elbow
+    Vector3d elbow_pos_offset = return_elbow_pos_offset(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement);
+
+    elbow_pos_offsets.block(0, n, 3, 1) = elbow_pos_offset;
+
+  }
+
+  return elbow_pos_offsets;
 
 }
 
@@ -2603,6 +2981,110 @@ std::vector<double> TrackingConstraint::return_elbow_pos_cost_history()
   return elbow_pos_costs;
 
 }
+
+
+/* right elbow cost */
+std::vector<double> TrackingConstraint::return_r_elbow_pos_cost_history()
+{
+  // Generate new trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
+                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
+                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
+                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+
+  // iterate to compute costs
+  std::vector<double> elbow_pos_costs;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_elbow_pos_goal = result.y_le.block(0, n, 3, 1); // Vector3d
+    _measurement.r_elbow_pos_goal = result.y_re.block(0, n, 3, 1); // Vector3d is column vector
+
+    // Compute unary costs
+    double elbow_pos_cost = return_elbow_pos_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+
+    elbow_pos_costs.push_back(elbow_pos_cost);
+
+  }
+
+  return elbow_pos_costs;
+
+}
+
+/* left elbow cost */
+std::vector<double> TrackingConstraint::return_l_elbow_pos_cost_history()
+{
+  // Generate new trajectories using DMP
+  const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
+  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+  MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
+  MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
+  MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
+  MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
+  MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
+  MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
+  MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
+  MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
+  DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
+                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
+                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
+                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
+                                                                      NUM_DATAPOINTS); // results are 3 x N
+
+  // iterate to compute costs
+  std::vector<double> elbow_pos_costs;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_elbow_pos_goal = result.y_le.block(0, n, 3, 1); // Vector3d
+    _measurement.r_elbow_pos_goal = result.y_re.block(0, n, 3, 1); // Vector3d is column vector
+
+    // Compute unary costs
+    double elbow_pos_cost = return_elbow_pos_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
+
+    elbow_pos_costs.push_back(elbow_pos_cost);
+
+  }
+
+  return elbow_pos_costs;
+
+}
+
 
 
 void TrackingConstraint::computeError()
@@ -3379,8 +3861,14 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double> > col_cost_history;
   std::vector<std::vector<double> > pos_limit_cost_history;
   std::vector<std::vector<double> > wrist_pos_cost_history;
+  std::vector<std::vector<double> > l_wrist_pos_cost_history;
+  std::vector<std::vector<double> > r_wrist_pos_cost_history;
+
   std::vector<std::vector<double> > wrist_ori_cost_history;
   std::vector<std::vector<double> > elbow_pos_cost_history;
+  std::vector<std::vector<double> > l_elbow_pos_cost_history;
+  std::vector<std::vector<double> > r_elbow_pos_cost_history;
+  
   std::vector<std::vector<double> > finger_cost_history;
   std::vector<std::vector<double> > similarity_cost_history;
   std::vector<std::vector<double> > smoothness_cost_history;
@@ -3396,14 +3884,14 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double> > dmp_update_history;
 
   // PreIteration
-  K_COL = 10.0; // difference is 4... jacobian would be 4 * K_COL
-  K_POS_LIMIT = 10.0;
-  K_WRIST_ORI = 2.0;
-  K_WRIST_POS = 2.0;
-  K_ELBOW_POS = 2.0;
-  K_FINGER = 2.0;
+  K_COL = 10.0; //3.0; //5.0; //5.0; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
+  K_POS_LIMIT = 10.0; //5.0;//10.0;
+  K_WRIST_ORI = 4.0; // 1.0;
+  K_WRIST_POS = 4.0; // 1.0;
+  K_ELBOW_POS = 4.0; // 1.0;
+  K_FINGER = 4.0; //2.0; // 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
   //K_SIMILARITY = 1.0; //1000.0 // 1.0 // 10.0
-  K_SMOOTHNESS = 10.0;
+  K_SMOOTHNESS = 10.0;//4.0; //10.0;
   std::cout << ">>>> Pre Iteration..." << std::endl;
   if(pre_iteration)
   { 
@@ -3428,8 +3916,14 @@ int main(int argc, char *argv[])
 
     std::cout << "before pre-iteration: " << std::endl;
     std::vector<double> wrist_pos_cost_tmp = tracking_edge->return_wrist_pos_cost_history();
+    std::vector<double> l_wrist_pos_cost_tmp = tracking_edge->return_l_wrist_pos_cost_history();
+    std::vector<double> r_wrist_pos_cost_tmp = tracking_edge->return_r_wrist_pos_cost_history();
+    
     std::vector<double> wrist_ori_cost_tmp = tracking_edge->return_wrist_ori_cost_history();
     std::vector<double> elbow_pos_cost_tmp = tracking_edge->return_elbow_pos_cost_history();
+    std::vector<double> l_elbow_pos_cost_tmp = tracking_edge->return_l_elbow_pos_cost_history();
+    std::vector<double> r_elbow_pos_cost_tmp = tracking_edge->return_r_elbow_pos_cost_history();
+
     std::vector<double> finger_cost_tmp = tracking_edge->return_finger_cost_history();
     std::cout << "wrist_pos_cost = ";
     for (unsigned int s = 0; s < wrist_pos_cost_tmp.size(); s++)
@@ -3456,7 +3950,7 @@ int main(int argc, char *argv[])
     DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
     dmp_vertex_tmp->setFixed(true);
     // optimize for a few iterations
-    optimizer.optimize(40); //(80); // 40 is enough for now... not much improvement after 40 iterations
+    optimizer.optimize(50);//(60); //(80); // 40 is enough for now... not much improvement after 40 iterations
     // reset
     dmp_vertex_tmp->setFixed(false);
     // check the results
@@ -3472,12 +3966,29 @@ int main(int argc, char *argv[])
     // for comparison
     std::cout << "after pre-iteration: " << std::endl;
     wrist_pos_cost_tmp = tracking_edge->return_wrist_pos_cost_history();
+    l_wrist_pos_cost_tmp = tracking_edge->return_l_wrist_pos_cost_history();
+    r_wrist_pos_cost_tmp = tracking_edge->return_r_wrist_pos_cost_history();
+    
     wrist_ori_cost_tmp = tracking_edge->return_wrist_ori_cost_history();
     elbow_pos_cost_tmp = tracking_edge->return_elbow_pos_cost_history();
+    l_elbow_pos_cost_tmp = tracking_edge->return_l_elbow_pos_cost_history();
+    r_elbow_pos_cost_tmp = tracking_edge->return_r_elbow_pos_cost_history();
+    
     finger_cost_tmp = tracking_edge->return_finger_cost_history();
+
     std::cout << "wrist_pos_cost = ";
     for (unsigned int s = 0; s < wrist_pos_cost_tmp.size(); s++)
       std::cout << wrist_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "l_wrist_pos_cost = ";
+    for (unsigned int s = 0; s < l_wrist_pos_cost_tmp.size(); s++)
+      std::cout << l_wrist_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "r_wrist_pos_cost = ";
+    for (unsigned int s = 0; s < r_wrist_pos_cost_tmp.size(); s++)
+      std::cout << r_wrist_pos_cost_tmp[s] << " ";
     std::cout << std::endl;
 
     std::cout << "wrist_ori_cost = ";
@@ -3488,6 +3999,16 @@ int main(int argc, char *argv[])
     std::cout << "elbow_pos_cost = ";
     for (unsigned int s = 0; s < elbow_pos_cost_tmp.size(); s++)
       std::cout << elbow_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "l_elbow_pos_cost = ";
+    for (unsigned int s = 0; s < l_elbow_pos_cost_tmp.size(); s++)
+      std::cout << l_elbow_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "r_elbow_pos_cost = ";
+    for (unsigned int s = 0; s < r_elbow_pos_cost_tmp.size(); s++)
+      std::cout << r_elbow_pos_cost_tmp[s] << " ";
     std::cout << std::endl;
 
     std::cout << "finger_cost = ";
@@ -3681,8 +4202,8 @@ int main(int argc, char *argv[])
   //unsigned int per_iterations = 5; // record data for every 10 iterations
 
   unsigned int num_rounds = 200;
-  unsigned int dmp_per_iterations = 10;
-  unsigned int q_per_iterations = 40;
+  unsigned int dmp_per_iterations = 5; //10;
+  unsigned int q_per_iterations = 20; //40;
 
   DMPStartsGoalsVertex* dmp_vertex_tmp_check = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
   std::cout << "debug: DMP starts_and_goals vertex " << (dmp_vertex_tmp_check->fixed()? "is" : "is not") << " fixed during optimization." << std::endl;
@@ -3690,6 +4211,68 @@ int main(int argc, char *argv[])
   // num_iterations = num_records * per_iterations
   for (unsigned int n = 0; n < num_rounds; n++)
   {
+
+    // Set new initial guess for DMPs; 
+    std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", Manually set initial guess for rw DMP: "<< std::endl;
+    // get current estimates on relative DMPs
+    DMPStartsGoalsVertex *dmp_vertex_tmp_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0)); // the last vertex connected
+    Matrix<double, DMPPOINTS_DOF, 1> xx = dmp_vertex_tmp_tmp->estimate();
+    MatrixXd lrw_new_goal(3, 1); lrw_new_goal = xx.block(0, 0, 3, 1);
+    MatrixXd lrw_new_start(3, 1); lrw_new_start = xx.block(3, 0, 3, 1);
+    MatrixXd lew_new_goal(3, 1); lew_new_goal = xx.block(6, 0, 3, 1);
+    MatrixXd lew_new_start(3, 1); lew_new_start = xx.block(9, 0, 3, 1);
+    MatrixXd rew_new_goal(3, 1); rew_new_goal = xx.block(12, 0, 3, 1);
+    MatrixXd rew_new_start(3, 1); rew_new_start = xx.block(15, 0, 3, 1);
+    MatrixXd rw_new_goal(3, 1); rw_new_goal = xx.block(18, 0, 3, 1);
+    MatrixXd rw_new_start(3, 1); rw_new_start = xx.block(21, 0, 3, 1);
+    // current starts and goals for wrists and elbows
+    MatrixXd lw_new_goal(3, 1); lw_new_goal = rw_new_goal + lrw_new_goal;
+    MatrixXd lw_new_start(3, 1); lw_new_start = rw_new_start + lrw_new_start;
+    MatrixXd re_new_goal(3, 1); re_new_goal = rw_new_goal + rew_new_goal;
+    MatrixXd re_new_start(3, 1); re_new_start = rw_new_start + rew_new_start;
+    MatrixXd le_new_goal(3, 1); le_new_goal = lw_new_goal + lew_new_goal;
+    MatrixXd le_new_start(3, 1); le_new_start = lw_new_start + lew_new_start;
+    
+    // set new goals and starts
+    MatrixXd wrist_pos_offsets(3, NUM_DATAPOINTS), elbow_pos_offsets(3, NUM_DATAPOINTS);    
+    // - right wrist
+    wrist_pos_offsets = tracking_edge->return_r_wrist_pos_offsets(); 
+    Vector3d wrist_pos_offset = wrist_pos_offsets.rowwise().mean();        
+    rw_new_goal = rw_new_goal + wrist_pos_offset;
+    rw_new_start = rw_new_start + wrist_pos_offset; 
+    // - right elbow
+    elbow_pos_offsets = tracking_edge->return_r_elbow_pos_offsets(); 
+    Vector3d elbow_pos_offset = elbow_pos_offsets.rowwise().mean();    
+    re_new_goal = re_new_goal + elbow_pos_offset;
+    re_new_start = re_new_start + elbow_pos_offset;
+    // - left wrist
+    wrist_pos_offsets = tracking_edge->return_l_wrist_pos_offsets(); 
+    wrist_pos_offset = wrist_pos_offsets.rowwise().mean();        
+    lw_new_goal = lw_new_goal + wrist_pos_offset;
+    lw_new_start = lw_new_start + wrist_pos_offset; 
+    // - left elbow
+    elbow_pos_offsets = tracking_edge->return_l_elbow_pos_offsets(); 
+    elbow_pos_offset = elbow_pos_offsets.rowwise().mean();    
+    le_new_goal = le_new_goal + elbow_pos_offset;
+    le_new_start = le_new_start + elbow_pos_offset;
+    // get new starts and goals
+    lrw_new_goal = lw_new_goal - rw_new_goal;
+    lrw_new_start = lw_new_start - rw_new_start;
+    lew_new_goal = le_new_goal - lw_new_goal;
+    lew_new_start = le_new_start - lw_new_start;
+    rew_new_goal = re_new_goal - rw_new_goal;
+    rew_new_start = re_new_start - rw_new_start;
+    // assign initial guess
+    xx.block(0, 0, 3, 1) = lrw_new_goal;
+    xx.block(3, 0, 3, 1) = lrw_new_start;
+    xx.block(6, 0, 3, 1) = lew_new_goal;
+    xx.block(9, 0, 3, 1) = lew_new_start;
+    xx.block(12, 0, 3, 1) = rew_new_goal;
+    xx.block(15, 0, 3, 1) = rew_new_start;
+    xx.block(18, 0, 3, 1) = rw_new_goal;
+    xx.block(21, 0, 3, 1) = rw_new_start;
+    dmp_vertex_tmp_tmp->setEstimate(xx);
+
 
     // 1 - optimize DMP for a number of iterations
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", DMP stage: "<< std::endl;
@@ -3715,12 +4298,20 @@ int main(int argc, char *argv[])
     std::cout << "Recording tracking cost, similarity cost and DMP costs..." << std::endl;
     // 3)
     std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+    std::vector<double> l_wrist_pos_cost = tracking_edge->return_l_wrist_pos_cost_history();
+    std::vector<double> r_wrist_pos_cost = tracking_edge->return_r_wrist_pos_cost_history();
     std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
     std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
+    std::vector<double> l_elbow_pos_cost = tracking_edge->return_l_elbow_pos_cost_history();
+    std::vector<double> r_elbow_pos_cost = tracking_edge->return_r_elbow_pos_cost_history();
     std::vector<double> finger_cost = tracking_edge->return_finger_cost_history();       
     wrist_pos_cost_history.push_back(wrist_pos_cost);
+    l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
+    r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
     wrist_ori_cost_history.push_back(wrist_ori_cost);
     elbow_pos_cost_history.push_back(elbow_pos_cost);
+    l_elbow_pos_cost_history.push_back(l_elbow_pos_cost);
+    r_elbow_pos_cost_history.push_back(r_elbow_pos_cost);
     finger_cost_history.push_back(finger_cost);
     // 4)
     std::vector<double> similarity_cost;
@@ -3821,12 +4412,20 @@ int main(int argc, char *argv[])
     smoothness_cost_history.push_back(smoothness_cost);
     // 3)
     wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+    l_wrist_pos_cost = tracking_edge->return_l_wrist_pos_cost_history();
+    r_wrist_pos_cost = tracking_edge->return_r_wrist_pos_cost_history();    
     wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
     elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
+    l_elbow_pos_cost = tracking_edge->return_l_elbow_pos_cost_history();
+    r_elbow_pos_cost = tracking_edge->return_r_elbow_pos_cost_history();    
     finger_cost = tracking_edge->return_finger_cost_history();   
     wrist_pos_cost_history.push_back(wrist_pos_cost);
+    l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
+    r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
     wrist_ori_cost_history.push_back(wrist_ori_cost);
     elbow_pos_cost_history.push_back(elbow_pos_cost);
+    l_elbow_pos_cost_history.push_back(l_elbow_pos_cost);
+    r_elbow_pos_cost_history.push_back(r_elbow_pos_cost);
     finger_cost_history.push_back(finger_cost);
 
     // reset
@@ -3868,6 +4467,14 @@ int main(int argc, char *argv[])
                          wrist_pos_cost_history.size(), wrist_pos_cost_history[0].size(), wrist_pos_cost_history);
   std::cout << "wrist_pos_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
+  result_flag = write_h5(out_file_name, in_group_name, "l_wrist_pos_cost_history", \
+                         l_wrist_pos_cost_history.size(), l_wrist_pos_cost_history[0].size(), l_wrist_pos_cost_history);
+  std::cout << "l_wrist_pos_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "r_wrist_pos_cost_history", \
+                         r_wrist_pos_cost_history.size(), r_wrist_pos_cost_history[0].size(), r_wrist_pos_cost_history);
+  std::cout << "r_wrist_pos_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
   result_flag = write_h5(out_file_name, in_group_name, "wrist_ori_cost_history", \
                          wrist_ori_cost_history.size(), wrist_ori_cost_history[0].size(), wrist_ori_cost_history);
   std::cout << "wrist_ori_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
@@ -3875,6 +4482,14 @@ int main(int argc, char *argv[])
   result_flag = write_h5(out_file_name, in_group_name, "elbow_pos_cost_history", \
                          elbow_pos_cost_history.size(), elbow_pos_cost_history[0].size(), elbow_pos_cost_history);
   std::cout << "elbow_pos_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "l_elbow_pos_cost_history", \
+                         l_elbow_pos_cost_history.size(), l_elbow_pos_cost_history[0].size(), l_elbow_pos_cost_history);
+  std::cout << "l_elbow_pos_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "r_elbow_pos_cost_history", \
+                         r_elbow_pos_cost_history.size(), r_elbow_pos_cost_history[0].size(), r_elbow_pos_cost_history);
+  std::cout << "r_elbow_pos_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
   result_flag = write_h5(out_file_name, in_group_name, "finger_cost_history", \
                          finger_cost_history.size(), finger_cost_history[0].size(), finger_cost_history);
