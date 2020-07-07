@@ -4048,6 +4048,84 @@ int main(int argc, char *argv[])
 
   std::vector<std::vector<double> > dmp_update_history;
 
+
+  // Consider do DMP optimization before simultaneous optimization of q and DMP
+  /*
+  K_WRIST_ORI = 5.0; //50.0;
+  K_WRIST_POS = 5.0; //50.0;
+  K_ELBOW_POS = 5.0;//50.0;
+  K_FINGER = 5.0;//50.0;  // how about setting larger tracking errors so that b is bigger...? and 
+  K_SIMILARITY = 100.0; //1000.0 // 1.0 // 10.0
+  K_DMPSTARTSGOALS = 50.0; // for constraining DMP starts and goals
+  K_DMPSCALEMARGIN = 100.0;
+  // pre-post iteration...
+  // fix joints and optimize dmp starts and goals...
+  std::cout << ">>>> Fix q vertices and try to optimize dmp starts and goals..." << std::endl;
+  Matrix<double, DMPPOINTS_DOF, 1> dmp_vertex_tmp_mat;
+  DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
+  dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
+  std::cout << "before pre-post-iteration: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;  
+  for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+  {
+    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
+    vertex_tmp->setFixed(true);
+  }
+  // iterate to optimize DMP starts and goals
+  std::cout << "Iterate to optimize DMP starts and goals alone..." << std::endl;
+  unsigned int num_trials = 50;
+  unsigned int iters_per_trail = 3;
+  for (unsigned int n = 0; n < num_trials; n++)
+  {
+    // optimize for a few iterations
+    unsigned int iter = optimizer.optimize(iters_per_trail);    
+    
+    // display jacobians and updates for debug
+    MatrixXd jacobians(1, DMPPOINTS_DOF);    
+    jacobians = similarity_edge->output_jacobian();
+    std::cout << "Last Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+    jacobians = tracking_edge->output_jacobian();
+    std::cout << "Last Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
+    Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
+    std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
+
+    dmp_edge->computeError();
+    double dmp_error = dmp_edge->error()[0];
+    std::cout << "Constraint value of DMP starts and goals = " << dmp_error << std::endl;
+
+    // store dmp updates
+    std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+      dmp_update_vec[j] = last_update(j, 0);
+    dmp_update_history.push_back(dmp_update_vec);
+
+    // Terminate the process if early stopping
+    if(iter < iters_per_trail) 
+    {
+      std::cout << "Stopped after " << n * iters_per_trail + iter << " iterations." << std::endl;
+      break;
+    }
+  }
+
+  // reset
+  for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+  {
+    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
+    vertex_tmp->setFixed(false);
+  }
+  // check the results
+  dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
+  std::cout << "after pre-post-iteration: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;
+  std::cout << "debug: num_update = " << num_update << ", num_track = " << num_track << ", num_sim = " << num_sim << std::endl;
+  // store for comparison and presentation  
+  std::vector<std::vector<double> > dmp_starts_goals_store2;
+  std::vector<double> dmp_starts_goals_vec2(DMPPOINTS_DOF);
+  for (unsigned int d = 0; d < DMPPOINTS_DOF; d++)
+    dmp_starts_goals_vec2[d] = dmp_vertex_tmp_mat[d];
+  dmp_starts_goals_store2.push_back(dmp_starts_goals_vec2);
+  bool result4 = write_h5(out_file_name, in_group_name, "dmp_starts_goals_moved_optimed", dmp_starts_goals_store2.size(), dmp_starts_goals_store2[0].size(), dmp_starts_goals_store2);
+  std::cout << "dmp results stored " << (result4 ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  */
+
   // PreIteration
   K_COL = 10.0; //3.0; //5.0; //5.0; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
   K_POS_LIMIT = 10.0; //5.0;//10.0;
@@ -4291,83 +4369,6 @@ int main(int argc, char *argv[])
 
   */
 
-  // Consider do DMP optimization before simultaneous optimization of q and DMP
-  /*
-  K_WRIST_ORI = 5.0; //50.0;
-  K_WRIST_POS = 5.0; //50.0;
-  K_ELBOW_POS = 5.0;//50.0;
-  K_FINGER = 5.0;//50.0;  // how about setting larger tracking errors so that b is bigger...? and 
-  K_SIMILARITY = 5.0; //1000.0 // 1.0 // 10.0
-  K_DMPSTARTSGOALS = 10.0; // for constraining DMP starts and goals
-  // pre-post iteration...
-  // fix joints and optimize dmp starts and goals...
-  std::cout << ">>>> Fix q vertices and try to optimize dmp starts and goals..." << std::endl;
-  Matrix<double, DMPPOINTS_DOF, 1> dmp_vertex_tmp_mat;
-  DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
-  dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
-  std::cout << "before pre-post-iteration: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;  
-  for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-  {
-    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
-    vertex_tmp->setFixed(true);
-  }
-
-  // iterate to optimize DMP starts and goals
-  std::cout << "Iterate to optimize DMP starts and goals alone..." << std::endl;
-  unsigned int num_trials = 50;
-  unsigned int iters_per_trail = 3;
-  for (unsigned int n = 0; n < num_trials; n++)
-  {
-    // optimize for a few iterations
-    unsigned int iter = optimizer.optimize(iters_per_trail);
-    
-    // display jacobians and updates for debug
-    MatrixXd jacobians(1, DMPPOINTS_DOF);    
-    jacobians = similarity_edge->output_jacobian();
-    std::cout << "Last Jacobians of similarity edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-    jacobians = tracking_edge->output_jacobian();
-    std::cout << "Last Jacobians of tracking edge w.r.t DMP starts_and_goals vertex = " << jacobians << std::endl;
-    Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
-    std::cout << "Last update of DMP starts_and_goals vertex = " << last_update.transpose() << std::endl;
-
-    dmp_edge->computeError();
-    double dmp_error = dmp_edge->error()[0];
-    std::cout << "Constraint value of DMP starts and goals = " << dmp_error << std::endl;
-
-    // store dmp updates
-    std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-      dmp_update_vec[j] = last_update(j, 0);
-    dmp_update_history.push_back(dmp_update_vec);
-
-    // Terminate the process if early stopping
-    if(iter < iters_per_trail) 
-    {
-      std::cout << "Stopped after " << n * iters_per_trail + iter << " iterations." << std::endl;
-      break;
-    }
-  }
-
-  // reset
-  for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-  {    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
-    vertex_tmp->setFixed(false);
-  }
-  // check the results
-  dmp_vertex_tmp_mat = dmp_vertex_tmp->estimate();
-  std::cout << "after pre-post-iteration: DMP starts and goals = " << dmp_vertex_tmp_mat.transpose() << std::endl;
-  std::cout << "debug: num_update = " << num_update << ", num_track = " << num_track << ", num_sim = " << num_sim << std::endl;
-  // store for comparison and presentation  
-  std::vector<std::vector<double> > dmp_starts_goals_store2;
-  std::vector<double> dmp_starts_goals_vec2(DMPPOINTS_DOF);
-  for (unsigned int d = 0; d < DMPPOINTS_DOF; d++)
-    dmp_starts_goals_vec2[d] = dmp_vertex_tmp_mat[d];
-  dmp_starts_goals_store2.push_back(dmp_starts_goals_vec2);
-  bool result4 = write_h5(out_file_name, in_group_name, "dmp_starts_goals_moved_optimed", dmp_starts_goals_store2.size(), dmp_starts_goals_store2[0].size(), dmp_starts_goals_store2);
-  std::cout << "dmp results stored " << (result4 ? "successfully" : "unsuccessfully") << "!" << std::endl;
-
-  */
-
 
   // Start optimization and store cost history
   std::cout << ">>>> Start optimization of the whole graph" << std::endl;
@@ -4387,12 +4388,13 @@ int main(int argc, char *argv[])
   //unsigned int num_records = 50; 
   //unsigned int per_iterations = 5; // record data for every 10 iterations
 
-  unsigned int num_rounds = 200;
-  unsigned int dmp_per_iterations = 5; //10;
-  unsigned int q_per_iterations = 20; //40;
+  unsigned int num_rounds = 1;//10;//20;//200;
+  unsigned int dmp_per_iterations = 20;//10; //5; //10;
+  unsigned int q_per_iterations = 80;//50;//40;//50; //30;//20; //40;
 
   DMPStartsGoalsVertex* dmp_vertex_tmp_check = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
   std::cout << "debug: DMP starts_and_goals vertex " << (dmp_vertex_tmp_check->fixed()? "is" : "is not") << " fixed during optimization." << std::endl;
+
 
   // num_iterations = num_records * per_iterations
   for (unsigned int n = 0; n < num_rounds; n++)
@@ -4449,12 +4451,12 @@ int main(int argc, char *argv[])
     rew_new_goal = re_new_goal - rw_new_goal;
     rew_new_start = re_new_start - rw_new_start;
     // assign initial guess
-    xx.block(0, 0, 3, 1) = lrw_new_goal;
-    xx.block(3, 0, 3, 1) = lrw_new_start;
-    xx.block(6, 0, 3, 1) = lew_new_goal;
-    xx.block(9, 0, 3, 1) = lew_new_start;
-    xx.block(12, 0, 3, 1) = rew_new_goal;
-    xx.block(15, 0, 3, 1) = rew_new_start;
+    // xx.block(0, 0, 3, 1) = lrw_new_goal;
+    // xx.block(3, 0, 3, 1) = lrw_new_start;
+    // xx.block(6, 0, 3, 1) = lew_new_goal;
+    // xx.block(9, 0, 3, 1) = lew_new_start;
+    // xx.block(12, 0, 3, 1) = rew_new_goal;
+    // xx.block(15, 0, 3, 1) = rew_new_start;
     xx.block(18, 0, 3, 1) = rw_new_goal;
     xx.block(21, 0, 3, 1) = rw_new_start;
     dmp_vertex_tmp_tmp->setEstimate(xx);
@@ -4463,7 +4465,7 @@ int main(int argc, char *argv[])
     // 1 - optimize DMP for a number of iterations
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", DMP stage: "<< std::endl;
     K_WRIST_ORI = 1.0;
-    K_WRIST_POS = 5.0; // 1.0;
+    K_WRIST_POS = 1.0;//5.0; // 1.0;
     K_ELBOW_POS = 1.0;
     K_FINGER = 1.0;
     K_SIMILARITY = 100.0; //1000.0 // 1.0 // 10.0
@@ -4482,7 +4484,7 @@ int main(int argc, char *argv[])
     // Save cost history
     // 1)
     std::cout << "Recording tracking cost, similarity cost and DMP costs..." << std::endl;
-    // 3)
+    // 3)  
     std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
     std::vector<double> l_wrist_pos_cost = tracking_edge->return_l_wrist_pos_cost_history();
     std::vector<double> r_wrist_pos_cost = tracking_edge->return_r_wrist_pos_cost_history();
@@ -4490,7 +4492,7 @@ int main(int argc, char *argv[])
     std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
     std::vector<double> l_elbow_pos_cost = tracking_edge->return_l_elbow_pos_cost_history();
     std::vector<double> r_elbow_pos_cost = tracking_edge->return_r_elbow_pos_cost_history();
-    std::vector<double> finger_cost = tracking_edge->return_finger_cost_history();       
+    std::vector<double> finger_cost = tracking_edge->return_finger_cost_history();   
     wrist_pos_cost_history.push_back(wrist_pos_cost);
     l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
     r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
@@ -4562,13 +4564,20 @@ int main(int argc, char *argv[])
     }
 
 
+    // Reset q vertices to zeros for common initial condition
+    for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
+    {
+      DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+m));
+      vertex_tmp->setToOriginImpl();
+    }
+
     // 2 - Optimize q vertices
-    K_COL = 10.0; //20.0; //10.0;
+    K_COL = 10.0;//10.0; //20.0; //10.0;
     K_POS_LIMIT = 10.0; //30.0; //20.0; //10.0;
-    K_WRIST_ORI = 3.0; //2.0; //1.0;
-    K_WRIST_POS = 3.0; //2.0; //1.0;
-    K_ELBOW_POS = 1.0;
-    K_FINGER = 3.0; //2.0; //1.0;
+    K_WRIST_ORI = 4.0;//3.0; //2.0; //1.0;
+    K_WRIST_POS = 4.0;//3.0; //2.0; //1.0;
+    K_ELBOW_POS = 4.0;//1.0;
+    K_FINGER = 4.0;//3.0; //2.0; //1.0;
     K_SMOOTHNESS = 10.0; //20.0; //10.0;
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", q stage: "<< std::endl;
     // Fix DMP starts and goals
@@ -4596,7 +4605,7 @@ int main(int argc, char *argv[])
       smoothness_cost.push_back(smoothness_edges[t]->return_smoothness_cost());
     }
     smoothness_cost_history.push_back(smoothness_cost);
-    // 3)
+    // 3)    
     wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
     l_wrist_pos_cost = tracking_edge->return_l_wrist_pos_cost_history();
     r_wrist_pos_cost = tracking_edge->return_r_wrist_pos_cost_history();    
@@ -4604,7 +4613,7 @@ int main(int argc, char *argv[])
     elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
     l_elbow_pos_cost = tracking_edge->return_l_elbow_pos_cost_history();
     r_elbow_pos_cost = tracking_edge->return_r_elbow_pos_cost_history();    
-    finger_cost = tracking_edge->return_finger_cost_history();   
+    finger_cost = tracking_edge->return_finger_cost_history(); 
     wrist_pos_cost_history.push_back(wrist_pos_cost);
     l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
     r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
