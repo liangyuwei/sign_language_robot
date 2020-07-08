@@ -3806,6 +3806,18 @@ int main(int argc, char *argv[])
     std::cout << "Moved right wrist goal = " << trajectory_generator_ptr->rw_goal << std::endl;
     */
 
+    // manually move the DMP trajectories to be within workspace, for modifying coefficients for q tracking desired trajectories
+    std::cout << ">>>> Manually move the whole trajectories to be within workspace" << std::endl;
+    MatrixXd rw_tmp_start(1, 3); rw_tmp_start(0, 0) = 0.5; rw_tmp_start(0, 1) = -0.18; rw_tmp_start(0, 2) = 0.5;
+    MatrixXd rw_tmp_offset(1, 3); rw_tmp_offset = rw_tmp_start - trajectory_generator_ptr->rw_start;
+    std::cout << "Original right wrist start = " << trajectory_generator_ptr->rw_start << std::endl;
+    std::cout << "Original right wrist goal = " << trajectory_generator_ptr->rw_goal << std::endl;
+    trajectory_generator_ptr->rw_goal += rw_tmp_offset;
+    trajectory_generator_ptr->rw_start += rw_tmp_offset;
+    std::cout << "Moved right wrist start = " << trajectory_generator_ptr->rw_start << std::endl;
+    std::cout << "Moved right wrist goal = " << trajectory_generator_ptr->rw_goal << std::endl;
+
+
     DMP_ori_starts_goals.block(0, 0, 3, 1) = trajectory_generator_ptr->lrw_goal.transpose(); // 1 x 3
     DMP_ori_starts_goals.block(3, 0, 3, 1) = trajectory_generator_ptr->lrw_start.transpose();
 
@@ -4127,12 +4139,12 @@ int main(int argc, char *argv[])
   */
 
   // PreIteration
-  K_COL = 10.0; //3.0; //5.0; //5.0; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
+  K_COL = 4.0;//10.0; //3.0; //5.0; //5.0; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
   K_POS_LIMIT = 10.0; //5.0;//10.0;
-  K_WRIST_ORI = 4.0; // 1.0;
-  K_WRIST_POS = 4.0; // 1.0;
-  K_ELBOW_POS = 4.0; // 1.0;
-  K_FINGER = 4.0; //2.0; // 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
+  K_WRIST_ORI = 5.0; // 1.0;
+  K_WRIST_POS = 5.0; // 1.0;
+  K_ELBOW_POS = 5.0; // 1.0;
+  K_FINGER = 5.0; //2.0; // 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
   //K_SIMILARITY = 1.0; //1000.0 // 1.0 // 10.0
   K_SMOOTHNESS = 10.0;//4.0; //10.0;
   std::cout << ">>>> Pre Iteration..." << std::endl;
@@ -4173,6 +4185,16 @@ int main(int argc, char *argv[])
       std::cout << wrist_pos_cost_tmp[s] << " ";
     std::cout << std::endl;
 
+    std::cout << "l_wrist_pos_cost = ";
+    for (unsigned int s = 0; s < l_wrist_pos_cost_tmp.size(); s++)
+      std::cout << l_wrist_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "r_wrist_pos_cost = ";
+    for (unsigned int s = 0; s < r_wrist_pos_cost_tmp.size(); s++)
+      std::cout << r_wrist_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
     std::cout << "wrist_ori_cost = ";
     for (unsigned int s = 0; s < wrist_ori_cost_tmp.size(); s++)
       std::cout << wrist_ori_cost_tmp[s] << " ";
@@ -4183,12 +4205,24 @@ int main(int argc, char *argv[])
       std::cout << elbow_pos_cost_tmp[s] << " ";
     std::cout << std::endl;
 
+    std::cout << "l_elbow_pos_cost = ";
+    for (unsigned int s = 0; s < l_elbow_pos_cost_tmp.size(); s++)
+      std::cout << l_elbow_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
+    std::cout << "r_elbow_pos_cost = ";
+    for (unsigned int s = 0; s < r_elbow_pos_cost_tmp.size(); s++)
+      std::cout << r_elbow_pos_cost_tmp[s] << " ";
+    std::cout << std::endl;
+
     std::cout << "finger_cost = ";
     for (unsigned int s = 0; s < finger_cost_tmp.size(); s++)
       std::cout << finger_cost_tmp[s] << " ";
     std::cout << std::endl;
 
 
+    double col_cost;
+    do{
     // fix DMP starts and goals (good for lowering tracking cost quickly, also for tracking orientation and glove angle ahead of position trajectory!!!)
     DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
     dmp_vertex_tmp->setFixed(true);
@@ -4258,6 +4292,19 @@ int main(int argc, char *argv[])
     for (unsigned int s = 0; s < finger_cost_tmp.size(); s++)
       std::cout << finger_cost_tmp[s] << " ";
     std::cout << std::endl;  
+
+    // check if collision avoidance is met
+    col_cost = 0.0;
+    for (unsigned int t = 0; t < unary_edges.size(); t++)
+    {
+      col_cost += unary_edges[t]->return_col_cost();      
+    }
+
+    if (col_cost > 1.0) // to cope with possible numeric error
+      K_COL = K_COL * 2;
+    
+    }while(col_cost > 1.0); // to cope with possible numeric error
+    std::cout << "Final weight of collision cost: K_COL = " << K_COL << std::endl;
 
     // store preIteration results for reuse
     std::vector<std::vector<double> > preiter_q_results;
@@ -4388,9 +4435,9 @@ int main(int argc, char *argv[])
   //unsigned int num_records = 50; 
   //unsigned int per_iterations = 5; // record data for every 10 iterations
 
-  unsigned int num_rounds = 1;//10;//20;//200;
-  unsigned int dmp_per_iterations = 20;//10; //5; //10;
-  unsigned int q_per_iterations = 80;//50;//40;//50; //30;//20; //40;
+  unsigned int num_rounds = 10;//1;//10;//20;//200;
+  unsigned int dmp_per_iterations = 10;//20;//10; //5; //10;
+  unsigned int q_per_iterations = 30;//40;//80;//50;//40;//50; //30;//20; //40;
 
   DMPStartsGoalsVertex* dmp_vertex_tmp_check = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
   std::cout << "debug: DMP starts_and_goals vertex " << (dmp_vertex_tmp_check->fixed()? "is" : "is not") << " fixed during optimization." << std::endl;
@@ -4451,12 +4498,12 @@ int main(int argc, char *argv[])
     rew_new_goal = re_new_goal - rw_new_goal;
     rew_new_start = re_new_start - rw_new_start;
     // assign initial guess
-    // xx.block(0, 0, 3, 1) = lrw_new_goal;
-    // xx.block(3, 0, 3, 1) = lrw_new_start;
-    // xx.block(6, 0, 3, 1) = lew_new_goal;
-    // xx.block(9, 0, 3, 1) = lew_new_start;
-    // xx.block(12, 0, 3, 1) = rew_new_goal;
-    // xx.block(15, 0, 3, 1) = rew_new_start;
+    xx.block(0, 0, 3, 1) = lrw_new_goal;
+    xx.block(3, 0, 3, 1) = lrw_new_start;
+    xx.block(6, 0, 3, 1) = lew_new_goal;
+    xx.block(9, 0, 3, 1) = lew_new_start;
+    xx.block(12, 0, 3, 1) = rew_new_goal;
+    xx.block(15, 0, 3, 1) = rew_new_start;
     xx.block(18, 0, 3, 1) = rw_new_goal;
     xx.block(21, 0, 3, 1) = rw_new_start;
     dmp_vertex_tmp_tmp->setEstimate(xx);
@@ -4574,9 +4621,9 @@ int main(int argc, char *argv[])
     // 2 - Optimize q vertices
     K_COL = 10.0;//10.0; //20.0; //10.0;
     K_POS_LIMIT = 10.0; //30.0; //20.0; //10.0;
-    K_WRIST_ORI = 4.0;//3.0; //2.0; //1.0;
-    K_WRIST_POS = 4.0;//3.0; //2.0; //1.0;
-    K_ELBOW_POS = 4.0;//1.0;
+    K_WRIST_ORI = 5.0;//4.0;//3.0; //2.0; //1.0;
+    K_WRIST_POS = 5.0;//4.0;//3.0; //2.0; //1.0;
+    K_ELBOW_POS = 2.0;//4.0;//1.0;
     K_FINGER = 4.0;//3.0; //2.0; //1.0;
     K_SMOOTHNESS = 10.0; //20.0; //10.0;
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", q stage: "<< std::endl;
@@ -4646,6 +4693,29 @@ int main(int argc, char *argv[])
   //std::cout << "g2o file saved " << (saveFlag? "successfully" : "unsuccessfully") << " ." << std::endl;
 
   std::cout << ">>>> Optimization done." << std::endl;
+
+  // Store the actually executed Cartesian trajectories (after optimization)
+  // std::vector<std::vector<double>> l_wrist_pos_traj, r_wrist_pos_traj, l_elbow_pos_traj, r_elbow_pos_traj;
+  l_wrist_pos_traj = tracking_edge->return_wrist_pos_traj(true);
+  r_wrist_pos_traj = tracking_edge->return_wrist_pos_traj(false);
+  l_elbow_pos_traj = tracking_edge->return_elbow_pos_traj(true);
+  r_elbow_pos_traj = tracking_edge->return_elbow_pos_traj(false);
+  std::cout << ">>>> Storing current executed Cartesian trajectories to h5 file" << std::endl;
+  tmp_flag = write_h5(out_file_name, in_group_name, "optimed_l_wrist_pos_traj", \
+                           l_wrist_pos_traj.size(), l_wrist_pos_traj[0].size(), l_wrist_pos_traj);
+  std::cout << "optimed_l_wrist_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  
+  tmp_flag = write_h5(out_file_name, in_group_name, "optimed_r_wrist_pos_traj", \
+                           r_wrist_pos_traj.size(), r_wrist_pos_traj[0].size(), r_wrist_pos_traj);
+  std::cout << "optimed_r_wrist_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  
+  tmp_flag = write_h5(out_file_name, in_group_name, "optimed_l_elbow_pos_traj", \
+                           l_elbow_pos_traj.size(), l_elbow_pos_traj[0].size(), l_elbow_pos_traj);
+  std::cout << "optimed_l_elbow_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  
+  tmp_flag = write_h5(out_file_name, in_group_name, "optimed_r_elbow_pos_traj", \
+                           r_elbow_pos_traj.size(), r_elbow_pos_traj[0].size(), r_elbow_pos_traj);
+  std::cout << "optimed_r_elbow_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
 
   // Store the cost history
