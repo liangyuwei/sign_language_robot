@@ -143,7 +143,7 @@ TimeSyncWithImageAndPublish::TimeSyncWithImageAndPublish()
   message_filters::Subscriber<PoseStamped> right_upperarm_sub(n_, "/vrpn_client_node/RightUpperarm/pose", 100);
   message_filters::Subscriber<PoseStamped> right_forearm_sub(n_, "/vrpn_client_node/RightForearm/pose", 100);
   message_filters::Subscriber<PoseStamped> right_hand_sub(n_, "/vrpn_client_node/RightHand/pose", 100);
-  message_filters::Subscriber<GloveState> right_glove_sub(n_, "/wiseglove_state_pub", 100);
+  message_filters::Subscriber<GloveState> right_glove_sub(n_, "/wiseglove_state_pub", 100); // actually, it contains both hands' data
 
 
   message_filters::Subscriber<PoseStamped> left_upperarm_sub(n_, "/vrpn_client_node/LeftUpperarm/pose", 100);

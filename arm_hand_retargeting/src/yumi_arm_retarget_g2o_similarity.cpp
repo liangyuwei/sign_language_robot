@@ -993,6 +993,7 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
     double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct &fdata);
     double compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
+    double compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     double compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q_whole, my_constraint_struct &fdata);
 
     void computeError();
@@ -1008,7 +1009,7 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     // Re-implement linearizeOplus for jacobians calculation
     virtual void linearizeOplus();
 
-    Matrix<double, JOINT_DOF, 1> col_jacobians;
+    Matrix<double, JOINT_DOF, 1> col_jacobians = Matrix<double, JOINT_DOF, 1>::Zero();
     Matrix<double, JOINT_DOF, 1> pos_limit_jacobians;
     Matrix<double, JOINT_DOF, 1> whole_jacobians;
   
@@ -1026,24 +1027,76 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
 void MyUnaryConstraints::linearizeOplus()
 {
   // epsilons
-  double col_eps = 0.05; // in radius, approximately 3 deg
+  double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
+  double simple_update = 0.1;//0.1; // update step for (4,0) or (0,4), i.e. only one end is in colliding state, close to boundary
   double pos_limit_eps = 0.02;
 
   // Get current joint angles
-  const DualArmDualHandVertex *v = dynamic_cast<const DualArmDualHandVertex*>(_vertices[0]);
-  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+  DualArmDualHandVertex *v = dynamic_cast<DualArmDualHandVertex*>(_vertices[0]);
+  Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
   Matrix<double, JOINT_DOF, 1> delta_x = Matrix<double, JOINT_DOF, 1>::Zero();
   
   // iterate to calculate jacobians
   double e_plus, e_minus;
+  double e_cur = -1;
   for (unsigned int d = 0; d < JOINT_DOF; d++)
   {
     // 1 - Collision
     delta_x[d] = col_eps;
     e_plus = compute_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
     e_minus = compute_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
-    _jacobianOplusXi(0, d) = K_COL * (e_plus - e_minus) / (2*col_eps);
-    col_jacobians[d] = K_COL * (e_plus - e_minus) / (2*col_eps);
+    /*
+    if (e_plus - e_minus > 3.0) // (4, 0), cope with possible numeric error
+    {
+      _jacobianOplusXi(0, d) = K_COL * simple_update; //(e_plus - e_minus) / (2*col_eps);
+    }
+    else if(e_plus - e_minus < -3.0) // (0, 4), cope with possible numeric error
+    {
+      _jacobianOplusXi(0, d) = K_COL * (-simple_update); //(e_plus - e_minus) / (2*col_eps);
+    }
+    else if (e_plus > 3.0 && e_minus > 3.0) // (4, 4), If within collision area, no gradients would be yielded.(no differences in costs), so turn to minimum distance (> 3.0 condition is to cope with possible numeric error)
+    {
+      if(e_cur < 0.0)
+      {
+        std::cout << "debug: compute current penetration depth..." << std::endl;
+        e_cur = compute_distance_cost(x, dual_arm_dual_hand_collision_ptr);
+      }
+      std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+      std::cout << "debug: within collision area, use more accurate compute_self_distance() method: ";
+      e_plus = compute_distance_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+      // e_minus = compute_distance_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+      std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+      std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+      std::cout << "spent " << t_spent.count() << " s." << std::endl;
+      // _jacobianOplusXi(0, d) = K_COL * (e_plus - e_minus) / (2*col_eps);
+      _jacobianOplusXi(0, d) = K_COL * (e_plus - e_cur) / col_eps;      
+    }
+    else // (0, 0), no need to update
+    {
+      _jacobianOplusXi(0, d) = 0.0;
+    }
+    */
+    
+    if (e_plus - e_minus > 3.0) // (4, 0), cope with possible numeric error
+    {
+      _jacobianOplusXi(0, d) = K_COL * simple_update; //(e_plus - e_minus) / (2*col_eps);
+    }
+    else if(e_plus - e_minus < -3.0) // (0, 4), cope with possible numeric error
+    {
+      _jacobianOplusXi(0, d) = K_COL * (-simple_update); //(e_plus - e_minus) / (2*col_eps);
+    }
+    else if (e_plus > 3.0 && e_minus > 3.0) // (4, 4), If within collision area, no gradients would be yielded.(no differences in costs), so turn to minimum distance (> 3.0 condition is to cope with possible numeric error)
+    {
+      //std::cout << "debug: within collision state, last col_jacobian is: " << col_jacobians[d] << std::endl;
+      // _jacobianOplusXi(0, d) = K_COL * col_jacobians[d]; // inherit last jacobians??? // as long as step is small enough and initial state is non-colliding
+      _jacobianOplusXi(0, d) = K_COL * (simple_update);
+    }
+    else // (0, 0), no need to update
+    {
+      _jacobianOplusXi(0, d) = 0.0;
+    }    
+
+    col_jacobians[d] = _jacobianOplusXi(0, d);
 
     // 2 - Position Limit
     delta_x[d] = pos_limit_eps;
@@ -1058,6 +1111,8 @@ void MyUnaryConstraints::linearizeOplus()
     delta_x[d] = 0.0;
   }
 
+  //std::cout << "debug: collision jacobians = " << col_jacobians.transpose() << std::endl;
+  //double debug;
 
 }
 
@@ -1070,16 +1125,54 @@ double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q
 
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  // 1 - check collision (+1 / -1) is not quite reasonable in that points deep inside infeasible areas won't get updated
   double min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x); 
+  // 2 - penetration depth can cope with the above issue, and all points in colliding state will be dealt with in order (since it's minimum depth..)
+  // double min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance(x); 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   total_col += t_spent.count();
   count_col++;
+  // std::cout << "debug: time spent on computing minimum distance = " << t_spent.count() << std::endl;
   // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
 
   // Compute cost for collision avoidance
-  //double k_col = 1.0;
+  // 1
   double cost = (min_distance + 1) * (min_distance + 1); // 1 for colliding state, -1 for non
+  // 2
+  // double margin_of_safety = 0.0;//0.01;
+  // double cost = std::max(margin_of_safety - min_distance, 0.0); // <0 means colliding, >0 is ok
+
+  return cost;
+
+}
+
+double MyUnaryConstraints::compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
+{
+  // convert from matrix to std::vector
+  std::vector<double> x(JOINT_DOF);
+  for (unsigned int i = 0; i < JOINT_DOF; ++i)
+    x[i] = q_whole[i];
+
+  // Collision checking (or distance computation), check out the DualArmDualHandCollision class
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  // 1 - check collision (+1 / -1) is not quite reasonable in that points deep inside infeasible areas won't get updated
+  // double min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x); 
+  // 2 - penetration depth can cope with the above issue, and all points in colliding state will be dealt with in order (since it's minimum depth..)
+  double min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance(x); 
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_col += t_spent.count();
+  count_col++;
+  // std::cout << "debug: time spent on computing minimum distance = " << t_spent.count() << std::endl;
+  // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
+
+  // Compute cost for collision avoidance
+  // 1
+  // double cost = (min_distance + 1) * (min_distance + 1); // 1 for colliding state, -1 for non
+  // 2
+  double margin_of_safety = 0.0;//0.01;
+  double cost = std::max(margin_of_safety - min_distance, 0.0); // <0 means colliding, >0 is ok
 
   return cost;
 
@@ -1435,8 +1528,8 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
       double q_finger_eps = 2.0 * M_PI / 180.0;
 
       // Get vertex values
-      DualArmDualHandVertex *v0 = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
-      DualArmDualHandVertex *v1 = static_cast<const DualArmDualHandVertex*>(_vertices[1]);
+      DualArmDualHandVertex *v0 = static_cast<DualArmDualHandVertex*>(_vertices[0]);
+      DualArmDualHandVertex *v1 = static_cast<DualArmDualHandVertex*>(_vertices[1]);
       const Matrix<double, JOINT_DOF, 1> x0 = v0->estimate(); 
       const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
@@ -1453,24 +1546,24 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
         delta_x[d] = q_arm_eps;
 
         // (1) - jacobian for the former vertex
-        v0->setEstimate(x+delta_x);
+        v0->setEstimate(x0+delta_x);
         this->computeError();
         e_plus = _error(0, 0);
-        v0->setEstimate(x-delta_x);
+        v0->setEstimate(x0-delta_x);
         this->computeError();
         e_minus = _error(0, 0);
         _jacobianOplusXi(0, d) = (e_plus-e_minus) / (2*q_arm_eps);
-        v0->setEstimate(x); // reset
+        v0->setEstimate(x0); // reset
 
         // (2) - jacobian for the latter vertex
-        v1->setEstimate(x+delta_x);
+        v1->setEstimate(x1+delta_x);
         this->computeError();
         e_plus = _error(0, 0);
-        v1->setEstimate(x-delta_x);
+        v1->setEstimate(x1-delta_x);
         this->computeError();
         e_minus = _error(0, 0);
         _jacobianOplusXj(0, d) = (e_plus-e_minus) / (2*q_arm_eps);
-        v1->setEstimate(x); // reset
+        v1->setEstimate(x1); // reset
 
         // reset delta
         delta_x[d] = 0.0;
@@ -1482,24 +1575,24 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
         delta_x[d+7] = q_arm_eps;
 
         // (1) - jacobian for the former vertex
-        v0->setEstimate(x+delta_x);
+        v0->setEstimate(x0+delta_x);
         this->computeError();
         e_plus = _error(0, 0);
-        v0->setEstimate(x-delta_x);
+        v0->setEstimate(x0-delta_x);
         this->computeError();
         e_minus = _error(0, 0);
         _jacobianOplusXi(0, d+7) = (e_plus-e_minus) / (2*q_arm_eps);
-        v0->setEstimate(x); // reset
+        v0->setEstimate(x0); // reset
 
         // (2) - jacobian for the latter vertex
-        v1->setEstimate(x+delta_x);
+        v1->setEstimate(x1+delta_x);
         this->computeError();
         e_plus = _error(0, 0);
-        v1->setEstimate(x-delta_x);
+        v1->setEstimate(x1-delta_x);
         this->computeError();
         e_minus = _error(0, 0);
         _jacobianOplusXj(0, d+7) = (e_plus-e_minus) / (2*q_arm_eps);
-        v1->setEstimate(x); // reset
+        v1->setEstimate(x1); // reset
 
         // reset delta
         delta_x[d+7] = 0.0;
@@ -1515,24 +1608,24 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
         delta_x[d+14] = q_finger_eps;
 
         // (1) - jacobian for the former vertex
-        v0->setEstimate(x+delta_x);
+        v0->setEstimate(x0+delta_x);
         this->computeError();
         e_plus = _error(0, 0);
-        v0->setEstimate(x-delta_x);
+        v0->setEstimate(x0-delta_x);
         this->computeError();
         e_minus = _error(0, 0);
         _jacobianOplusXi(0, d+14) = (e_plus-e_minus) / (2*q_finger_eps);
-        v0->setEstimate(x); // reset
+        v0->setEstimate(x0); // reset
 
         // (2) - jacobian for the latter vertex
-        v1->setEstimate(x+delta_x);
+        v1->setEstimate(x1+delta_x);
         this->computeError();
         e_plus = _error(0, 0);
-        v1->setEstimate(x-delta_x);
+        v1->setEstimate(x1-delta_x);
         this->computeError();
         e_minus = _error(0, 0);
         _jacobianOplusXj(0, d+14) = (e_plus-e_minus) / (2*q_finger_eps);
-        v1->setEstimate(x); // reset
+        v1->setEstimate(x1); // reset
 
         // reset delta
         delta_x[d+14] = 0.0;
@@ -1544,24 +1637,24 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
         delta_x[d+26] = q_finger_eps;
 
         // (1) - jacobian for the former vertex
-        v0->setEstimate(x+delta_x);
+        v0->setEstimate(x0+delta_x);
         this->computeError();
         e_plus = _error(0, 0);
-        v0->setEstimate(x-delta_x);
+        v0->setEstimate(x0-delta_x);
         this->computeError();
         e_minus = _error(0, 0);
         _jacobianOplusXi(0, d+26) = (e_plus-e_minus) / (2*q_finger_eps);
-        v0->setEstimate(x); // reset
+        v0->setEstimate(x0); // reset
 
         // (2) - jacobian for the latter vertex
-        v1->setEstimate(x+delta_x);
+        v1->setEstimate(x1+delta_x);
         this->computeError();
         e_plus = _error(0, 0);
-        v1->setEstimate(x-delta_x);
+        v1->setEstimate(x1-delta_x);
         this->computeError();
         e_minus = _error(0, 0);
         _jacobianOplusXj(0, d+26) = (e_plus-e_minus) / (2*q_finger_eps);
-        v1->setEstimate(x); // reset
+        v1->setEstimate(x1); // reset
 
         // reset delta
         delta_x[d+26] = 0.0;
@@ -3817,10 +3910,15 @@ int main(int argc, char *argv[])
 
 
  // Variables' bounds
-  const std::vector<double> q_l_arm_lb = {-2.9, -2.49, 0.0, -1.7, -1.578, -1.5, -1.57};//{-2.94, -2.5, -2.94, -2.16, -5.06, -1.54, -4.0};
-  const std::vector<double> q_r_arm_lb = {-2.9, -2.49, 0.0, -1.7, -1.578, -1.5, -1.57};//{-2.94, -2.50, -2.94, -2.16, -5.06, -1.54, -4.0};
-  const std::vector<double> q_l_arm_ub = {0.5, 0.75, 2.9, 1.4, 1.578, 2.1, 1.57};//{2.94, 0.76, 2.94, 1.4, 5.06, 2.41, 4.0};
-  const std::vector<double> q_r_arm_ub = {0.5, 0.75, 2.9, 1.4, 1.578, 2.1, 1.57};//{2.94, 0.76, 2.94, 1.4, 5.06, 2.41, 4.0};
+  const std::vector<double> q_l_arm_lb = {-2.8, -2.49, -1.2, -1.7, -2.0, -1.5, -2.0};
+  //{-2.9, -2.49, 0.0, -1.7, -1.578, -1.5, -1.57};//{-2.94, -2.5, -2.94, -2.16, -5.06, -1.54, -4.0};
+  const std::vector<double> q_l_arm_ub = {0.5, 0.75, 2.2, 1.4, 1.578, 2.1, 1.578};//{2.94, 0.76, 2.94, 1.4, 5.06, 2.41, 4.0};
+
+  const std::vector<double> q_r_arm_lb = {-0.5, -2.49, -2.2, -1.7, -2.0, -1.5, -2.0}; // modified on 2020/07/20
+  //{-2.9, -2.49, 0.0, -1.7, -1.578, -1.5, -1.57};//{-2.94, -2.50, -2.94, -2.16, -5.06, -1.54, -4.0};
+  const std::vector<double> q_r_arm_ub = {2.8, 0.75, 1.2, 1.4, 1.578, 2.1, 1.578}; // modified on 2020/07/20
+  //{0.5, 0.75, 2.9, 1.4, 1.578, 2.1, 1.57};//{2.94, 0.76, 2.94, 1.4, 5.06, 2.41, 4.0};
+
 
   const std::vector<double> q_l_finger_lb = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
   const std::vector<double> q_l_finger_ub = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
@@ -4078,6 +4176,10 @@ int main(int argc, char *argv[])
 
   
   std::cout << ">>>> Adding joint angle vertices, unary edges and tracking_error edges " << std::endl;  
+  // set non-colliding initial state for ease of collision avoidance
+  Matrix<double, JOINT_DOF, 1> q_initial = Matrix<double, JOINT_DOF, 1>::Zero();
+  q_initial.block(0, 0, 14, 1) << -1.5, -1.5, 1.5, 0.0, 0.0, 0.0, 0.0, 1.5, -1.5, -1.5, 0.0, 0.0, 0.0, 0.0;
+  std::cout << "debug: new initial q = " << q_initial.transpose() << std::endl;
   for (unsigned int it = 0; it < NUM_DATAPOINTS; ++it)
   {
     // add vertices
@@ -4091,7 +4193,8 @@ int main(int argc, char *argv[])
     }
     else
     {
-      v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Zero()); // feed in initial guess
+      //v_list[it]->setEstimate(Matrix<double, JOINT_DOF, 1>::Zero()); // feed in initial guess
+      v_list[it]->setEstimate(q_initial);
     }
     v_list[it]->setId(1+it); // set a unique id
     optimizer.addVertex(v_list[it]);
@@ -4361,14 +4464,14 @@ int main(int argc, char *argv[])
   */
 
   // PreIteration
-  K_COL = 1.0;//10.0;//5.0;//30;//50.0; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
-  K_POS_LIMIT = 1.0;//10.0; //5.0;//10.0;
-  K_WRIST_ORI = 1.0;//3.0;//2.0; // 1.0;
-  K_WRIST_POS = 1.0;//3.0;//2.0; // 1.0;
-  K_ELBOW_POS = 1.0;//3.0;//2.0; // 1.0;
-  K_FINGER = 1.0;//3.0;//2.0; //2.0; // 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
+  K_COL = 4.0;//5.0;//1.0;//0.2; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
+  K_POS_LIMIT = 5.0;//10.0;
+  K_WRIST_ORI = 1.0;
+  K_WRIST_POS = 1.0;
+  K_ELBOW_POS = 1.0;
+  K_FINGER = 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
   //K_SIMILARITY = 1.0; //1000.0 // 1.0 // 10.0
-  K_SMOOTHNESS = 1.0;//10.0;//4.0; //10.0;
+  K_SMOOTHNESS = 2.0;//10.0;//4.0; //10.0;
   std::cout << ">>>> Pre Iteration..." << std::endl;
   if(pre_iteration)
   { 
@@ -4459,7 +4562,7 @@ int main(int argc, char *argv[])
     DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
     dmp_vertex_tmp->setFixed(true);
     // optimize for a few iterations
-    optimizer.optimize(5);//(60); //(50);//(60); //(80); // 40 is enough for now... not much improvement after 40 iterations
+    optimizer.optimize(5);//((200);//(60);//60); //(50);//(60); //(80); // 40 is enough for now... not much improvement after 40 iterations
     // reset
     dmp_vertex_tmp->setFixed(false);
     // check the results
@@ -4608,14 +4711,14 @@ int main(int argc, char *argv[])
 
     /*if (col_cost > 1.0) // to cope with possible numeric error
     {
-      //K_COL = K_COL * 150.0; //* 200;//* 100;//+ 2; //* 2; //10;//2;
-      K_COL *= 10.0;//1.0;//30;//50.0; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
-      K_POS_LIMIT = 10.0; //5.0;//10.0;
-      K_WRIST_ORI = 1.0; // 1.0;
-      K_WRIST_POS = 1.0; // 1.0;
-      K_ELBOW_POS = 1.0; // 1.0;
-      K_FINGER = 1.0; //2.0; // 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
-      K_SMOOTHNESS = 10.0;//4.0; //10.0;
+      K_COL = K_COL * 2.0;// 150.0; //* 200;//* 100;//+ 2; //* 2; //10;//2;
+      // K_COL *= 10.0;//1.0;//30;//50.0; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
+      // K_POS_LIMIT = 10.0; //5.0;//10.0;
+      // K_WRIST_ORI = 1.0; // 1.0;
+      // K_WRIST_POS = 1.0; // 1.0;
+      // K_ELBOW_POS = 1.0; // 1.0;
+      // K_FINGER = 1.0; //2.0; // 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
+      // K_SMOOTHNESS = 10.0;//4.0; //10.0;
     }*/
 
     }while(col_cost > 1.0); // to cope with possible numeric error
