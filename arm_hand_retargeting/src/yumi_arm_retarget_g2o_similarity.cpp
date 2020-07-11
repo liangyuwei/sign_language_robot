@@ -1089,13 +1089,43 @@ void MyUnaryConstraints::linearizeOplus()
     {
       //std::cout << "debug: within collision state, last col_jacobian is: " << col_jacobians[d] << std::endl;
       // _jacobianOplusXi(0, d) = K_COL * col_jacobians[d]; // inherit last jacobians??? // as long as step is small enough and initial state is non-colliding
-      _jacobianOplusXi(0, d) = K_COL * (simple_update);
+      //_jacobianOplusXi(0, d) = K_COL * (simple_update);
+      
+      // find reference outside of collision area
+      double col_eps_tmp = col_eps;
+      unsigned ncount = 0;
+      std::cout << "Number of trials: ";
+      while ((e_plus > 3.0 && e_minus > 3.0) && col_eps_tmp <= 5.0 * M_PI / 180)
+      {
+        col_eps_tmp += 0.5 * M_PI / 180;
+        delta_x[d] = col_eps_tmp;
+        e_plus = compute_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+        e_minus = compute_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+      }
+      if (e_plus - e_minus > 3.0) // (4, 0), cope with possible numeric error
+      {
+        _jacobianOplusXi(0, d) = K_COL * simple_update; //(e_plus - e_minus) / (2*col_eps);
+      }
+      else if(e_plus - e_minus < -3.0) // (0, 4), cope with possible numeric error
+      {
+        _jacobianOplusXi(0, d) = K_COL * (-simple_update); //(e_plus - e_minus) / (2*col_eps);
+      }
+      else if (e_plus > 3.0 && e_minus > 3.0) // (4, 4), still not outside of collision state, possibly not its fault (e.g., checking arm joints when actually fingers in collision )
+      {
+        _jacobianOplusXi(0, d) = 0.0;
+      }
+      else
+      {
+        _jacobianOplusXi(0, d) = 0.0;
+      }
+      
     }
     else // (0, 0), no need to update
     {
       _jacobianOplusXi(0, d) = 0.0;
     }    
 
+    // record
     col_jacobians[d] = _jacobianOplusXi(0, d);
 
     // 2 - Position Limit
@@ -4464,10 +4494,10 @@ int main(int argc, char *argv[])
   */
 
   // PreIteration
-  K_COL = 4.0;//5.0;//1.0;//0.2; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
+  K_COL = 1.0;//2.0;//1.0;//4.0;//5.0;//1.0;//0.2; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
   K_POS_LIMIT = 5.0;//10.0;
   K_WRIST_ORI = 1.0;
-  K_WRIST_POS = 1.0;
+  K_WRIST_POS = 1.0;//2.0;//1.0;
   K_ELBOW_POS = 1.0;
   K_FINGER = 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
   //K_SIMILARITY = 1.0; //1000.0 // 1.0 // 10.0
@@ -4554,15 +4584,17 @@ int main(int argc, char *argv[])
     for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
     {
       DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+m));
-      vertex_tmp->setToOriginImpl();
+      vertex_tmp->setEstimate(q_initial);
+      //vertex_tmp->setToOriginImpl();
     }
     */
+
 
     // fix DMP starts and goals (good for lowering tracking cost quickly, also for tracking orientation and glove angle ahead of position trajectory!!!)
     DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
     dmp_vertex_tmp->setFixed(true);
     // optimize for a few iterations
-    optimizer.optimize(5);//((200);//(60);//60); //(50);//(60); //(80); // 40 is enough for now... not much improvement after 40 iterations
+    optimizer.optimize(300);//(60);//((200);//(60);//60); //(50);//(60); //(80); // 40 is enough for now... not much improvement after 40 iterations
     // reset
     dmp_vertex_tmp->setFixed(false);
     // check the results
@@ -4709,9 +4741,9 @@ int main(int argc, char *argv[])
     }    
     std::cout << std::endl;
 
-    /*if (col_cost > 1.0) // to cope with possible numeric error
+    if (col_cost > 1.0) // to cope with possible numeric error
     {
-      K_COL = K_COL * 2.0;// 150.0; //* 200;//* 100;//+ 2; //* 2; //10;//2;
+      K_COL = K_COL * 10.0; //* 2.0;//10.0;//2.0;// 150.0; //* 200;//* 100;//+ 2; //* 2; //10;//2;
       // K_COL *= 10.0;//1.0;//30;//50.0; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
       // K_POS_LIMIT = 10.0; //5.0;//10.0;
       // K_WRIST_ORI = 1.0; // 1.0;
@@ -4719,7 +4751,7 @@ int main(int argc, char *argv[])
       // K_ELBOW_POS = 1.0; // 1.0;
       // K_FINGER = 1.0; //2.0; // 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
       // K_SMOOTHNESS = 10.0;//4.0; //10.0;
-    }*/
+    }
 
     }while(col_cost > 1.0); // to cope with possible numeric error
 
