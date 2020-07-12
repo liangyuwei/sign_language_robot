@@ -185,8 +185,8 @@ double DualArmDualHandCollision::check_self_collision(const std::vector<double> 
   // Prepare collision_request
   this->collision_request_.group_name = "";
   this->collision_request_.distance = false;//true; // only for debug, when used with optimization, remember to shut it off!!!! cause great difference in time usage!!!
-  this->collision_request_.contacts = true;
-  this->collision_request_.max_contacts = 1000;
+  // this->collision_request_.contacts = true;
+  // this->collision_request_.max_contacts = 1000;
 
   this->collision_result_.clear();
 
@@ -214,6 +214,93 @@ double DualArmDualHandCollision::check_self_collision(const std::vector<double> 
     std::cout << "Contact between: " << it->first.first.c_str() << " and " << it->first.second.c_str() << std::endl;
   }
 */
+
+  // Return the rsult
+  double result = (this->collision_result_.collision ? 1 : -1); // 1 for colliding, -1 for free
+  this->collision_result_.clear(); // should clear the results, in case the result object is used again!!!
+  return result; // set to 1 if in collision
+  
+}
+
+
+/* Self-collision checking via PlanningScene::checkSelfCollision (Arms Only) */
+double DualArmDualHandCollision::check_arm_self_collision(const std::vector<double> q_in)
+{
+
+  // Prepare collision_request
+  this->collision_request_.group_name = "dual_arms";
+  this->collision_request_.distance = false;//true; // only for debug, when used with optimization, remember to shut it off!!!! cause great difference in time usage!!!
+  this->collision_request_.contacts = true;
+  this->collision_request_.max_contacts = 1000;
+
+  this->collision_result_.clear();
+
+
+  // Get the PlanningScene maintained by move_group (getting PlanningScene from move_group might not be necessary for self-collision checking...)
+  //planning_scene::PlanningScenePtr move_group_planning_scene = this->get_move_group_planning_scene();
+
+
+  // Update robot state with the given joint values
+  this->set_joint_values_yumi(q_in);
+
+
+  // Check if a robot is in collision with itself
+  this->local_planning_scene_.checkSelfCollision(this->collision_request_, this->collision_result_, this->current_state_, this->acm_); // using local planning scene is faster
+  //move_group_planning_scene->checkSelfCollision(this->collision_request_, this->collision_result_, this->current_state_, this->acm_);
+
+
+
+  // Display information for debug
+  std::cout << "The robot is " << (this->collision_result_.collision ? "in" : "not in") << " self-collision." << std::endl;  
+  std::cout << "Closest distance: " << this->collision_result_.distance << std::endl;
+  for (auto it = this->collision_result_.contacts.begin(); it != this->collision_result_.contacts.end(); ++it)
+  {
+    std::cout << "Contact between: " << it->first.first.c_str() << " and " << it->first.second.c_str() << std::endl;
+  }
+
+
+  // Return the rsult
+  double result = (this->collision_result_.collision ? 1 : -1); // 1 for colliding, -1 for free
+  this->collision_result_.clear(); // should clear the results, in case the result object is used again!!!
+  return result; // set to 1 if in collision
+  
+}
+
+/* Self-collision checking via PlanningScene::checkSelfCollision (Hands Only) */
+double DualArmDualHandCollision::check_hand_self_collision(const std::vector<double> q_in)
+{
+
+  // Prepare collision_request
+  this->collision_request_.group_name = "dual_hands";
+  this->collision_request_.distance = false;//true; // only for debug, when used with optimization, remember to shut it off!!!! cause great difference in time usage!!!
+  this->collision_request_.contacts = true;
+  this->collision_request_.max_contacts = 1000;
+
+  this->collision_result_.clear();
+
+
+  // Get the PlanningScene maintained by move_group (getting PlanningScene from move_group might not be necessary for self-collision checking...)
+  //planning_scene::PlanningScenePtr move_group_planning_scene = this->get_move_group_planning_scene();
+
+
+  // Update robot state with the given joint values
+  this->set_joint_values_yumi(q_in);
+
+
+  // Check if a robot is in collision with itself
+  this->local_planning_scene_.checkSelfCollision(this->collision_request_, this->collision_result_, this->current_state_, this->acm_); // using local planning scene is faster
+  //move_group_planning_scene->checkSelfCollision(this->collision_request_, this->collision_result_, this->current_state_, this->acm_);
+
+
+
+  // Display information for debug
+  std::cout << "The robot is " << (this->collision_result_.collision ? "in" : "not in") << " self-collision." << std::endl;  
+  std::cout << "Closest distance: " << this->collision_result_.distance << std::endl;
+  for (auto it = this->collision_result_.contacts.begin(); it != this->collision_result_.contacts.end(); ++it)
+  {
+    std::cout << "Contact between: " << it->first.first.c_str() << " and " << it->first.second.c_str() << std::endl;
+  }
+
 
   // Return the rsult
   double result = (this->collision_result_.collision ? 1 : -1); // 1 for colliding, -1 for free
@@ -587,6 +674,109 @@ int main(int argc, char **argv)
 
   // Close the output
   //std::cout.rdbuf(outbuf);
+
+
+  // Check out partial collision checking
+  std::cout << ">>>> NEW TESTS: partial collision checking <<<<" << std::endl 
+            << "8 Conditions in total: (Arms self-collision or not) X (Hands self-collision or not) X (Arm-Hand in collision or not)." << std::endl;
+  // 1
+  std::cout << ">> 1. (Arm Col, Hand Col, Arm-Hand Col) = (Y, N, N): " << std::endl;
+  std::vector<double> q_arm_col_hand_noncol_armhand_noncol(38);  
+  q_arm_col_hand_noncol_armhand_noncol[0] = -0.23;
+  q_arm_col_hand_noncol_armhand_noncol[1] = 0.25;
+  q_arm_col_hand_noncol_armhand_noncol[2] = -0.2;
+  double result1 = dual_arm_dual_hand_collision_ptr->check_arm_self_collision(q_arm_col_hand_noncol_armhand_noncol);
+  double result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_col_hand_noncol_armhand_noncol);
+  std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
+  std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl;
+  // 2
+  std::cout << ">> 2. (Arm Col, Hand Col, Arm-Hand Col) = (Y, N, Y): " << std::endl;
+  std::vector<double> q_arm_col_hand_noncol_armhand_col(38);  
+  q_arm_col_hand_noncol_armhand_col[0] = -0.05;
+  q_arm_col_hand_noncol_armhand_col[1] = -0.09;
+  q_arm_col_hand_noncol_armhand_col[2] = -0.2;
+  q_arm_col_hand_noncol_armhand_col[3] = 0.22;
+  result1 = dual_arm_dual_hand_collision_ptr->check_arm_self_collision(q_arm_col_hand_noncol_armhand_col);
+  result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_col_hand_noncol_armhand_col);
+  std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
+  std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl;  
+  // 3
+  std::cout << ">> 3. (Arm Col, Hand Col, Arm-Hand Col) = (Y, Y, Y): " << std::endl;
+  std::vector<double> q_arm_col_hand_col_armhand_col(38);  
+  q_arm_col_hand_col_armhand_col[0] = -0.05;
+  q_arm_col_hand_col_armhand_col[1] = -0.09;
+  q_arm_col_hand_col_armhand_col[2] = -0.2;
+  q_arm_col_hand_col_armhand_col[3] = 0.22;
+  q_arm_col_hand_col_armhand_col[26] = -0.95;
+  q_arm_col_hand_col_armhand_col[35] = 0.4;
+  q_arm_col_hand_col_armhand_col[36] = -0.4;
+  result1 = dual_arm_dual_hand_collision_ptr->check_arm_self_collision(q_arm_col_hand_col_armhand_col);
+  result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_col_hand_col_armhand_col);
+  std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
+  std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  // 4
+  std::cout << ">> 4. (Arm Col, Hand Col, Arm-Hand Col) = (Y, Y, N): " << std::endl;
+  std::vector<double> q_arm_col_hand_col_armhand_noncol(38);  
+  q_arm_col_hand_col_armhand_noncol[0] = -0.05;
+  q_arm_col_hand_col_armhand_noncol[1] = 0.22;
+  q_arm_col_hand_col_armhand_noncol[2] = -0.23;
+  q_arm_col_hand_col_armhand_noncol[3] = -0.15;
+  q_arm_col_hand_col_armhand_noncol[26] = -0.95;
+  q_arm_col_hand_col_armhand_noncol[35] = 0.4;
+  q_arm_col_hand_col_armhand_noncol[36] = -0.4;
+  result1 = dual_arm_dual_hand_collision_ptr->check_arm_self_collision(q_arm_col_hand_col_armhand_noncol);
+  result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_col_hand_col_armhand_noncol);
+  std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
+  std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  // 5
+  std::cout << ">> 5. (Arm Col, Hand Col, Arm-Hand Col) = (N, Y, Y): " << std::endl;
+  std::vector<double> q_arm_noncol_hand_col_armhand_col(38);  
+  q_arm_noncol_hand_col_armhand_col[0] = -0.17;
+  q_arm_noncol_hand_col_armhand_col[1] = -0.41;
+  q_arm_noncol_hand_col_armhand_col[2] = -0.44;
+  q_arm_noncol_hand_col_armhand_col[3] = 0.68;
+  q_arm_noncol_hand_col_armhand_col[26] = -0.95;
+  q_arm_noncol_hand_col_armhand_col[35] = 0.4;
+  q_arm_noncol_hand_col_armhand_col[36] = -0.4;
+  result1 = dual_arm_dual_hand_collision_ptr->check_arm_self_collision(q_arm_noncol_hand_col_armhand_col);
+  result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_noncol_hand_col_armhand_col);
+  std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
+  std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  // 6
+  std::cout << ">> 6. (Arm Col, Hand Col, Arm-Hand Col) = (N, Y, N): " << std::endl;
+  std::vector<double> q_arm_noncol_hand_col_armhand_noncol(38);  
+  q_arm_noncol_hand_col_armhand_noncol[0] = 0.96;
+  q_arm_noncol_hand_col_armhand_noncol[1] = -0.42;
+  q_arm_noncol_hand_col_armhand_noncol[2] = -0.29;
+  q_arm_noncol_hand_col_armhand_noncol[3] = 0.59;
+  q_arm_noncol_hand_col_armhand_noncol[26] = -0.95;
+  q_arm_noncol_hand_col_armhand_noncol[35] = 0.4;
+  q_arm_noncol_hand_col_armhand_noncol[36] = -0.4;
+  result1 = dual_arm_dual_hand_collision_ptr->check_arm_self_collision(q_arm_noncol_hand_col_armhand_noncol);
+  result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_noncol_hand_col_armhand_noncol);
+  std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
+  std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  // 7
+  std::cout << ">> 7. (Arm Col, Hand Col, Arm-Hand Col) = (N, N, Y): " << std::endl;
+  std::vector<double> q_arm_noncol_hand_noncol_armhand_col(38);  
+  q_arm_noncol_hand_noncol_armhand_col[0] = -0.23;
+  q_arm_noncol_hand_noncol_armhand_col[1] = -0.42;
+  q_arm_noncol_hand_noncol_armhand_col[2] = -0.29;
+  q_arm_noncol_hand_noncol_armhand_col[3] = 0.59;
+  result1 = dual_arm_dual_hand_collision_ptr->check_arm_self_collision(q_arm_noncol_hand_noncol_armhand_col);
+  result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_noncol_hand_noncol_armhand_col);
+  std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
+  std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  // 8
+  std::cout << ">> 8. (Arm Col, Hand Col, Arm-Hand Col) = (N, N, N): " << std::endl;
+  std::vector<double> q_arm_noncol_hand_noncol_armhand_noncol(38);  
+  q_arm_noncol_hand_noncol_armhand_noncol[0] = 0.75;
+  result1 = dual_arm_dual_hand_collision_ptr->check_arm_self_collision(q_arm_noncol_hand_noncol_armhand_noncol);
+  result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_noncol_hand_noncol_armhand_noncol);
+  std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
+  std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+
+
 
   return 0;
 

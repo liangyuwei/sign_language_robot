@@ -273,8 +273,8 @@ target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorc
 #add_executable(TEST_collision_checking src/TEST_collision_checking.cpp)
 #target_link_libraries(TEST_collision_checking ${catkin_LIBRARIES} collision_checking)
 
-#add_executable(TEST_collision_checking_yumi src/collision_checking_yumi.cpp)
-#target_link_libraries(TEST_collision_checking_yumi ${catkin_LIBRARIES} collision_checking_yumi)
+# add_executable(TEST_collision_checking_yumi src/collision_checking_yumi.cpp)
+# target_link_libraries(TEST_collision_checking_yumi ${catkin_LIBRARIES} collision_checking_yumi)
 
 #add_executable(TEST_generate_trajectory_from_viewpoints src/generate_trajectory_from_viewpoints.cpp)
 #target_link_libraries(TEST_generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
@@ -288,6 +288,6 @@ target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorc
 #add_executable(TEST_similarity_network_pytorch src/TEST_similarity_network_pytorch.cpp)
 #target_link_libraries(TEST_similarity_network_pytorch ${EIGEN3_LIBRARIES} similarity_network_pytorch)
 
-add_executable(TEST_KDL_FK_Solver src/KDL_FK_Solver.cpp)
-target_link_libraries(TEST_KDL_FK_Solver ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+# add_executable(TEST_KDL_FK_Solver src/KDL_FK_Solver.cpp)
+# target_link_libraries(TEST_KDL_FK_Solver ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 

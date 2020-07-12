@@ -1091,10 +1091,12 @@ void MyUnaryConstraints::linearizeOplus()
       // _jacobianOplusXi(0, d) = K_COL * col_jacobians[d]; // inherit last jacobians??? // as long as step is small enough and initial state is non-colliding
       //_jacobianOplusXi(0, d) = K_COL * (simple_update);
       
+      // can't distinguish between deep inside collision area or 
+      _jacobianOplusXi(0, d) = 0.0;
+
       // find reference outside of collision area
+      /*
       double col_eps_tmp = col_eps;
-      unsigned ncount = 0;
-      std::cout << "Number of trials: ";
       while ((e_plus > 3.0 && e_minus > 3.0) && col_eps_tmp <= 5.0 * M_PI / 180)
       {
         col_eps_tmp += 0.5 * M_PI / 180;
@@ -1118,6 +1120,7 @@ void MyUnaryConstraints::linearizeOplus()
       {
         _jacobianOplusXi(0, d) = 0.0;
       }
+      */
       
     }
     else // (0, 0), no need to update
@@ -4494,7 +4497,7 @@ int main(int argc, char *argv[])
   */
 
   // PreIteration
-  K_COL = 1.0;//2.0;//1.0;//4.0;//5.0;//1.0;//0.2; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
+  K_COL = 1.0;//2.0;//1.0;//2.0;//1.0;//4.0;//5.0;//1.0;//0.2; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
   K_POS_LIMIT = 5.0;//10.0;
   K_WRIST_ORI = 1.0;
   K_WRIST_POS = 1.0;//2.0;//1.0;

@@ -45,6 +45,8 @@ class DualArmDualHandCollision
 
     // API
     double check_self_collision(const std::vector<double> q_in);
+    double check_arm_self_collision(const std::vector<double> q_in);
+    double check_hand_self_collision(const std::vector<double> q_in);
     double check_world_collision(const std::vector<double> q_in);    
     double check_full_collision(const std::vector<double> q_in);
     double compute_self_distance(const std::vector<double> q_in);
