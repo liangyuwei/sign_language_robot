@@ -100,7 +100,7 @@ double K_SIMILARITY = 5.0; //1000.0 // 1.0 // 10.0
 double K_SMOOTHNESS = 1.0;
 double K_DMPSTARTSGOALS = 1.0;
 double K_DMPSCALEMARGIN = 1.0;
-
+double K_DMPRELCHANGE = 1.0;
 
 using namespace g2o;
 using namespace Eigen;
@@ -772,10 +772,12 @@ class DMPConstraints : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGo
     // Store jacobians
     Matrix<double, 1, DMPPOINTS_DOF> orien_jacobians_for_dmp;  // the jacobians of vector orientation cost w.r.t DMP starts and goals
     Matrix<double, 1, DMPPOINTS_DOF> scale_jacobians_for_dmp;  // the jacobians of scale cost w.r.t DMP starts and goals
+    Matrix<double, 1, DMPPOINTS_DOF> rel_jacobians_for_dmp;
 
     // function to compute costs
     double compute_orien_cost(Matrix<double, DMPPOINTS_DOF, 1> x);
     double compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x);
+    double compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> x);    
     double output_orien_cost();
     double output_scale_cost();
     void computeError()
@@ -785,7 +787,9 @@ class DMPConstraints : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGo
       Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
    
       // set error
-      _error(0, 0) = K_DMPSTARTSGOALS * this->compute_orien_cost(x) + K_DMPSCALEMARGIN * this->compute_scale_cost(x);
+      _error(0, 0) = K_DMPSTARTSGOALS * this->compute_orien_cost(x) + 
+                     K_DMPSCALEMARGIN * this->compute_scale_cost(x) +
+                     K_DMPRELCHANGE * this->compute_rel_change_cost(x);
 
     }
 
@@ -793,7 +797,7 @@ class DMPConstraints : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGo
     virtual void linearizeOplus();
     Matrix<double, 1, DMPPOINTS_DOF> output_orien_jacobian(); 
     Matrix<double, 1, DMPPOINTS_DOF> output_scale_jacobian(); 
-    
+    Matrix<double, 1, DMPPOINTS_DOF> output_rel_change_jacobian();
 
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
@@ -834,6 +838,11 @@ Matrix<double, 1, DMPPOINTS_DOF> DMPConstraints::output_orien_jacobian()
 Matrix<double, 1, DMPPOINTS_DOF> DMPConstraints::output_scale_jacobian()
 {
   return this->scale_jacobians_for_dmp;
+} 
+
+Matrix<double, 1, DMPPOINTS_DOF> DMPConstraints::output_rel_change_jacobian()
+{
+  return this->rel_jacobians_for_dmp;
 } 
 
 
@@ -945,10 +954,46 @@ double DMPConstraints::compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
 
 }
 
+/* Change of starts and goals of relative trajectories */
+double DMPConstraints::compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
+{
+  // get goals and starts
+  Matrix<double, 3, 1> lrw_new_goal; lrw_new_goal = x.block(0, 0, 3, 1);
+  Matrix<double, 3, 1> lrw_new_start; lrw_new_start = x.block(3, 0, 3, 1);
+  Matrix<double, 3, 1> lew_new_goal; lew_new_goal = x.block(6, 0, 3, 1);
+  Matrix<double, 3, 1> lew_new_start; lew_new_start = x.block(9, 0, 3, 1);
+  Matrix<double, 3, 1> rew_new_goal; rew_new_goal = x.block(12, 0, 3, 1);
+  Matrix<double, 3, 1> rew_new_start; rew_new_start = x.block(15, 0, 3, 1);
+
+  // Get the lengths of new vectors and ratios
+  double lrw_start_change = (lrw_new_start.transpose() - this->lrw_start).norm();
+  double lrw_goal_change = (lrw_new_goal.transpose() - this->lrw_goal).norm();
+  double lew_start_change = (lew_new_start.transpose() - this->lew_start).norm();
+  double lew_goal_change = (lew_new_goal.transpose() - this->lew_goal).norm();
+  double rew_start_change = (rew_new_start.transpose() - this->rew_start).norm();
+  double rew_goal_change = (rew_new_goal.transpose() - this->rew_goal).norm();
+
+  // set error
+  double max_margin = 0.01; // within 1 cm (a bad result displays 0.05 offset, calculated in MATLAB)
+  double rel_change_cost = std::max(lrw_start_change - max_margin, 0.0) +
+                           std::max(lrw_goal_change - max_margin, 0.0) +
+                           std::max(lew_start_change - max_margin, 0.0) +
+                           std::max(lew_goal_change - max_margin, 0.0) +
+                           std::max(rew_start_change - max_margin, 0.0) +
+                           std::max(rew_goal_change - max_margin, 0.0);
+
+
+  return rel_change_cost;
+
+}
+
+
+
+
 void DMPConstraints::linearizeOplus()
 {
   // Prep
-  double dmp_eps = 0.02;
+  double dmp_eps = 0.01;//0.005;//0.02;
 
   // Get new DMP starts and goals
   const DMPStartsGoalsVertex *v = dynamic_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
@@ -965,12 +1010,28 @@ void DMPConstraints::linearizeOplus()
     e_minus = this->compute_orien_cost(x-delta_x);
     _jacobianOplusXi(0, d) = K_DMPSTARTSGOALS * (e_plus - e_minus) / (2*dmp_eps);
     this->orien_jacobians_for_dmp(0, d) = K_DMPSTARTSGOALS * (e_plus - e_minus) / (2*dmp_eps);
+    // if (this->orien_jacobians_for_dmp(0, d) > 1 || this->orien_jacobians_for_dmp(0, d) < -1)
+    // {
+    //   std::cout << "gradient value is " << this->orien_jacobians_for_dmp(0, d) << "." << std::endl;
+    //   std::cout << "breakpoint for debug" << std::endl;
+    // }
 
     // evaluate jacobians for scale cost
     e_plus = this->compute_scale_cost(x+delta_x);
     e_minus = this->compute_scale_cost(x-delta_x);
     _jacobianOplusXi(0, d) += K_DMPSCALEMARGIN * (e_plus - e_minus) / (2*dmp_eps); // add up the influence
     this->scale_jacobians_for_dmp(0, d) = K_DMPSCALEMARGIN * (e_plus - e_minus) / (2*dmp_eps);
+    // if (this->scale_jacobians_for_dmp(0, d) > 1 || this->scale_jacobians_for_dmp(0, d) < -1)
+    // {
+    //   std::cout << "gradient value is " << this->scale_jacobians_for_dmp(0, d) << "." << std::endl;
+    //   std::cout << "breakpoint for debug" << std::endl;
+    // }
+
+    // evaluate jacobians for rel change cost
+    e_plus = this->compute_rel_change_cost(x+delta_x);
+    e_minus = this->compute_rel_change_cost(x-delta_x);
+    _jacobianOplusXi(0, d) += K_DMPRELCHANGE * (e_plus - e_minus) / (2*dmp_eps); // add up the influence
+    this->rel_jacobians_for_dmp(0, d) = K_DMPRELCHANGE * (e_plus - e_minus) / (2*dmp_eps);
 
     // reset delta_x
     delta_x[d] = 0.0;
@@ -1998,11 +2059,10 @@ void SimilarityConstraint::set_jacobian()
 void SimilarityConstraint::linearizeOplus()
 {
   //std::cout << "similarity numeric differentiation..." << std::endl;
-
   DMPStartsGoalsVertex* v = static_cast<DMPStartsGoalsVertex*>(_vertices[0]);
   Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
   Matrix<double, DMPPOINTS_DOF, 1> delta_x = Matrix<double, DMPPOINTS_DOF, 1>::Zero();
-  double eps = 0.1; // 3; //0.1;//10; // even setting to 10 doesn't yields nonzero number... similarity network is not well or useless ? 
+  double eps = 0.01;//0.1; // 3; //0.1;//10; // even setting to 10 doesn't yields nonzero number... similarity network is not well or useless ? 
   double e_plus, e_minus;
   //std::cout << "debug: similarity error = ";
   for (unsigned int n = 0; n < DMPPOINTS_DOF; n++)
@@ -4160,6 +4220,7 @@ int main(int argc, char *argv[])
     */
 
     // manually move the DMP trajectories to be within workspace, for modifying coefficients for q tracking desired trajectories
+    /*
     std::cout << ">>>> Manually move the whole trajectories to be within workspace" << std::endl;
     MatrixXd rw_tmp_start(1, 3); rw_tmp_start(0, 0) = 0.5; rw_tmp_start(0, 1) = -0.18; rw_tmp_start(0, 2) = 0.5;
     MatrixXd rw_tmp_offset(1, 3); rw_tmp_offset = rw_tmp_start - trajectory_generator_ptr->rw_start;
@@ -4169,7 +4230,7 @@ int main(int argc, char *argv[])
     trajectory_generator_ptr->rw_start += rw_tmp_offset;
     std::cout << "Moved right wrist start = " << trajectory_generator_ptr->rw_start << std::endl;
     std::cout << "Moved right wrist goal = " << trajectory_generator_ptr->rw_goal << std::endl;
-
+    */
 
     DMP_ori_starts_goals.block(0, 0, 3, 1) = trajectory_generator_ptr->lrw_goal.transpose(); // 1 x 3
     DMP_ori_starts_goals.block(3, 0, 3, 1) = trajectory_generator_ptr->lrw_start.transpose();
@@ -4415,6 +4476,7 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double> > track_jacobian_history; // for DMP, store in 2d
   std::vector<std::vector<double> > orien_jacobian_history; // for DMP orientation cost (vectors pointing from starts to goals)
   std::vector<std::vector<double> > scale_jacobian_history; // for DMP scale cost (scale margin of vectors)
+  std::vector<std::vector<double> > rel_change_jacobian_history;
 
   std::vector<std::vector<double> > dmp_update_history;
 
@@ -4497,7 +4559,7 @@ int main(int argc, char *argv[])
   */
 
   // PreIteration
-  K_COL = 1.0;//2.0;//1.0;//2.0;//1.0;//4.0;//5.0;//1.0;//0.2; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
+  K_COL = 2.0;//2.0;//1.0;//2.0;//1.0;//4.0;//5.0;//1.0;//0.2; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
   K_POS_LIMIT = 5.0;//10.0;
   K_WRIST_ORI = 1.0;
   K_WRIST_POS = 1.0;//2.0;//1.0;
@@ -4578,9 +4640,10 @@ int main(int argc, char *argv[])
       std::cout << finger_cost_tmp[s] << " ";
     std::cout << std::endl;
 
-
+    /*
     double col_cost;
     do{
+    */
 
     // Reset q vertices to zeros for common initial condition
     /*
@@ -4707,12 +4770,14 @@ int main(int argc, char *argv[])
     std::cout << std::endl; 
 
 
-    // check if collision avoidance is met
+    // check if collision avoidance is 
+    /*
     col_cost = 0.0;
     for (unsigned int t = 0; t < unary_edges.size(); t++)
     {
       col_cost += unary_edges[t]->return_col_cost();      
     }
+    */
 
     // tmp: check costs
     std::cout << "Collision costs: ";
@@ -4744,6 +4809,8 @@ int main(int argc, char *argv[])
     }    
     std::cout << std::endl;
 
+
+    /*
     if (col_cost > 1.0) // to cope with possible numeric error
     {
       K_COL = K_COL * 10.0; //* 2.0;//10.0;//2.0;// 150.0; //* 200;//* 100;//+ 2; //* 2; //10;//2;
@@ -4759,6 +4826,8 @@ int main(int argc, char *argv[])
     }while(col_cost > 1.0); // to cope with possible numeric error
 
     std::cout << "Best weight for collision cost: K_COL = " << K_COL << std::endl;
+    */
+
 
     // store preIteration results for reuse
     std::vector<std::vector<double> > preiter_q_results;
@@ -4889,9 +4958,9 @@ int main(int argc, char *argv[])
   //unsigned int num_records = 50; 
   //unsigned int per_iterations = 5; // record data for every 10 iterations
 
-  unsigned int num_rounds = 10;//1;//10;//20;//200;
-  unsigned int dmp_per_iterations = 10;//20;//10; //5; //10;
-  unsigned int q_per_iterations = 30;//40;//80;//50;//40;//50; //30;//20; //40;
+  unsigned int num_rounds = 20;//1;//10;//20;//200;
+  unsigned int dmp_per_iterations = 5.0;//10;
+  unsigned int q_per_iterations = 30;
 
   DMPStartsGoalsVertex* dmp_vertex_tmp_check = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
   std::cout << "debug: DMP starts_and_goals vertex " << (dmp_vertex_tmp_check->fixed()? "is" : "is not") << " fixed during optimization." << std::endl;
@@ -4951,7 +5020,7 @@ int main(int argc, char *argv[])
     lew_new_start = le_new_start - lw_new_start;
     rew_new_goal = re_new_goal - rw_new_goal;
     rew_new_start = re_new_start - rw_new_start;
-    // assign initial guess
+    // assign initial guess (change only the starts and goals of right wrist traj ?)
     xx.block(0, 0, 3, 1) = lrw_new_goal;
     xx.block(3, 0, 3, 1) = lrw_new_start;
     xx.block(6, 0, 3, 1) = lew_new_goal;
@@ -4965,13 +5034,14 @@ int main(int argc, char *argv[])
 
     // 1 - optimize DMP for a number of iterations
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", DMP stage: "<< std::endl;
-    K_WRIST_ORI = 1.0;
-    K_WRIST_POS = 1.0;//5.0; // 1.0;
-    K_ELBOW_POS = 1.0;
-    K_FINGER = 1.0;
-    K_SIMILARITY = 100.0; //1000.0 // 1.0 // 10.0
-    K_DMPSTARTSGOALS = 50.0; //50.0;
-    K_DMPSCALEMARGIN = 100.0; //50.0;
+    K_WRIST_ORI = 0.1;
+    K_WRIST_POS = 0.1;
+    K_ELBOW_POS = 0.1;
+    K_FINGER = 0.1;
+    K_SIMILARITY = 100.0; 
+    K_DMPSTARTSGOALS = 100.0;//1.0;//10.0;
+    K_DMPSCALEMARGIN = 100.0;//1.0;//10.0;
+    K_DMPRELCHANGE = 10.0;//1.0;//2000.0; // relax a little to allow small variance
     std::cout << "Fix q vertices." << std::endl;
     // fix q vertices
     for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
@@ -5020,32 +5090,56 @@ int main(int argc, char *argv[])
     // 1)
     jacobians = similarity_edge->output_jacobian();
     std::vector<double> jacobian_vec(DMPPOINTS_DOF); // from MatrixXd to std::vector<std::vector<double>>
+    std::cout << "debug: sim_jacobian = ";
     for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
     {
       jacobian_vec[j] = jacobians(0, j);
+      std::cout << jacobians(0, j) << " ";
     }
+    std::cout << std::endl;
     sim_jacobian_history.push_back(jacobian_vec);
     // 2)
     jacobians = tracking_edge->output_dmp_jacobian();
+    std::cout << "debug: track_jacobian = ";
     for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
     {
       jacobian_vec[j] = jacobians(0, j);
+      std::cout << jacobians(0, j) << " ";
     }
+    std::cout << std::endl;
     track_jacobian_history.push_back(jacobian_vec);
     // 3)
     jacobians = dmp_edge->output_orien_jacobian();
+    std::cout << "debug: orien_jacobian = ";    
     for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
     {
       jacobian_vec[j] = jacobians(0, j);
+      std::cout << jacobians(0, j) << " ";
     }
+    std::cout << std::endl;
     orien_jacobian_history.push_back(jacobian_vec);    
     // 4)
     jacobians = dmp_edge->output_scale_jacobian();
+    std::cout << "debug: scale_jacobian = ";    
     for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
     {
       jacobian_vec[j] = jacobians(0, j);
+      std::cout << jacobians(0, j) << " ";      
     }
+    std::cout << std::endl;
     scale_jacobian_history.push_back(jacobian_vec);    
+    // 5)
+    jacobians = dmp_edge->output_rel_change_jacobian();
+    std::cout << "debug: rel_change_jacobian = ";    
+    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+    {
+      jacobian_vec[j] = jacobians(0, j);
+      std::cout << jacobians(0, j) << " ";      
+    }
+    std::cout << std::endl;
+    rel_change_jacobian_history.push_back(jacobian_vec);    
+
+
 
     // store dmp updates
     std::cout << "Recording DMP updates.." << std::endl;
@@ -5066,20 +5160,22 @@ int main(int argc, char *argv[])
 
 
     // Reset q vertices to zeros for common initial condition
+    /*
     for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
     {
       DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+m));
       vertex_tmp->setToOriginImpl();
     }
+    */
 
     // 2 - Optimize q vertices
-    K_COL = 10.0;//10.0; //20.0; //10.0;
-    K_POS_LIMIT = 10.0; //30.0; //20.0; //10.0;
-    K_WRIST_ORI = 5.0;//4.0;//3.0; //2.0; //1.0;
-    K_WRIST_POS = 5.0;//4.0;//3.0; //2.0; //1.0;
-    K_ELBOW_POS = 2.0;//4.0;//1.0;
-    K_FINGER = 4.0;//3.0; //2.0; //1.0;
-    K_SMOOTHNESS = 10.0; //20.0; //10.0;
+    K_COL = 4.0;//10.0; //20.0; //10.0;
+    K_POS_LIMIT = 5.0; //30.0; //20.0; //10.0;
+    K_WRIST_ORI = 1.0;//4.0;//3.0; //2.0; //1.0;
+    K_WRIST_POS = 1.0;//4.0;//3.0; //2.0; //1.0;
+    K_ELBOW_POS = 1.0;//4.0;//1.0;
+    K_FINGER = 1.0;//3.0; //2.0; //1.0;
+    K_SMOOTHNESS = 2.0; //20.0; //10.0;
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", q stage: "<< std::endl;
     // Fix DMP starts and goals
     std::cout << "Fix DMP starts and goals." << std::endl;
@@ -5253,6 +5349,10 @@ int main(int argc, char *argv[])
                             scale_jacobian_history.size(), scale_jacobian_history[0].size(), scale_jacobian_history);
   std::cout << "scale_jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
+  result_flag = write_h5(out_file_name, in_group_name, "rel_change_jacobian_history", \
+                            rel_change_jacobian_history.size(), rel_change_jacobian_history[0].size(), rel_change_jacobian_history);
+  std::cout << "rel_change_jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
 
   result_flag = write_h5(out_file_name, in_group_name, "dmp_update_history", \
                             dmp_update_history.size(), dmp_update_history[0].size(), dmp_update_history);
@@ -5260,7 +5360,7 @@ int main(int argc, char *argv[])
 
 
   // Statistics:
-  std::cout << "Statistics: " << std::endl;
+  std::cout << ">>>> Statistics: " << std::endl;
   std::cout << "Collision checking " << count_col 
             << " times, with total time = " << total_col 
             << " s, average time = " << total_col / count_col << " s." << std::endl;

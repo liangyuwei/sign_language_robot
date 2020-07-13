@@ -284,20 +284,25 @@ int main(int argc, char **argv)
   KDL::ChainFkSolverPos_recursive right_fk_solver = fk_solver.setup_right_kdl();
 
   // New joint angles
-  Matrix<double, 7, 1> q_test = Matrix<double, 7, 1>::Zero();
+  // Matrix<double, 7, 1> q_test_l = Matrix<double, 7, 1>::Zero();
+  // Matrix<double, 7, 1> q_test_r = Matrix<double, 7, 1>::Zero();  
+  Matrix<double, 7, 1> q_test_l;
+  Matrix<double, 7, 1> q_test_r;
+  q_test_l << -1.5, -1.5, 1.5, 0.0, 0.0, 0.0, 0.0;
+  q_test_r << 1.5, -1.5, -1.5, 0.0, 0.0, 0.0, 0.0;
   
   // Perform FK
-  Vector3d l_wrist_pos = fk_solver.return_wrist_pos(left_fk_solver, q_test, true);
-  Vector3d r_wrist_pos = fk_solver.return_wrist_pos(right_fk_solver, q_test, false);
+  Vector3d l_wrist_pos = fk_solver.return_wrist_pos(left_fk_solver, q_test_l, true);
+  Vector3d r_wrist_pos = fk_solver.return_wrist_pos(right_fk_solver, q_test_r, false);
 
-  Vector3d l_elbow_pos = fk_solver.return_elbow_pos(left_fk_solver, q_test, true);
-  Vector3d r_elbow_pos = fk_solver.return_elbow_pos(right_fk_solver, q_test, false);
+  Vector3d l_elbow_pos = fk_solver.return_elbow_pos(left_fk_solver, q_test_l, true);
+  Vector3d r_elbow_pos = fk_solver.return_elbow_pos(right_fk_solver, q_test_r, false);
 
-  Vector3d l_shoulder_pos = fk_solver.return_shoulder_pos(left_fk_solver, q_test, true);
-  Vector3d r_shoulder_pos = fk_solver.return_shoulder_pos(right_fk_solver, q_test, false);
+  Vector3d l_shoulder_pos = fk_solver.return_shoulder_pos(left_fk_solver, q_test_l, true);
+  Vector3d r_shoulder_pos = fk_solver.return_shoulder_pos(right_fk_solver, q_test_r, false);
 
-  Matrix3d l_wrist_rot = fk_solver.return_wrist_ori(left_fk_solver, q_test, true);
-  Matrix3d r_wrist_rot = fk_solver.return_wrist_ori(right_fk_solver, q_test, false);
+  Matrix3d l_wrist_rot = fk_solver.return_wrist_ori(left_fk_solver, q_test_l, true);
+  Matrix3d r_wrist_rot = fk_solver.return_wrist_ori(right_fk_solver, q_test_r, false);
   // convert rotation matrix to quaternion for ease of validation in RViz
   Quaterniond l_wrist_quat(l_wrist_rot);
   Quaterniond r_wrist_quat(r_wrist_rot);
