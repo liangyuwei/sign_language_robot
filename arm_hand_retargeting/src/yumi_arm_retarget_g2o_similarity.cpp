@@ -102,6 +102,8 @@ double K_DMPSTARTSGOALS = 1.0;
 double K_DMPSCALEMARGIN = 1.0;
 double K_DMPRELCHANGE = 1.0;
 
+bool collision_check_or_distance_compute = true;
+
 using namespace g2o;
 using namespace Eigen;
 using namespace H5;
@@ -903,10 +905,19 @@ double DMPConstraints::compute_orien_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
 
   // get orientation error
   // pow makes the values smaller... 
-  double orien_cost = std::pow(std::max(lrw_theta - max_theta, 0.0), 2) +
+  double orien_cost = std::max(lrw_theta - max_theta, 0.0) +
+                      std::max(lew_theta - max_theta, 0.0) +
+                      std::max(rew_theta - max_theta, 0.0) +
+                      std::max(rw_theta - max_theta, 0.0); // l1 penalty
+  
+
+                      /* // l2 penalty
+                      std::pow(std::max(lrw_theta - max_theta, 0.0), 2) +
                       std::pow(std::max(lew_theta - max_theta, 0.0), 2) +
                       std::pow(std::max(rew_theta - max_theta, 0.0), 2) +
-                      std::pow(std::max(rw_theta - max_theta, 0.0), 2) ; // use pow() so that jacobian increases as the cost rises up, instead of staying the same...                     
+                      std::pow(std::max(rw_theta - max_theta, 0.0), 2) ; // use pow() so that jacobian increases as the cost rises up, instead of staying the same...     
+                      */
+
                       /*std::pow( std::max(lrw_theta - max_theta, 0.0) +
                                  std::max(lew_theta - max_theta, 0.0) +
                                  std::max(rew_theta - max_theta, 0.0) +
@@ -960,11 +971,19 @@ double DMPConstraints::compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
   //double scale_cost = std::pow(std::max(margin-max_margin, 0.0), 2); // add pow() to allow jacobian increase as the cost rises, instead of staying the same gradient
   // compromise: set 1.0+-ratio_bound as the region of expected scale
   double ratio_bound = 0.05; // within +-5%
-  double scale_cost = std::pow(std::max(std::fabs(lrw_ratio - 1.0) - ratio_bound, 0.0), 2) +
+  double scale_cost = std::max(std::fabs(lrw_ratio - 1.0) - ratio_bound, 0.0) +
+                      std::max(std::fabs(lew_ratio - 1.0) - ratio_bound, 0.0) + 
+                      std::max(std::fabs(rew_ratio - 1.0) - ratio_bound, 0.0) +
+                      std::max(std::fabs(rw_ratio - 1.0) - ratio_bound, 0.0) +
+                      std::max(margin-max_margin, 0.0); // l1 penalty
+
+                      /*
+                      std::pow(std::max(std::fabs(lrw_ratio - 1.0) - ratio_bound, 0.0), 2) +
                       std::pow(std::max(std::fabs(lew_ratio - 1.0) - ratio_bound, 0.0), 2) + 
                       std::pow(std::max(std::fabs(rew_ratio - 1.0) - ratio_bound, 0.0), 2) +
                       std::pow(std::max(std::fabs(rw_ratio - 1.0) - ratio_bound, 0.0), 2) +
-                      std::pow(std::max(margin-max_margin, 0.0), 2); // scale to 1, and scale margin cost
+                      std::pow(std::max(margin-max_margin, 0.0), 2); // l2 penalty
+                      */
 
   return scale_cost;
 
@@ -990,7 +1009,7 @@ double DMPConstraints::compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> 
   double rew_goal_change = (rew_new_goal.transpose() - this->rew_goal).norm();
 
   // set error
-  double max_margin = 0.01; // within 1 cm (a bad result displays 0.05 offset, calculated in MATLAB)
+  double max_margin = 0.01; // within 1 cm (a bad result displays 0.05 offset, calculated in MATLAB) // relax a few
   double rel_change_cost = std::max(lrw_start_change - max_margin, 0.0) +
                            std::max(lrw_goal_change - max_margin, 0.0) +
                            std::max(lew_start_change - max_margin, 0.0) +
@@ -1115,14 +1134,20 @@ void MyUnaryConstraints::linearizeOplus()
   
   // iterate to calculate jacobians
   double e_plus, e_minus;
-  double e_cur = -1;
+  // double e_cur = -1;
   for (unsigned int d = 0; d < JOINT_DOF; d++)
   {
     // 1 - Collision
     delta_x[d] = col_eps;
+    std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
+  
     e_plus = compute_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
     e_minus = compute_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
-    /*
+
+    // std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
+    // std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+    // std::cout << "spent " << t_0011.count() << " s." << std::endl;
+
     if (e_plus - e_minus > 3.0) // (4, 0), cope with possible numeric error
     {
       _jacobianOplusXi(0, d) = K_COL * simple_update; //(e_plus - e_minus) / (2*col_eps);
@@ -1133,45 +1158,15 @@ void MyUnaryConstraints::linearizeOplus()
     }
     else if (e_plus > 3.0 && e_minus > 3.0) // (4, 4), If within collision area, no gradients would be yielded.(no differences in costs), so turn to minimum distance (> 3.0 condition is to cope with possible numeric error)
     {
-      if(e_cur < 0.0)
-      {
-        std::cout << "debug: compute current penetration depth..." << std::endl;
-        e_cur = compute_distance_cost(x, dual_arm_dual_hand_collision_ptr);
-      }
-      std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-      std::cout << "debug: within collision area, use more accurate compute_self_distance() method: ";
-      e_plus = compute_distance_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-      // e_minus = compute_distance_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
-      std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-      std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-      std::cout << "spent " << t_spent.count() << " s." << std::endl;
-      // _jacobianOplusXi(0, d) = K_COL * (e_plus - e_minus) / (2*col_eps);
-      _jacobianOplusXi(0, d) = K_COL * (e_plus - e_cur) / col_eps;      
-    }
-    else // (0, 0), no need to update
-    {
-      _jacobianOplusXi(0, d) = 0.0;
-    }
-    */
-    
-    if (e_plus - e_minus > 3.0) // (4, 0), cope with possible numeric error
-    {
-      _jacobianOplusXi(0, d) = K_COL * simple_update; //(e_plus - e_minus) / (2*col_eps);
-    }
-    else if(e_plus - e_minus < -3.0) // (0, 4), cope with possible numeric error
-    {
-      _jacobianOplusXi(0, d) = K_COL * (-simple_update); //(e_plus - e_minus) / (2*col_eps);
-    }
-    else if (e_plus > 3.0 && e_minus > 3.0) // (4, 4), If within collision area, no gradients would be yielded.(no differences in costs), so turn to minimum distance (> 3.0 condition is to cope with possible numeric error)
-    {
+      // 1 - use last jacobian (not proper)
       //std::cout << "debug: within collision state, last col_jacobian is: " << col_jacobians[d] << std::endl;
       // _jacobianOplusXi(0, d) = K_COL * col_jacobians[d]; // inherit last jacobians??? // as long as step is small enough and initial state is non-colliding
       //_jacobianOplusXi(0, d) = K_COL * (simple_update);
       
-      // can't distinguish between deep inside collision area or 
-      _jacobianOplusXi(0, d) = 0.0;
+      // 2 - can't distinguish between deep inside collision area or not contributing to collision
+      // _jacobianOplusXi(0, d) = 0.0;
 
-      // find reference outside of collision area
+      // 3 - find reference outside of collision area (increase eps to find reliable points)
       /*
       double col_eps_tmp = col_eps;
       while ((e_plus > 3.0 && e_minus > 3.0) && col_eps_tmp <= 5.0 * M_PI / 180)
@@ -1198,7 +1193,25 @@ void MyUnaryConstraints::linearizeOplus()
         _jacobianOplusXi(0, d) = 0.0;
       }
       */
-      
+
+      // 4 - use penetration depth when in contact (more accurate compute_distance_cost())
+      if (collision_check_or_distance_compute)
+      {
+        _jacobianOplusXi(0, d) = 0.0;
+      }
+      else
+      {
+        // std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+        // std::cout << "debug: within collision area, use more accurate compute_self_distance() method: ";
+        e_plus = compute_distance_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+        e_minus = compute_distance_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+        // std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+        // std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+        // std::cout << "spent " << t_spent.count() << " s." << std::endl;
+        _jacobianOplusXi(0, d) = K_COL * (e_plus - e_minus) / (2*col_eps);
+        // std::cout << "gradient is " << _jacobianOplusXi(0, d) << std::endl;
+      }
+
     }
     else // (0, 0), no need to update
     {
@@ -1281,7 +1294,7 @@ double MyUnaryConstraints::compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_
   // 1
   // double cost = (min_distance + 1) * (min_distance + 1); // 1 for colliding state, -1 for non
   // 2
-  double margin_of_safety = 0.0;//0.01;
+  double margin_of_safety = 0.01;//0.0;//0.01;
   double cost = std::max(margin_of_safety - min_distance, 0.0); // <0 means colliding, >0 is ok
 
   return cost;
@@ -4732,7 +4745,7 @@ int main(int argc, char *argv[])
 
   // PreIteration
   K_COL = 2.0; // adjust weights according to actual jacobians result!!
-  K_POS_LIMIT = 5.0;//10.0;
+  K_POS_LIMIT = 5.0;
   K_WRIST_ORI = 1.0;
   K_WRIST_POS = 1.0;
   K_ELBOW_POS = 1.0;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
@@ -5245,14 +5258,14 @@ int main(int argc, char *argv[])
 
     // 1 - optimize DMP for a number of iterations
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", DMP stage: "<< std::endl;
-    K_WRIST_ORI = 0.1; //1.0; // actually useless since orientation data are specified independent of DMP !!! (the jacobian test checks it out!!)
-    K_WRIST_POS = 0.1; //1.0;
-    K_ELBOW_POS = 0.1; //1.0;
-    K_FINGER = 0.1; //1.0; // actually useless since finger data are specified independent of DMP !!!
+    K_WRIST_ORI = 0.1;  // actually useless since orientation data are specified independent of DMP !!! (the jacobian test checks it out!!)
+    K_WRIST_POS = 0.1; 
+    K_ELBOW_POS = 0.1; 
+    K_FINGER = 0.1;  // actually useless since finger data are specified independent of DMP !!!
     K_SIMILARITY = 100.0;  // nothing actually...
-    K_DMPSTARTSGOALS = 2.0;//5.0;//10.0;
-    K_DMPSCALEMARGIN = 2.0;//5.0;//10.0;
-    K_DMPRELCHANGE = 1.0; // relax a little to allow small variance
+    K_DMPSTARTSGOALS = 0.5;//1.0;//2.0;
+    K_DMPSCALEMARGIN = 0.5;//1.0;//2.0;
+    K_DMPRELCHANGE = 2.0;//1.0; // relax a little to allow small variance
     std::cout << "Fix q vertices." << std::endl;
     // fix q vertices
     for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
@@ -5461,7 +5474,7 @@ int main(int argc, char *argv[])
 
     // 2 - Optimize q vertices
     K_COL = 10.0;//4.0;//4.0;//20.0;//10.0;//5.0;//4.0;
-    K_POS_LIMIT = 5.0;//10.0;//5.0; 
+    K_POS_LIMIT = 10.0;//5.0;//10.0;//5.0; 
     K_WRIST_ORI = 1.0;
     K_WRIST_POS = 1.0;
     K_ELBOW_POS = 1.0;

@@ -251,12 +251,14 @@ double DualArmDualHandCollision::check_arm_self_collision(const std::vector<doub
 
 
   // Display information for debug
+  /*
   std::cout << "The robot is " << (this->collision_result_.collision ? "in" : "not in") << " self-collision." << std::endl;  
   std::cout << "Closest distance: " << this->collision_result_.distance << std::endl;
   for (auto it = this->collision_result_.contacts.begin(); it != this->collision_result_.contacts.end(); ++it)
   {
     std::cout << "Contact between: " << it->first.first.c_str() << " and " << it->first.second.c_str() << std::endl;
   }
+  */
 
 
   // Return the rsult
@@ -294,12 +296,14 @@ double DualArmDualHandCollision::check_hand_self_collision(const std::vector<dou
 
 
   // Display information for debug
+  /*
   std::cout << "The robot is " << (this->collision_result_.collision ? "in" : "not in") << " self-collision." << std::endl;  
   std::cout << "Closest distance: " << this->collision_result_.distance << std::endl;
   for (auto it = this->collision_result_.contacts.begin(); it != this->collision_result_.contacts.end(); ++it)
   {
     std::cout << "Contact between: " << it->first.first.c_str() << " and " << it->first.second.c_str() << std::endl;
   }
+  */
 
 
   // Return the rsult
@@ -414,6 +418,7 @@ double DualArmDualHandCollision::compute_self_distance(const std::vector<double>
   this->distance_request_.type = collision_detection::DistanceRequestType::SINGLE; // global minimum
   this->distance_request_.enableGroup(this->kinematic_model_); // specify which group to check
   this->distance_request_.acm = &(this->acm_); // specify acm to ignore adjacent links' collision check
+  this->distance_request_.distance_threshold = 0.02;//0.05; // compute only for objects within this threshold to each other
 
   this->distance_result_.clear();
 
@@ -689,6 +694,12 @@ int main(int argc, char **argv)
   double result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_col_hand_noncol_armhand_noncol);
   std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
   std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl;
+  t0 = std::chrono::steady_clock::now();
+  double result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance(q_arm_col_hand_noncol_armhand_noncol);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;
   // 2
   std::cout << ">> 2. (Arm Col, Hand Col, Arm-Hand Col) = (Y, N, Y): " << std::endl;
   std::vector<double> q_arm_col_hand_noncol_armhand_col(38);  
@@ -700,6 +711,12 @@ int main(int argc, char **argv)
   result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_col_hand_noncol_armhand_col);
   std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
   std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl;  
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance(q_arm_col_hand_noncol_armhand_col);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;  
   // 3
   std::cout << ">> 3. (Arm Col, Hand Col, Arm-Hand Col) = (Y, Y, Y): " << std::endl;
   std::vector<double> q_arm_col_hand_col_armhand_col(38);  
@@ -714,6 +731,12 @@ int main(int argc, char **argv)
   result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_col_hand_col_armhand_col);
   std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
   std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance(q_arm_col_hand_col_armhand_col);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;   
   // 4
   std::cout << ">> 4. (Arm Col, Hand Col, Arm-Hand Col) = (Y, Y, N): " << std::endl;
   std::vector<double> q_arm_col_hand_col_armhand_noncol(38);  
@@ -728,6 +751,12 @@ int main(int argc, char **argv)
   result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_col_hand_col_armhand_noncol);
   std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
   std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance(q_arm_col_hand_col_armhand_noncol);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;     
   // 5
   std::cout << ">> 5. (Arm Col, Hand Col, Arm-Hand Col) = (N, Y, Y): " << std::endl;
   std::vector<double> q_arm_noncol_hand_col_armhand_col(38);  
@@ -742,6 +771,12 @@ int main(int argc, char **argv)
   result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_noncol_hand_col_armhand_col);
   std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
   std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance(q_arm_noncol_hand_col_armhand_col);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;      
   // 6
   std::cout << ">> 6. (Arm Col, Hand Col, Arm-Hand Col) = (N, Y, N): " << std::endl;
   std::vector<double> q_arm_noncol_hand_col_armhand_noncol(38);  
@@ -756,6 +791,12 @@ int main(int argc, char **argv)
   result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_noncol_hand_col_armhand_noncol);
   std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
   std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance(q_arm_noncol_hand_col_armhand_noncol);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;      
   // 7
   std::cout << ">> 7. (Arm Col, Hand Col, Arm-Hand Col) = (N, N, Y): " << std::endl;
   std::vector<double> q_arm_noncol_hand_noncol_armhand_col(38);  
@@ -767,6 +808,12 @@ int main(int argc, char **argv)
   result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_noncol_hand_noncol_armhand_col);
   std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
   std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance(q_arm_noncol_hand_noncol_armhand_col);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;       
   // 8
   std::cout << ">> 8. (Arm Col, Hand Col, Arm-Hand Col) = (N, N, N): " << std::endl;
   std::vector<double> q_arm_noncol_hand_noncol_armhand_noncol(38);  
@@ -775,6 +822,12 @@ int main(int argc, char **argv)
   result2 = dual_arm_dual_hand_collision_ptr->check_hand_self_collision(q_arm_noncol_hand_noncol_armhand_noncol);
   std::cout << "Arms in collision: " << (result1 > 0 ? " yes" : "no") << std::endl;
   std::cout << "Hands in collision: " << (result2 > 0 ? " yes" : "no") << std::endl; 
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance(q_arm_noncol_hand_noncol_armhand_noncol);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;      
 
 
 
