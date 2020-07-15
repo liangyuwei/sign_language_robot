@@ -1291,15 +1291,18 @@ double MyUnaryConstraints::compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_
 
 double MyUnaryConstraints::compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q_whole, my_constraint_struct &fdata)
 {
+  // add safety margin for ease of limiting
+  double safety_margin = 0.01;
 
   // compute out-of-bound cost
   double cost = 0;
   for (unsigned int i = 0; i < JOINT_DOF; ++i)
   {
-    if (fdata.q_pos_ub[i] < q_whole[i])
-      cost += (q_whole[i] - fdata.q_pos_ub[i]) * (q_whole[i] - fdata.q_pos_ub[i]);
-    if (fdata.q_pos_lb[i] > q_whole[i])
-      cost += (fdata.q_pos_lb[i] - q_whole[i]) * (fdata.q_pos_lb[i] - q_whole[i]);
+    // within [lb+margin, ub-margin], sub-set of [lb, ub]
+    if (fdata.q_pos_ub[i] - safety_margin < q_whole[i])
+      cost += (q_whole[i] - fdata.q_pos_ub[i] + safety_margin) * (q_whole[i] - fdata.q_pos_ub[i] + safety_margin);
+    if (fdata.q_pos_lb[i] + safety_margin > q_whole[i])
+      cost += (fdata.q_pos_lb[i] + safety_margin - q_whole[i]) * (fdata.q_pos_lb[i] + safety_margin - q_whole[i]);
   }
 
   return cost;
@@ -2206,6 +2209,7 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     double cur_wrist_pos_cost;
     double cur_wrist_ori_cost;
     double cur_elbow_pos_cost;
+    double cur_finger_pos_cost; // for a single path point; used in compute_arm_cost() or compute_finger_cost()
     Matrix<double, 14, NUM_DATAPOINTS> wrist_pos_jacobian_for_q_arm;
     Matrix<double, 14, NUM_DATAPOINTS> wrist_ori_jacobian_for_q_arm;
     Matrix<double, 14, NUM_DATAPOINTS> elbow_pos_jacobian_for_q_arm;
@@ -2213,6 +2217,12 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     Matrix<double, DMPPOINTS_DOF, 1> wrist_pos_jacobian_for_dmp;
     Matrix<double, DMPPOINTS_DOF, 1> wrist_ori_jacobian_for_dmp;
     Matrix<double, DMPPOINTS_DOF, 1> elbow_pos_jacobian_for_dmp;    
+    Matrix<double, DMPPOINTS_DOF, 1> finger_pos_jacobian_for_dmp;
+
+    double cur_wrist_pos_cost_total;
+    double cur_wrist_ori_cost_total;
+    double cur_elbow_pos_cost_total;
+    double cur_finger_pos_cost_total; // for all path points; used in computeError()
 
     // Re-implement numeric differentiation
     virtual void linearizeOplus();
@@ -2411,7 +2421,7 @@ MatrixXd TrackingConstraint::output_q_jacobian()
 void TrackingConstraint::linearizeOplus()
 {
 
-  double dmp_eps = 0.02; //0.02; // maybe below 0.05
+  double dmp_eps = 0.001; // better be small enough so that gradients on different dimensions won't diverge too much
   double q_arm_eps = 2.0 * M_PI / 180; //0.5; // may need tests // in radius!!!
   double q_finger_eps = 2.0 * M_PI / 180; // in radius
   double e_plus, e_minus;
@@ -2419,6 +2429,7 @@ void TrackingConstraint::linearizeOplus()
   double e_wrist_pos_plus, e_wrist_pos_minus;  
   double e_wrist_ori_plus, e_wrist_ori_minus;
   double e_elbow_pos_plus, e_elbow_pos_minus;
+  double e_finger_pos_plus, e_finger_pos_minus;
 
   // double dmp_update_bound = 10; //20; //50;//1; //5; // 10;
   // double scale = 0.1;
@@ -2437,16 +2448,18 @@ void TrackingConstraint::linearizeOplus()
     v->setEstimate(x+delta_x);
     this->computeError();
     e_plus = _error(0, 0);
-    e_wrist_pos_plus = this->cur_wrist_pos_cost; // record after calling compute_arm_cost()
-    e_wrist_ori_plus = this->cur_wrist_ori_cost;
-    e_elbow_pos_plus = this->cur_elbow_pos_cost;
+    e_wrist_pos_plus = this->cur_wrist_pos_cost_total; // record after calling computeError(); different from that for q
+    e_wrist_ori_plus = this->cur_wrist_ori_cost_total;
+    e_elbow_pos_plus = this->cur_elbow_pos_cost_total;
+    e_finger_pos_plus = this->cur_finger_pos_cost_total;
 
     v->setEstimate(x-delta_x);
     this->computeError();
     e_minus = _error(0, 0);
-    e_wrist_pos_minus = this->cur_wrist_pos_cost; // record after calling compute_arm_cost()
-    e_wrist_ori_minus = this->cur_wrist_ori_cost;
-    e_elbow_pos_minus = this->cur_elbow_pos_cost;    
+    e_wrist_pos_minus = this->cur_wrist_pos_cost_total; // record after calling computeError(); different from that for q 
+    e_wrist_ori_minus = this->cur_wrist_ori_cost_total;
+    e_elbow_pos_minus = this->cur_elbow_pos_cost_total; 
+    e_finger_pos_minus = this->cur_finger_pos_cost_total;   
 
     // reset delta
     delta_x[n] = 0.0;
@@ -2457,6 +2470,7 @@ void TrackingConstraint::linearizeOplus()
     wrist_pos_jacobian_for_dmp[n] = K_WRIST_POS * (e_wrist_pos_plus - e_wrist_pos_minus) / ( 2 * dmp_eps);
     wrist_ori_jacobian_for_dmp[n] = K_WRIST_ORI * (e_wrist_ori_plus - e_wrist_ori_minus) / ( 2 * dmp_eps);
     elbow_pos_jacobian_for_dmp[n] = K_ELBOW_POS * (e_elbow_pos_plus - e_elbow_pos_minus) / ( 2 * dmp_eps); // remember to change the eps !!
+    finger_pos_jacobian_for_dmp[n] = K_FINGER * (e_finger_pos_plus - e_finger_pos_minus) / (2 * dmp_eps);
 
     // set bounds for DMP jacobians
     /*
@@ -2468,6 +2482,18 @@ void TrackingConstraint::linearizeOplus()
 
     // store jacobians
     this->jacobians_for_dmp[n] = _jacobianOplus[0](0, n);
+
+
+    // tmp debug:
+    /*
+    std::cout << "debug: current gradient = " << this->jacobians_for_dmp[n] << std::endl;
+    std::cout << "debug: current wrist_pos gradient = " << wrist_pos_jacobian_for_dmp[n] << std::endl;
+    std::cout << "debug: current wrist_ori gradient = " << wrist_ori_jacobian_for_dmp[n] << std::endl;
+    std::cout << "debug: current elbow_pos gradient = " << elbow_pos_jacobian_for_dmp[n] << std::endl;
+    std::cout << "debug: current finger_pos gradient = " << finger_pos_jacobian_for_dmp[n] << std::endl;
+
+    double p=0;
+    */
 
   }
   // reset vertex value
@@ -3065,6 +3091,10 @@ double TrackingConstraint::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
   
   // Compute cost
   double finger_cost = (q_finger_robot_goal - q_finger_robot).norm();
+
+
+  // store for debug
+  this->cur_finger_pos_cost = finger_cost;
 
 
   if (left_or_right)
@@ -3830,6 +3860,11 @@ void TrackingConstraint::computeError()
   // Iterate to compute costs
   double cost = 0;
   double total_cost = 0;
+  // store for debug
+  this->cur_wrist_pos_cost_total = 0;
+  this->cur_wrist_ori_cost_total = 0;
+  this->cur_elbow_pos_cost_total = 0;
+  this->cur_finger_pos_cost_total = 0;  
   for (unsigned int n = 0; n < num_datapoints; n++)
   {
     // get the current joint value
@@ -3921,7 +3956,13 @@ void TrackingConstraint::computeError()
     // Compute unary costs
     // 1
     double arm_cost = compute_arm_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
+    this->cur_wrist_pos_cost_total += this->cur_wrist_pos_cost;
+    this->cur_wrist_ori_cost_total += this->cur_wrist_ori_cost;
+    this->cur_elbow_pos_cost_total += this->cur_elbow_pos_cost;
     arm_cost += compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
+    this->cur_wrist_pos_cost_total += this->cur_wrist_pos_cost;
+    this->cur_wrist_ori_cost_total += this->cur_wrist_ori_cost;
+    this->cur_elbow_pos_cost_total += this->cur_elbow_pos_cost;
     //std::cout << "Arm cost=";
     //std::cout << arm_cost << ", ";
 
@@ -3935,6 +3976,8 @@ void TrackingConstraint::computeError()
     cost = arm_cost + K_FINGER * finger_cost; // arm_cost is already weighted in compute_arm_cost()
     //std::cout << "debug: arm_cost = " << arm_cost << ", finger_cost = " << finger_cost << std::endl;
     total_cost += cost;
+
+    this->cur_finger_pos_cost_total += K_FINGER * finger_cost;  
 
   }
 
@@ -4692,11 +4735,11 @@ int main(int argc, char *argv[])
   K_POS_LIMIT = 5.0;//10.0;
   K_WRIST_ORI = 1.0;
   K_WRIST_POS = 1.0;
-  K_ELBOW_POS = 1.0;
+  K_ELBOW_POS = 1.0;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
   K_FINGER = 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
   K_SMOOTHNESS = 2.0;
   std::cout << ">>>> Pre Iteration..." << std::endl;
-  if(pre_iteration)
+  if(pre_iteration)   
   { 
     std::cout << "Load pre-iteration results from last time..." << std::endl;
     // read from file
@@ -5202,14 +5245,14 @@ int main(int argc, char *argv[])
 
     // 1 - optimize DMP for a number of iterations
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", DMP stage: "<< std::endl;
-    K_WRIST_ORI = 0.1;//1.0;//0.2;
-    K_WRIST_POS = 0.1;//1.0;//0.1;
-    K_ELBOW_POS = 0.1;//1.0;//0.1;
-    K_FINGER = 0.1;//1.0;//0.1;
-    K_SIMILARITY = 100.0; 
-    K_DMPSTARTSGOALS = 10.0;//100.0;
-    K_DMPSCALEMARGIN = 10.0;//100.0;
-    K_DMPRELCHANGE = 10.0; // relax a little to allow small variance
+    K_WRIST_ORI = 0.1; //1.0; // actually useless since orientation data are specified independent of DMP !!! (the jacobian test checks it out!!)
+    K_WRIST_POS = 0.1; //1.0;
+    K_ELBOW_POS = 0.1; //1.0;
+    K_FINGER = 0.1; //1.0; // actually useless since finger data are specified independent of DMP !!!
+    K_SIMILARITY = 100.0;  // nothing actually...
+    K_DMPSTARTSGOALS = 2.0;//5.0;//10.0;
+    K_DMPSCALEMARGIN = 2.0;//5.0;//10.0;
+    K_DMPRELCHANGE = 1.0; // relax a little to allow small variance
     std::cout << "Fix q vertices." << std::endl;
     // fix q vertices
     for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
@@ -5221,6 +5264,7 @@ int main(int argc, char *argv[])
     std::cout << "Optimizing DMP..." << std::endl;
     unsigned int dmp_iter = optimizer.optimize(dmp_per_iterations);
     // Save cost history
+    std::cout << ">>>> Costs <<<<" << std::endl;
     // 1)
     std::cout << "Recording tracking cost, similarity cost and DMP costs..." << std::endl;
     // 3)  
@@ -5318,6 +5362,7 @@ int main(int argc, char *argv[])
 
 
     // Save Jacobians of constraints w.r.t DMP starts and goals
+    std::cout << ">>>> Jacobians <<<<" << std::endl;
     std::cout << "Recording DMP jacobians.." << std::endl;
     MatrixXd jacobians(1, DMPPOINTS_DOF);    
     // 1)
@@ -5376,12 +5421,15 @@ int main(int argc, char *argv[])
     Matrix<double, DMPPOINTS_DOF, 1> wrist_pos_jacobian_for_dmp;
     Matrix<double, DMPPOINTS_DOF, 1> wrist_ori_jacobian_for_dmp;
     Matrix<double, DMPPOINTS_DOF, 1> elbow_pos_jacobian_for_dmp;
+    Matrix<double, DMPPOINTS_DOF, 1> finger_pos_jacobian_for_dmp;
     wrist_pos_jacobian_for_dmp = tracking_edge->wrist_pos_jacobian_for_dmp;
     wrist_ori_jacobian_for_dmp = tracking_edge->wrist_ori_jacobian_for_dmp;
     elbow_pos_jacobian_for_dmp = tracking_edge->elbow_pos_jacobian_for_dmp;    
-    std::cout << "Norms of wrist_pos_jacobian_for_dmp = " << wrist_pos_jacobian_for_dmp.transpose() << std::endl;
-    std::cout << "Norms of wrist_ori_jacobian_for_dmp = " << wrist_ori_jacobian_for_dmp.transpose() << std::endl;
-    std::cout << "Norms of elbow_pos_jacobian_for_dmp = " << elbow_pos_jacobian_for_dmp.transpose() << std::endl;
+    finger_pos_jacobian_for_dmp = tracking_edge->finger_pos_jacobian_for_dmp;    
+    std::cout << "debug: wrist_pos_jacobian_for_dmp = " << wrist_pos_jacobian_for_dmp.transpose() << std::endl;
+    std::cout << "debug: wrist_ori_jacobian_for_dmp = " << wrist_ori_jacobian_for_dmp.transpose() << std::endl;
+    std::cout << "debug: elbow_pos_jacobian_for_dmp = " << elbow_pos_jacobian_for_dmp.transpose() << std::endl;
+    std::cout << "debug: finger_pos_jacobian_for_dmp = " << finger_pos_jacobian_for_dmp.transpose() << std::endl;
 
 
     // store dmp updates
@@ -5412,13 +5460,13 @@ int main(int argc, char *argv[])
     */
 
     // 2 - Optimize q vertices
-    K_COL = 4.0;
-    K_POS_LIMIT = 5.0; 
+    K_COL = 10.0;//4.0;//4.0;//20.0;//10.0;//5.0;//4.0;
+    K_POS_LIMIT = 5.0;//10.0;//5.0; 
     K_WRIST_ORI = 1.0;
     K_WRIST_POS = 1.0;
     K_ELBOW_POS = 1.0;
     K_FINGER = 1.0;
-    K_SMOOTHNESS = 2.0; 
+    K_SMOOTHNESS = 2.0;//4.0;//2.0; 
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", q stage: "<< std::endl;
     // Fix DMP starts and goals
     std::cout << "Fix DMP starts and goals." << std::endl;
@@ -5431,6 +5479,10 @@ int main(int argc, char *argv[])
     std::cout << "Recording collision cost, position limit cost, smoothness cost and tracking cost..." << std::endl;
     std::vector<double> col_cost;
     std::vector<double> pos_limit_cost;
+    
+    //
+    std::cout << ">> Costs <<" << std::endl;
+
     for (unsigned int t = 0; t < unary_edges.size(); t++)
     {
       col_cost.push_back(unary_edges[t]->return_col_cost());
@@ -5519,6 +5571,9 @@ int main(int argc, char *argv[])
       std::cout << finger_cost[s] << " ";
     std::cout << std::endl;   
 
+    //
+    std::cout << ">> Jacobians <<" << std::endl;
+
     // output jacobians of wrist_pos, wrist_ori and elbow_pos costs for q vertices
     Matrix<double, 14, NUM_DATAPOINTS> wrist_pos_jacobian_for_q_arm;
     Matrix<double, 14, NUM_DATAPOINTS> wrist_ori_jacobian_for_q_arm;
@@ -5544,6 +5599,75 @@ int main(int argc, char *argv[])
       std::cout << elbow_pos_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
     }
     std::cout << std::endl;
+
+    // output collision jacobians for debug
+    std::cout << "Norms of col_jacobians = ";
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      std::cout << unary_edges[n]->col_jacobians.norm() << " ";
+    }
+    std::cout << std::endl;
+
+    // output position limit jacobians for debug
+    std::cout << "Norms of pos_limit_jacobians = ";
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      std::cout << unary_edges[n]->pos_limit_jacobians.norm() << " ";
+    }
+    std::cout << std::endl;
+
+    // output jacobians of unary edges for q vertices
+    std::cout << "Norms of unary_jacobians = ";
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      std::cout << unary_edges[n]->whole_jacobians.norm() << " ";
+    }
+    std::cout << std::endl;
+
+    // output jacobians of Tracking edge for q vertices
+    std::cout << "Norms of tracking_q_jacobians = ";
+    Matrix<double, NUM_DATAPOINTS, JOINT_DOF> q_jacobian = tracking_edge->output_q_jacobian();
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      std::cout << q_jacobian.block(n, 0, 1, JOINT_DOF).norm() << " ";
+    }
+    std::cout << std::endl;    
+
+    // output jacobians of wrist_pos, wrist_ori and elbow_pos costs for *** q vertices ***
+    // Matrix<double, 14, NUM_DATAPOINTS> wrist_pos_jacobian_for_q_arm;
+    // Matrix<double, 14, NUM_DATAPOINTS> wrist_ori_jacobian_for_q_arm;
+    // Matrix<double, 14, NUM_DATAPOINTS> elbow_pos_jacobian_for_q_arm;
+    wrist_pos_jacobian_for_q_arm = tracking_edge->wrist_pos_jacobian_for_q_arm;
+    wrist_ori_jacobian_for_q_arm = tracking_edge->wrist_ori_jacobian_for_q_arm;
+    elbow_pos_jacobian_for_q_arm = tracking_edge->elbow_pos_jacobian_for_q_arm;
+    std::cout << "Norms of wrist_pos_jacobian_for_q_arm = ";
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      std::cout << wrist_pos_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "Norms of wrist_ori_jacobian_for_q_arm = ";
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      std::cout << wrist_ori_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
+    }
+    std::cout << std::endl;
+    std::cout << "Norms of elbow_pos_jacobian_for_q_arm = ";
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      std::cout << elbow_pos_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
+    }
+    std::cout << std::endl;
+
+    // output jacobians of Smoothness edge for q vertices
+    std::cout << "Norms of smoothness_q_jacobian = ";
+    Matrix<double, 2, JOINT_DOF> smoothness_q_jacobian;
+    for (unsigned int n = 0; n < NUM_DATAPOINTS-1; n++)
+    {
+      smoothness_q_jacobian = smoothness_edges[n]->output_q_jacobian();
+      std::cout << smoothness_q_jacobian.norm() << " ";
+    }
+    std::cout << std::endl; 
 
 
     // reset
