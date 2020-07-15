@@ -5064,7 +5064,7 @@ int main(int argc, char *argv[])
     if(K_COL >= K_COL_MAX && K_SMOOTHNESS >= K_SMOOTHNESS_MAX && K_POS_LIMIT >= K_POS_LIMIT_MAX)
       break;
 
-    }while(tmp_col_cost > 1.0 || tmp_col_cost > 1.0 || tmp_pos_limit_cost > 0.0); // to cope with possible numeric error
+    }while(tmp_col_cost > 1.0 || tmp_smoothness_cost > 5.0 || tmp_pos_limit_cost > 0.0); // to cope with possible numeric error
 
     std::cout << "Final weights: K_COL = " << K_COL 
               << ", K_SMOOTHNESS = " << K_SMOOTHNESS 
