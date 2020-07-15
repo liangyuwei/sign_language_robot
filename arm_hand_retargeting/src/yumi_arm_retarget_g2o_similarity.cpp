@@ -4744,13 +4744,16 @@ int main(int argc, char *argv[])
   */
 
   // PreIteration
-  K_COL = 2.0; // adjust weights according to actual jacobians result!!
-  K_POS_LIMIT = 5.0;
+  K_COL = 1.0;//2.0; // adjust weights according to actual jacobians result!!
+  K_POS_LIMIT = 1.0;//5.0;
   K_WRIST_ORI = 1.0;
   K_WRIST_POS = 1.0;
   K_ELBOW_POS = 1.0;                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
   K_FINGER = 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
-  K_SMOOTHNESS = 2.0;
+  K_SMOOTHNESS = 1.0;//2.0;
+  double K_COL_MAX = 10.0;
+  double K_POS_LIMIT_MAX = 10.0;
+  double K_SMOOTHNESS_MAX = 10.0;
   std::cout << ">>>> Pre Iteration..." << std::endl;
   if(pre_iteration)   
   { 
@@ -4824,10 +4827,12 @@ int main(int argc, char *argv[])
       std::cout << finger_cost_tmp[s] << " ";
     std::cout << std::endl;
 
-    /*
-    double col_cost;
+
+    double tmp_col_cost;
+    double tmp_smoothness_cost;
+    double tmp_pos_limit_cost;
     do{
-    */
+    
 
     // Reset q vertices to zeros for common initial condition
     /*
@@ -4999,16 +5004,22 @@ int main(int argc, char *argv[])
 
     // tmp: check costs
     std::cout << "Collision costs: ";
+    tmp_col_cost = 0.0;
     for (unsigned int t = 0; t < unary_edges.size(); t++)
     {
-      std::cout << unary_edges[t]->return_col_cost() << " ";
+      double c = unary_edges[t]->return_col_cost();
+      std::cout << c << " ";
+      tmp_col_cost += c;
     }
     std::cout << std::endl;
     // 2
     std::cout << "Pos Limit costs: ";
+    tmp_pos_limit_cost = 0.0;
     for (unsigned int t = 0; t < unary_edges.size(); t++)
     {
-      std::cout << unary_edges[t]->return_pos_limit_cost() << " ";
+      double p = unary_edges[t]->return_pos_limit_cost();
+      std::cout << p << " ";
+      tmp_pos_limit_cost += p;
     }
     std::cout << std::endl;
     // 3
@@ -5021,37 +5032,46 @@ int main(int argc, char *argv[])
     std::cout << "Similarity edge's values: " << cost_display << std::endl;  
     // 5
     std::cout << "Smoothness edges' values: ";
+    tmp_smoothness_cost = 0.0;
     for (unsigned int t = 0; t < smoothness_edges.size(); t++)
     {
-      std::cout << smoothness_edges[t]->return_smoothness_cost() << " ";
+      double s = smoothness_edges[t]->return_smoothness_cost();
+      std::cout << s << " ";
+      tmp_smoothness_cost += s;
     }    
     std::cout << std::endl;
 
-    /*
-    // check if collision avoidance is 
-    col_cost = 0.0;
-    for (unsigned int t = 0; t < unary_edges.size(); t++)
-    {
-      col_cost += unary_edges[t]->return_col_cost();      
-    }
     
-    if (col_cost > 1.0) // to cope with possible numeric error
+    // check if constraints met
+    double scale = 1.2; // increase 10% each time, takes about 7 times to double up
+    if (tmp_col_cost > 1.0 && K_COL * scale <= K_COL_MAX) // to cope with possible numeric error
     {
-      K_COL = K_COL * 10.0; //* 2.0;//10.0;//2.0;// 150.0; //* 200;//* 100;//+ 2; //* 2; //10;//2;
-      // K_COL *= 10.0;//1.0;//30;//50.0; // difference is 4... jacobian would be 4 * K_COL. so no need to set huge K_COL
-      // K_POS_LIMIT = 10.0; //5.0;//10.0;
-      // K_WRIST_ORI = 1.0; // 1.0;
-      // K_WRIST_POS = 1.0; // 1.0;
-      // K_ELBOW_POS = 1.0; // 1.0;
-      // K_FINGER = 1.0; //2.0; // 1.0; // finger angle is updated independently(jacobians!!), setting a large weight to it wouldn't affect others, only accelerate the speed
-      // K_SMOOTHNESS = 10.0;//4.0; //10.0;
+      K_COL = K_COL * scale;
     }
 
-    }while(col_cost > 1.0); // to cope with possible numeric error
+    if (tmp_smoothness_cost > 5.0 && K_SMOOTHNESS * scale <= K_SMOOTHNESS_MAX)
+    {
+      K_SMOOTHNESS = K_SMOOTHNESS * scale;
+    }
 
-    std::cout << "Best weight for collision cost: K_COL = " << K_COL << std::endl;
-    */
+    if (tmp_pos_limit_cost > 0.0 && K_POS_LIMIT * scale <= K_POS_LIMIT_MAX)
+    {
+      K_POS_LIMIT = K_POS_LIMIT * scale;
+    }
 
+    std::cout << "New coefficients: K_COL = " <<  K_COL << ", K_SMOOTHNESS = " << K_SMOOTHNESS << ", K_POS_LIMIT = " << K_POS_LIMIT << std::endl;
+
+    if(K_COL >= K_COL_MAX && K_SMOOTHNESS >= K_SMOOTHNESS_MAX && K_POS_LIMIT >= K_POS_LIMIT_MAX)
+      break;
+
+    }while(tmp_col_cost > 1.0 || tmp_col_cost > 1.0 || tmp_pos_limit_cost > 0.0); // to cope with possible numeric error
+
+    std::cout << "Final weights: K_COL = " << K_COL 
+              << ", K_SMOOTHNESS = " << K_SMOOTHNESS 
+              << ", K_POS_LIMIT = " << K_POS_LIMIT 
+              << ", with col_cost = " << tmp_col_cost
+              << ", smoothness_cost = " << tmp_smoothness_cost
+              << ", pos_limit_cost = " << tmp_pos_limit_cost << std::endl;
 
     // store preIteration results for reuse
     std::vector<std::vector<double> > preiter_q_results;
