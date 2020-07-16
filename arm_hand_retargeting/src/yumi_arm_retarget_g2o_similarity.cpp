@@ -1208,7 +1208,7 @@ void MyUnaryConstraints::linearizeOplus()
         // std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
         // std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
         // std::cout << "spent " << t_spent.count() << " s." << std::endl;
-        _jacobianOplusXi(0, d) = K_COL * (e_plus - e_minus) / (2*col_eps);
+        _jacobianOplusXi(0, d) = 10 * K_COL * (e_plus - e_minus) / (2*col_eps); // set it higher...
         // std::cout << "gradient is " << _jacobianOplusXi(0, d) << std::endl;
       }
 
@@ -1487,7 +1487,7 @@ double MyUnaryConstraints::return_col_cost()
   q_cur_finger_l = x.block<12, 1>(14, 0);
   q_cur_finger_r = x.block<12, 1>(26, 0); 
   
-  // 3
+  // 3 (for ease of distinction, won't use distance_computation here)
   double collision_cost = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
   //std::cout << "Collision cost=";
   //std::cout << collision_cost << ", ";
@@ -4755,6 +4755,7 @@ int main(int argc, char *argv[])
   double K_POS_LIMIT_MAX = 10.0;
   double K_SMOOTHNESS_MAX = 10.0;
   std::cout << ">>>> Pre Iteration..." << std::endl;
+  std::chrono::steady_clock::time_point t_p0 = std::chrono::steady_clock::now();
   if(pre_iteration)   
   { 
     std::cout << "Load pre-iteration results from last time..." << std::endl;
@@ -4787,6 +4788,17 @@ int main(int argc, char *argv[])
     std::vector<double> r_elbow_pos_cost_tmp = tracking_edge->return_r_elbow_pos_cost_history();
 
     std::vector<double> finger_cost_tmp = tracking_edge->return_finger_cost_history();
+    
+    // save to history
+    wrist_pos_cost_history.push_back(wrist_pos_cost_tmp);
+    l_wrist_pos_cost_history.push_back(l_wrist_pos_cost_tmp);
+    r_wrist_pos_cost_history.push_back(r_wrist_pos_cost_tmp);
+    wrist_ori_cost_history.push_back(wrist_ori_cost_tmp);
+    elbow_pos_cost_history.push_back(elbow_pos_cost_tmp);
+    l_elbow_pos_cost_history.push_back(l_elbow_pos_cost_tmp);
+    r_elbow_pos_cost_history.push_back(r_elbow_pos_cost_tmp);
+    finger_cost_history.push_back(finger_cost_tmp);
+
     std::cout << "wrist_pos_cost = ";
     for (unsigned int s = 0; s < wrist_pos_cost_tmp.size(); s++)
       std::cout << wrist_pos_cost_tmp[s] << " ";
@@ -4874,6 +4886,16 @@ int main(int argc, char *argv[])
     r_elbow_pos_cost_tmp = tracking_edge->return_r_elbow_pos_cost_history();
     
     finger_cost_tmp = tracking_edge->return_finger_cost_history();
+
+    // save to history
+    wrist_pos_cost_history.push_back(wrist_pos_cost_tmp);
+    l_wrist_pos_cost_history.push_back(l_wrist_pos_cost_tmp);
+    r_wrist_pos_cost_history.push_back(r_wrist_pos_cost_tmp);
+    wrist_ori_cost_history.push_back(wrist_ori_cost_tmp);
+    elbow_pos_cost_history.push_back(elbow_pos_cost_tmp);
+    l_elbow_pos_cost_history.push_back(l_elbow_pos_cost_tmp);
+    r_elbow_pos_cost_history.push_back(r_elbow_pos_cost_tmp);
+    finger_cost_history.push_back(finger_cost_tmp);
 
     std::cout << "wrist_pos_cost = ";
     for (unsigned int s = 0; s < wrist_pos_cost_tmp.size(); s++)
@@ -5004,24 +5026,30 @@ int main(int argc, char *argv[])
 
     // tmp: check costs
     std::cout << "Collision costs: ";
+    std::vector<double> col_cost;
     tmp_col_cost = 0.0;
     for (unsigned int t = 0; t < unary_edges.size(); t++)
     {
       double c = unary_edges[t]->return_col_cost();
       std::cout << c << " ";
       tmp_col_cost += c;
+      col_cost.push_back(c); // store for display
     }
     std::cout << std::endl;
+    col_cost_history.push_back(col_cost); // save for display
     // 2
     std::cout << "Pos Limit costs: ";
     tmp_pos_limit_cost = 0.0;
+    std::vector<double> pos_limit_cost;
     for (unsigned int t = 0; t < unary_edges.size(); t++)
     {
       double p = unary_edges[t]->return_pos_limit_cost();
       std::cout << p << " ";
       tmp_pos_limit_cost += p;
+      pos_limit_cost.push_back(p);
     }
     std::cout << std::endl;
+    pos_limit_cost_history.push_back(pos_limit_cost);
     // 3
     tracking_edge->computeError();
     double cost_display = tracking_edge->error()[0];
@@ -5032,29 +5060,32 @@ int main(int argc, char *argv[])
     std::cout << "Similarity edge's values: " << cost_display << std::endl;  
     // 5
     std::cout << "Smoothness edges' values: ";
+    std::vector<double> smoothness_cost;
     tmp_smoothness_cost = 0.0;
     for (unsigned int t = 0; t < smoothness_edges.size(); t++)
     {
       double s = smoothness_edges[t]->return_smoothness_cost();
       std::cout << s << " ";
       tmp_smoothness_cost += s;
+      smoothness_cost.push_back(s); // store for display
     }    
     std::cout << std::endl;
+    smoothness_cost_history.push_back(smoothness_cost);
 
     
     // check if constraints met
     double scale = 1.2; // increase 10% each time, takes about 7 times to double up
-    if (tmp_col_cost > 1.0 && K_COL * scale <= K_COL_MAX) // to cope with possible numeric error
+    if (tmp_col_cost > 1.0 && K_COL <= K_COL_MAX) // to cope with possible numeric error
     {
       K_COL = K_COL * scale;
     }
 
-    if (tmp_smoothness_cost > 5.0 && K_SMOOTHNESS * scale <= K_SMOOTHNESS_MAX)
+    if (tmp_smoothness_cost > 0.1 * 50 && K_SMOOTHNESS <= K_SMOOTHNESS_MAX)
     {
       K_SMOOTHNESS = K_SMOOTHNESS * scale;
     }
 
-    if (tmp_pos_limit_cost > 0.0 && K_POS_LIMIT * scale <= K_POS_LIMIT_MAX)
+    if (tmp_pos_limit_cost > 0.0 && K_POS_LIMIT <= K_POS_LIMIT_MAX)
     {
       K_POS_LIMIT = K_POS_LIMIT * scale;
     }
@@ -5064,7 +5095,9 @@ int main(int argc, char *argv[])
     if(K_COL >= K_COL_MAX && K_SMOOTHNESS >= K_SMOOTHNESS_MAX && K_POS_LIMIT >= K_POS_LIMIT_MAX)
       break;
 
-    }while(tmp_col_cost > 1.0 || tmp_smoothness_cost > 5.0 || tmp_pos_limit_cost > 0.0); // to cope with possible numeric error
+    }while( (K_COL <= K_COL_MAX && tmp_col_cost > 1.0) || 
+            (K_SMOOTHNESS <= K_SMOOTHNESS_MAX && tmp_smoothness_cost > 0.02*50) || 
+            (K_POS_LIMIT <= K_POS_LIMIT_MAX && tmp_pos_limit_cost > 0.0) ); // to cope with possible numeric error
 
     std::cout << "Final weights: K_COL = " << K_COL 
               << ", K_SMOOTHNESS = " << K_SMOOTHNESS 
@@ -5072,6 +5105,84 @@ int main(int argc, char *argv[])
               << ", with col_cost = " << tmp_col_cost
               << ", smoothness_cost = " << tmp_smoothness_cost
               << ", pos_limit_cost = " << tmp_pos_limit_cost << std::endl;
+
+    // in case deep inside collision area
+    if (tmp_col_cost > 1.0) // still in collision, very likely it's stuck deep inside collision area
+    {
+      std::cout << ">>>> Possible stubborn collision state exists, collision checking cannot resolve it, turn to distance computation (penetration depth)..." << std::endl;
+     
+      // choose distance_computation mode
+      collision_check_or_distance_compute = false;
+
+      double scale = 1.2; 
+      unsigned max_round = 10; // maximum number of rounds, in case of dead loop
+      unsigned cur_round = 0;
+      // iterate to solve stubborn collision checking, and preserve pos_limit at the same time
+      do{
+        // iterate to solve collision problem
+        optimizer.optimize(50);//(300);
+        cur_round++;
+
+        // compute constraint values
+        // smoothness
+        std::vector<double> smoothness_cost;
+        tmp_smoothness_cost = 0.0;
+        for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+        {
+          double s = smoothness_edges[t]->return_smoothness_cost();
+          tmp_smoothness_cost += s;
+          smoothness_cost.push_back(s); // store for display
+        }    
+        smoothness_cost_history.push_back(smoothness_cost);
+        // collision
+        tmp_col_cost = 0.0;
+        std::vector<double> col_cost;
+        for (unsigned int t = 0; t < unary_edges.size(); t++)
+        {
+          double c = unary_edges[t]->return_col_cost();
+          tmp_col_cost += c;
+          col_cost.push_back(c);
+        }
+        col_cost_history.push_back(col_cost);
+        // pos_limit
+        tmp_pos_limit_cost = 0.0;
+        std::vector<double> pos_limit_cost;
+        for (unsigned int t = 0; t < unary_edges.size(); t++)
+        {
+          double p = unary_edges[t]->return_pos_limit_cost();
+          tmp_pos_limit_cost += p;
+          pos_limit_cost.push_back(p);
+        }
+        pos_limit_cost_history.push_back(pos_limit_cost);
+
+        // check if constraints met
+        if (tmp_col_cost > 1.0) // to cope with possible numeric error
+        {
+          K_COL = K_COL * scale;
+        }
+
+        if (tmp_smoothness_cost > 0.1 * 50)
+        {
+          K_SMOOTHNESS = K_SMOOTHNESS * scale;
+        }
+
+        if (tmp_pos_limit_cost > 0.0 )
+        {
+          K_POS_LIMIT = K_POS_LIMIT * scale;
+        }
+
+      }while( (tmp_col_cost > 1.0 || tmp_pos_limit_cost > 0.0) && cur_round < max_round );
+
+      // close distance_computation mode
+      collision_check_or_distance_compute = true;//false; // reset 
+
+      std::cout << "Final processing took " << (cur_round + 1) << " rounds." << std::endl;
+      std::cout << "Final collision cost after using distance_computation: " << tmp_col_cost << std::endl;
+      if (tmp_col_cost > 1.0)
+            std::cout << ">>>> The result optimized by distance_computation is still in collision, better not use this result !!!!" << std::endl;
+
+    }
+
 
     // store preIteration results for reuse
     std::vector<std::vector<double> > preiter_q_results;
@@ -5095,6 +5206,11 @@ int main(int argc, char *argv[])
     std::cout << "PreIteration results stored " << (preiter_result ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
   }
+
+  std::chrono::steady_clock::time_point t_p1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_p_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t_p1 - t_p0);
+  std::cout << "Time spent for pre-optimization: " << t_p_spent.count() << " s" << std::endl;
+
 
   // Perform FK on pre-iteration results (output functions are alread implemented in TrackingConstraint)
   std::vector<std::vector<double>> l_wrist_pos_traj, r_wrist_pos_traj, l_elbow_pos_traj, r_elbow_pos_traj;
@@ -5209,6 +5325,8 @@ int main(int argc, char *argv[])
   DMPStartsGoalsVertex* dmp_vertex_tmp_check = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
   std::cout << "debug: DMP starts_and_goals vertex " << (dmp_vertex_tmp_check->fixed()? "is" : "is not") << " fixed during optimization." << std::endl;
 
+  // Use distance computation for points that possibly stuck deep inside collision area...
+  // collision_check_or_distance_compute = false; // reset 
 
   // num_iterations = num_records * per_iterations
   for (unsigned int n = 0; n < num_rounds; n++)
