@@ -5157,16 +5157,24 @@ int main(int argc, char *argv[])
   unsigned int max_round; // record for ease
 
   // coefficients search space
-  double K_COL_MAX = 15.0;//10.0;
-  double K_POS_LIMIT_MAX = 15.0;//10.0;
-  double K_SMOOTHNESS_MAX = 15.0;//10.0;//10.0;
+  double K_COL_MAX = 20.0;//15.0;//10.0;
+  double K_POS_LIMIT_MAX = 20.0;//15.0;//10.0;
+  double K_SMOOTHNESS_MAX = 20.0;//15.0;//10.0;//10.0;
+
+  double K_DMPSTARTSGOALS_MAX = 2.0;
+  double K_DMPSCALEMARGIN_MAX = 2.0;
+  double K_DMPRELCHANGE_MAX = 2.0;
   
   // constraints bounds
   double col_cost_bound = 1.0; // to cope with possible numeric error
   double smoothness_bound = std::sqrt(std::pow(2.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 2 degree allowable difference for each joint 
   double pos_limit_bound = 0.0;
 
-  double scale = 1.2;//1.5;//1.3;//1.2;  // increase coefficients by 20% 
+  double dmp_orien_cost_bound = 0.0; // better be 0, margin is already set in it!!!
+  double dmp_scale_cost_bound = 0.0; // better be 0
+  double dmp_rel_change_cost_bound = 0.0; // better be 0
+
+  double scale = 1.5;//1.2;//1.3;//1.2;//1.5;//1.3;//1.2;  // increase coefficients by 20% 
   // double step = 1.0;
 
   // store initial DMP starts and goals
@@ -5699,6 +5707,27 @@ int main(int argc, char *argv[])
     std::cout << "actual_r_elbow_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
     
 
+    // Check stopping criteria (q and DMP!!!)
+    if (tmp_col_cost <= col_cost_bound && 
+        tmp_pos_limit_cost <= pos_limit_bound && 
+        tmp_smoothness_cost <= smoothness_bound)
+    {
+      if (n!=0) // not for the first round
+      {
+        // check dmp
+        double tmp_dmp_orien_cost = dmp_edge->output_orien_cost();
+        double tmp_dmp_scale_cost = dmp_edge->output_scale_cost();
+        double tmp_dmp_rel_change_cost = dmp_edge->output_rel_change_cost();
+
+        if (tmp_dmp_orien_cost <= dmp_orien_cost_bound &&
+            tmp_dmp_scale_cost <= dmp_scale_cost_bound &&
+            tmp_dmp_rel_change_cost <= dmp_rel_change_cost_bound)
+          break;
+      }
+    }
+
+
+
     // 2 - Manually move DMPs starts and goals; 
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", Manually set initial guess for rw DMP: "<< std::endl;
     // get current estimates on relative DMPs
@@ -5781,9 +5810,9 @@ int main(int argc, char *argv[])
     K_ELBOW_POS = 0.1; 
     K_FINGER = 0.1;  // actually useless since finger data are specified independent of DMP !!!
     K_SIMILARITY = 100.0;  // nothing actually...
-    K_DMPSTARTSGOALS = 0.5;//1.0;//2.0;
-    K_DMPSCALEMARGIN = 0.5;//1.0;//2.0;
-    K_DMPRELCHANGE = 2.0;//1.0; // relax a little to allow small variance
+    K_DMPSTARTSGOALS = 0.1;//0.5;//1.0;//2.0;
+    K_DMPSCALEMARGIN = 0.1; //0.5;//1.0;//2.0;
+    K_DMPRELCHANGE = 0.1; //2.0;//1.0; // relax a little to allow small variance
     std::cout << "Fix q vertices." << std::endl;
     // fix q vertices
     for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
@@ -5791,6 +5820,14 @@ int main(int argc, char *argv[])
       DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+m));
       vertex_tmp->setFixed(true);
     }
+
+    double tmp_dmp_orien_cost;
+    double tmp_dmp_scale_cost;
+    double tmp_dmp_rel_change_cost;
+
+    do
+    {
+
     // iterate to optimize DMP
     std::cout << "Optimizing DMP..." << std::endl;
     unsigned int dmp_iter = optimizer.optimize(dmp_per_iterations);
@@ -5971,6 +6008,32 @@ int main(int argc, char *argv[])
     for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
       dmp_update_vec[j] = last_update(j, 0);
     dmp_update_history.push_back(dmp_update_vec);
+
+
+    // check dmp constratins
+    tmp_dmp_orien_cost = dmp_edge->output_orien_cost();
+    tmp_dmp_scale_cost = dmp_edge->output_scale_cost();
+    tmp_dmp_rel_change_cost = dmp_edge->output_rel_change_cost();
+
+    if (tmp_dmp_orien_cost > dmp_orien_cost_bound && K_DMPSTARTSGOALS <= K_DMPSTARTSGOALS_MAX)
+    {
+      K_DMPSTARTSGOALS = K_DMPSTARTSGOALS * scale;
+    }
+
+    if (tmp_dmp_scale_cost > dmp_scale_cost_bound && K_DMPSCALEMARGIN <= K_DMPSCALEMARGIN_MAX)
+    {
+      K_DMPSCALEMARGIN = K_DMPSCALEMARGIN * scale;
+    }
+
+    if (tmp_dmp_rel_change_cost > dmp_rel_change_cost_bound && K_DMPRELCHANGE <= K_DMPRELCHANGE_MAX)
+    {
+      K_DMPRELCHANGE = K_DMPRELCHANGE * scale;
+    }
+
+    }while( (K_DMPSTARTSGOALS <= K_DMPSTARTSGOALS_MAX && tmp_dmp_orien_cost > dmp_orien_cost_bound) || 
+            (K_DMPSCALEMARGIN <= K_DMPSCALEMARGIN_MAX && tmp_dmp_scale_cost > dmp_scale_cost_bound) || 
+            (K_DMPRELCHANGE <= K_DMPRELCHANGE_MAX && tmp_dmp_rel_change_cost > dmp_rel_change_cost_bound) );
+
 
     // store the optimized DMP starts and goals
     // initialization
