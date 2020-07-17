@@ -1209,6 +1209,7 @@ void MyUnaryConstraints::linearizeOplus()
         // std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
         // std::cout << "spent " << t_spent.count() << " s." << std::endl;
         _jacobianOplusXi(0, d) = 10 * K_COL * (e_plus - e_minus) / (2*col_eps); // set it higher...
+        // maybe use only the sign ??? to keep the magnitude at the same level... K_COL * (e_plus > e_minus ? 1.0 : -1.0) * simple_update;
         // std::cout << "gradient is " << _jacobianOplusXi(0, d) << std::endl;
       }
 
@@ -4860,7 +4861,7 @@ int main(int argc, char *argv[])
     DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
     dmp_vertex_tmp->setFixed(true);
     // optimize for a few iterations
-    optimizer.optimize(300);
+    optimizer.optimize(50);//(300);
     // reset
     dmp_vertex_tmp->setFixed(false);
     // check the results
@@ -5115,44 +5116,55 @@ int main(int argc, char *argv[])
       collision_check_or_distance_compute = false;
 
       double scale = 1.2; 
-      unsigned max_round = 10; // maximum number of rounds, in case of dead loop
+      unsigned max_round = 20;//10; // maximum number of rounds, in case of dead loop
       unsigned cur_round = 0;
       // iterate to solve stubborn collision checking, and preserve pos_limit at the same time
       do{
+
+        std::cout << "Round " << (cur_round+1) << "/" << max_round << ": post-processing using distance_computation. " << std::endl;
         // iterate to solve collision problem
-        optimizer.optimize(50);//(300);
+        optimizer.optimize(300);
         cur_round++;
 
         // compute constraint values
         // smoothness
         std::vector<double> smoothness_cost;
         tmp_smoothness_cost = 0.0;
+        std::cout << "Smoothness cost = ";
         for (unsigned int t = 0; t < smoothness_edges.size(); t++)
         {
           double s = smoothness_edges[t]->return_smoothness_cost();
           tmp_smoothness_cost += s;
           smoothness_cost.push_back(s); // store for display
+          std::cout << s << " ";
         }    
+        std::cout << std::endl;
         smoothness_cost_history.push_back(smoothness_cost);
         // collision
         tmp_col_cost = 0.0;
         std::vector<double> col_cost;
+        std::cout << "Collision cost = ";
         for (unsigned int t = 0; t < unary_edges.size(); t++)
         {
           double c = unary_edges[t]->return_col_cost();
           tmp_col_cost += c;
           col_cost.push_back(c);
+          std::cout << c << " ";
         }
+        std::cout << std::endl;
         col_cost_history.push_back(col_cost);
         // pos_limit
         tmp_pos_limit_cost = 0.0;
         std::vector<double> pos_limit_cost;
+        std::cout << "Pos_limit cost = ";
         for (unsigned int t = 0; t < unary_edges.size(); t++)
         {
           double p = unary_edges[t]->return_pos_limit_cost();
           tmp_pos_limit_cost += p;
           pos_limit_cost.push_back(p);
+          std::cout << p << " ";
         }
+        std::cout << std::endl;
         pos_limit_cost_history.push_back(pos_limit_cost);
 
         // check if constraints met
@@ -5178,6 +5190,8 @@ int main(int argc, char *argv[])
 
       std::cout << "Final processing took " << (cur_round + 1) << " rounds." << std::endl;
       std::cout << "Final collision cost after using distance_computation: " << tmp_col_cost << std::endl;
+      std::cout << "Final pos_limit cost after using distance_computation: " << tmp_pos_limit_cost << std::endl;      
+      std::cout << "Final smoothness cost after using distance_computation: " << tmp_smoothness_cost << std::endl;      
       if (tmp_col_cost > 1.0)
             std::cout << ">>>> The result optimized by distance_computation is still in collision, better not use this result !!!!" << std::endl;
 
