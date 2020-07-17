@@ -1208,8 +1208,8 @@ void MyUnaryConstraints::linearizeOplus()
         // std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
         // std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
         // std::cout << "spent " << t_spent.count() << " s." << std::endl;
-        _jacobianOplusXi(0, d) = 10 * K_COL * (e_plus - e_minus) / (2*col_eps); // set it higher...
-        // maybe use only the sign ??? to keep the magnitude at the same level... K_COL * (e_plus > e_minus ? 1.0 : -1.0) * simple_update;
+        // _jacobianOplusXi(0, d) = 10 * K_COL * (e_plus - e_minus) / (2*col_eps); // set it higher...
+        _jacobianOplusXi(0, d) = K_COL * (e_plus > e_minus ? 1.0 : -1.0) * simple_update; // maybe use only the sign ??? to keep the magnitude at the same level... 
         // std::cout << "gradient is " << _jacobianOplusXi(0, d) << std::endl;
       }
 
@@ -4846,6 +4846,8 @@ int main(int argc, char *argv[])
     double tmp_pos_limit_cost;
     do{
     
+    // choose distance_computation mode
+    // collision_check_or_distance_compute = false;
 
     // Reset q vertices to zeros for common initial condition
     /*
@@ -4861,7 +4863,7 @@ int main(int argc, char *argv[])
     DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));
     dmp_vertex_tmp->setFixed(true);
     // optimize for a few iterations
-    optimizer.optimize(50);//(300);
+    optimizer.optimize(50);//(100);//(50);//(300);
     // reset
     dmp_vertex_tmp->setFixed(false);
     // check the results
@@ -5099,6 +5101,9 @@ int main(int argc, char *argv[])
     }while( (K_COL <= K_COL_MAX && tmp_col_cost > 1.0) || 
             (K_SMOOTHNESS <= K_SMOOTHNESS_MAX && tmp_smoothness_cost > 0.02*50) || 
             (K_POS_LIMIT <= K_POS_LIMIT_MAX && tmp_pos_limit_cost > 0.0) ); // to cope with possible numeric error
+      
+    // choose distance_computation mode
+    // collision_check_or_distance_compute = false;
 
     std::cout << "Final weights: K_COL = " << K_COL 
               << ", K_SMOOTHNESS = " << K_SMOOTHNESS 
@@ -5183,7 +5188,9 @@ int main(int argc, char *argv[])
           K_POS_LIMIT = K_POS_LIMIT * scale;
         }
 
-      }while( (tmp_col_cost > 1.0 || tmp_pos_limit_cost > 0.0) && cur_round < max_round );
+      }while( (K_COL <= K_COL_MAX && tmp_col_cost > 1.0) || 
+            (K_SMOOTHNESS <= K_SMOOTHNESS_MAX && tmp_smoothness_cost > 0.02*50) || 
+            (K_POS_LIMIT <= K_POS_LIMIT_MAX && tmp_pos_limit_cost > 0.0) );
 
       // close distance_computation mode
       collision_check_or_distance_compute = true;//false; // reset 
