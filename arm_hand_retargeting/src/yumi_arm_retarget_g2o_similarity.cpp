@@ -5153,7 +5153,7 @@ int main(int argc, char *argv[])
   
   unsigned int num_rounds = 20;//1;//10;//20;//200;
   unsigned int dmp_per_iterations = 10;//5;//10;
-  unsigned int q_per_iterations = 100;//300;//100;//30;
+  unsigned int q_per_iterations = 50;//100;//300;//100;//30;
   unsigned int max_round; // record for ease
 
   // coefficients search space
@@ -5174,7 +5174,7 @@ int main(int argc, char *argv[])
   double dmp_scale_cost_bound = 0.0; // better be 0
   double dmp_rel_change_cost_bound = 0.0; // better be 0
 
-  double scale = 1.5;//1.2;//1.3;//1.2;//1.5;//1.3;//1.2;  // increase coefficients by 20% 
+  double scale = 1.5;  // increase coefficients by 20% 
   // double step = 1.0;
 
   // store initial DMP starts and goals
@@ -5191,7 +5191,9 @@ int main(int argc, char *argv[])
   // store and display results
   std::cout << "dmp_results size is: " << dmp_starts_goals_initial_vec_vec.size() << " x " << dmp_starts_goals_initial_vec_vec[0].size() << std::endl;
   std::cout << "dmp_results = " << dmp_starts_goals_initial.transpose() << std::endl;
-  bool result_initial = write_h5(out_file_name, in_group_name, "dmp_starts_goals_initial", dmp_starts_goals_initial_vec_vec.size(), dmp_starts_goals_initial_vec_vec[0].size(), dmp_starts_goals_initial_vec_vec);
+  bool result_initial = write_h5(out_file_name, in_group_name, "dmp_starts_goals_initial", 
+                                dmp_starts_goals_initial_vec_vec.size(), dmp_starts_goals_initial_vec_vec[0].size(), 
+                                dmp_starts_goals_initial_vec_vec);
   std::cout << "initial dmp starts and goals stored " << (result_initial ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
 
@@ -5439,6 +5441,7 @@ int main(int argc, char *argv[])
     // Extra checking: if possibly deep inside collision area
     if (tmp_col_cost > 1.0) // still in collision, very likely it's stuck deep inside collision area
     {
+
       std::cout << ">>>> Possible stubborn collision state exists, collision checking cannot resolve it, turn to distance computation (penetration depth)..." << std::endl;
      
       // choose distance_computation mode
@@ -5676,6 +5679,7 @@ int main(int argc, char *argv[])
       if (tmp_col_cost > 1.0)
         std::cout << "The result optimized by distance_computation is still in collision, better not use this result !!!!\n" << std::endl;
     } // END of Collision fix
+    
 
     // reset
     std::cout << "Re-activate DMP vertex." << std::endl;
@@ -5761,7 +5765,7 @@ int main(int argc, char *argv[])
     Vector3d elbow_pos_offset = elbow_pos_offsets.rowwise().mean();    
     re_new_goal = re_new_goal + elbow_pos_offset;
     re_new_start = re_new_start + elbow_pos_offset;
-    // - left wrist
+     // - left wrist
     wrist_pos_offsets = tracking_edge->return_l_wrist_pos_offsets(); 
     wrist_pos_offset = wrist_pos_offsets.rowwise().mean();        
     lw_new_goal = lw_new_goal + wrist_pos_offset;
@@ -5771,13 +5775,15 @@ int main(int argc, char *argv[])
     elbow_pos_offset = elbow_pos_offsets.rowwise().mean();    
     le_new_goal = le_new_goal + elbow_pos_offset;
     le_new_start = le_new_start + elbow_pos_offset;
-    // get new starts and goals
+
+    // re-calculate DMP starts and goals
     lrw_new_goal = lw_new_goal - rw_new_goal;
     lrw_new_start = lw_new_start - rw_new_start;
     lew_new_goal = le_new_goal - lw_new_goal;
-    lew_new_start = le_new_start - lw_new_start;
+    lew_new_start = le_new_start - lw_new_start;    
     rew_new_goal = re_new_goal - rw_new_goal;
     rew_new_start = re_new_start - rw_new_start;
+
     // assign initial guess (change only the starts and goals of right wrist traj ?)
     xx.block(0, 0, 3, 1) = lrw_new_goal;
     xx.block(3, 0, 3, 1) = lrw_new_start;
@@ -5799,7 +5805,9 @@ int main(int argc, char *argv[])
     // store and display results
     std::cout << "dmp_results size is: " << dmp_starts_goals_moved_vec_vec.size() << " x " << dmp_starts_goals_moved_vec_vec[0].size() << std::endl;
     std::cout << "dmp_results = " << xx.transpose() << std::endl;
-    bool result_moved = write_h5(out_file_name, in_group_name, "dmp_starts_goals_moved_"+std::to_string(n), dmp_starts_goals_moved_vec_vec.size(), dmp_starts_goals_moved_vec_vec[0].size(), dmp_starts_goals_initial_vec_vec);
+    bool result_moved = write_h5(out_file_name, in_group_name, "dmp_starts_goals_moved_"+std::to_string(n),
+                                 dmp_starts_goals_moved_vec_vec.size(), dmp_starts_goals_moved_vec_vec[0].size(), 
+                                 dmp_starts_goals_moved_vec_vec);
     std::cout << "moved dmp starts and goals stored " << (result_moved ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
 
@@ -6048,7 +6056,9 @@ int main(int argc, char *argv[])
     // store and display results
     std::cout << "dmp_results size is: " << dmp_starts_goals_optimed_vec_vec.size() << " x " << dmp_starts_goals_optimed_vec_vec[0].size() << std::endl;
     std::cout << "dmp_results = " << dmp_starts_goals_optimed.transpose() << std::endl;
-    bool result_optimed = write_h5(out_file_name, in_group_name, "dmp_starts_goals_optimed_"+std::to_string(n), dmp_starts_goals_optimed_vec_vec.size(), dmp_starts_goals_optimed_vec_vec[0].size(), dmp_starts_goals_optimed_vec_vec);
+    bool result_optimed = write_h5(out_file_name, in_group_name, "dmp_starts_goals_optimed_"+std::to_string(n), 
+                                   dmp_starts_goals_optimed_vec_vec.size(), dmp_starts_goals_optimed_vec_vec[0].size(), 
+                                   dmp_starts_goals_optimed_vec_vec);
     std::cout << "optimized dmp starts and goals stored " << (result_optimed ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
     // Reset q vertices

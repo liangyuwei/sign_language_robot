@@ -29,7 +29,7 @@ def quat_to_ndarray(quat):
   return np.array([quat.x, quat.y, quat.z, quat.w])
 
 
-def bag_to_h5_video(bag_name, h5_name, fps=15.0):
+def bag_to_h5_video(bag_name, h5_name, hand_length, fps=15.0):
   ## This function converts the rosbag file to h5 containing all the data(hand, forearm, upperarm) and the corresponding video.
 
   
@@ -60,6 +60,9 @@ def bag_to_h5_video(bag_name, h5_name, fps=15.0):
   l_glove_angle = np.zeros([count, 14])
   r_glove_angle = np.zeros([count, 14])
 
+  hand_length_store = np.zeros([1, 1])
+  hand_length_store[0, 0] = hand_length
+  
 
   for topic, msg, t in bag_file.read_messages():
     ## topic name
@@ -136,6 +139,8 @@ def bag_to_h5_video(bag_name, h5_name, fps=15.0):
   group.create_dataset("l_glove_angle", data=l_glove_angle, dtype=float)
   group.create_dataset("r_glove_angle", data=r_glove_angle, dtype=float)
 
+  group.create_dataset("demonstrator_hand_length", data=hand_length_store, dtype=float)
+
   group.create_dataset("time", data=time, dtype=float)
 
   f.close()
@@ -164,6 +169,8 @@ def h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name):
   l_glove_angle = f[group_name + '/l_glove_angle'][:]
   r_glove_angle = f[group_name + '/r_glove_angle'][:]
 
+  hand_length = f[group_name + '/demonstrator_hand_length'][:]
+
   time = f[group_name + '/time'][:] # remember to store the timestamps information
 
   f.close()
@@ -221,6 +228,8 @@ def h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name):
 
   group.create_dataset("l_glove_angle", data=l_glove_angle, dtype=float)
   group.create_dataset("r_glove_angle", data=r_glove_angle, dtype=float)
+
+  group.create_dataset("demonstrator_hand_length", data=hand_length, dtype=float)
 
   group.create_dataset("time", data=time, dtype=float)
 
@@ -249,6 +258,8 @@ def h5_to_yumi_wrist_elbow(in_h5_name, out_h5_name, group_name):
   l_glove_angle = f[group_name + '/l_glove_angle'][:]
   r_glove_angle = f[group_name + '/r_glove_angle'][:]
 
+  hand_length = f[group_name + '/demonstrator_hand_length'][:]
+
   time = f[group_name + '/time'][:] # remember to store the timestamps information
 
   f.close()
@@ -306,6 +317,8 @@ def h5_to_yumi_wrist_elbow(in_h5_name, out_h5_name, group_name):
 
   group.create_dataset("l_glove_angle", data=l_glove_angle, dtype=float)
   group.create_dataset("r_glove_angle", data=r_glove_angle, dtype=float)
+
+  group.create_dataset("demonstrator_hand_length", data=hand_length, dtype=float)
 
   group.create_dataset("time", data=time, dtype=float)
 
@@ -336,8 +349,9 @@ if __name__ == '__main__':
   # export information from bag file
   bag_name = 'qie' # no `.bag` here
   h5_name = 'glove_test_data'
+  demonstrator_hand_length = 0.12 # actually, should be the distance from hand marker's origin to the tip of hand
   try:
-    options, args = getopt.getopt(sys.argv[1:], "hi:o:", ["help", "bag-name=", "h5-name="])
+    options, args = getopt.getopt(sys.argv[1:], "hi:o:l:", ["help", "bag-name=", "h5-name=", "length-of-hand="])
   except getopt.GetoptError:
     sys.exit()
   for option, value in options:
@@ -347,6 +361,7 @@ if __name__ == '__main__':
       print("Arguments:\n")
       print("   -i, --bag-name=, Specify the name of the input bag file, otherwise operate on the bag file with the default name specified inside this script. No suffix is required.\n")
       print("   -o, --h5-name=, Specify the name of the h5 output file, otherwise the default file name specified inside the script is used.\n")
+      print("   -l, --length-of-hand=, Specify the distance from the origin of hand rigid body marker to the tip of middle finger. Default length is my setup - LYW.\n")
       exit(0)
     if option in ("-i", "--bag-name"):
       print("Input bag file name: {0}\n".format(value))
@@ -354,6 +369,9 @@ if __name__ == '__main__':
     if option in ("-o", "--h5-name"):
       print("Output h5 file name: {0}\n".format(value))
       h5_name = value
+    if option in ("-l", "--length-of-hand"):
+      print("Demonstrator's hand length is: {0} m\n".format(value))
+      demonstrator_hand_length = value
   # export video 
   video_name = bag_name
   # extract necessary info for learning
@@ -363,7 +381,7 @@ if __name__ == '__main__':
 
   
   ### Export *** EVERYTHING *** from rosbag file into h5 file and a video!!
-  bag_to_h5_video(bag_name, h5_name)
+  bag_to_h5_video(bag_name, h5_name, demonstrator_hand_length)
 
 
   ### Test the output
