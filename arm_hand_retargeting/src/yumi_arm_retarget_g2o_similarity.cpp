@@ -4135,7 +4135,7 @@ int main(int argc, char *argv[])
   std::cout << ">>>> Reading data from h5 file" << std::endl;
 
   //std::vector<std::vector<double>> read_pass_points = read_h5(in_file_name, in_group_name, "pass_points"); 
-  std::vector<std::vector<double>> read_original_traj = read_h5(in_file_name, in_group_name, "resampled_normalized_flattened_oritraj"); 
+  // std::vector<std::vector<double>> read_original_traj = read_h5(in_file_name, in_group_name, "resampled_normalized_flattened_oritraj"); 
 
   //unsigned int num_passpoints = read_pass_points.size();
   //std::cout << "Number of pass points: " << num_passpoints << std::endl;
@@ -4254,15 +4254,15 @@ int main(int argc, char *argv[])
 
 
   // Prepare similarity network
-  std::cout << ">>>> Preparing similarity network " << std::endl;
-  std::string model_path = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/trained_model_adam_euclidean_epoch2000_bs1024_group_split_dataset_50p.pt";
-  //VectorXd original_traj(4800);
-  Matrix<double, PASSPOINT_DOF*NUM_DATAPOINTS, 1> original_traj; // size is known at compile time 
-  for (int i = 0; i < read_original_traj.size(); i++)
-    original_traj[i] = read_original_traj[i][0];
-  boost::shared_ptr<SimilarityNetwork> similarity_network_ptr;
-  //std::cout << "debug: original_traj size is " << original_traj.rows() << " x " << original_traj.cols() << std::endl;
-  similarity_network_ptr.reset( new SimilarityNetwork(model_path, original_traj) );  
+  // std::cout << ">>>> Preparing similarity network " << std::endl;
+  // std::string model_path = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/trained_model_adam_euclidean_epoch2000_bs1024_group_split_dataset_50p.pt";
+  // //VectorXd original_traj(4800);
+  // Matrix<double, PASSPOINT_DOF*NUM_DATAPOINTS, 1> original_traj; // size is known at compile time 
+  // for (int i = 0; i < read_original_traj.size(); i++)
+  //   original_traj[i] = read_original_traj[i][0];
+  // boost::shared_ptr<SimilarityNetwork> similarity_network_ptr;
+  // //std::cout << "debug: original_traj size is " << original_traj.rows() << " x " << original_traj.cols() << std::endl;
+  // similarity_network_ptr.reset( new SimilarityNetwork(model_path, original_traj) );  
 
 
 
@@ -4274,11 +4274,11 @@ int main(int argc, char *argv[])
   std::vector<SmoothnessConstraint*> smoothness_edges;  
   //std::vector<TrackingConstraint*> tracking_edges;
   TrackingConstraint* tracking_edge;
-  SimilarityConstraint* similarity_edge;
+  // SimilarityConstraint* similarity_edge;
   DMPConstraints* dmp_edge;
 
-  similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr);
-  similarity_edge->setId(0);
+  // similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr);
+  // similarity_edge->setId(0);
 
 //  tracking_edge = new TrackingConstraint(trajectory_generator_ptr, 
 //                                         left_fk_solver, right_fk_solver, 
@@ -4448,9 +4448,9 @@ int main(int argc, char *argv[])
 
   // connect to edge
   tracking_edge->setVertex(0, optimizer.vertex(0));
-  similarity_edge->setVertex(0, optimizer.vertex(0));  
-  similarity_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
-  optimizer.addEdge(similarity_edge);
+  // similarity_edge->setVertex(0, optimizer.vertex(0));  
+  // similarity_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
+  // optimizer.addEdge(similarity_edge);
 
 
   
@@ -4607,14 +4607,14 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double> > r_elbow_pos_cost_history;
   
   std::vector<std::vector<double> > finger_cost_history;
-  std::vector<std::vector<double> > similarity_cost_history;
+  // std::vector<std::vector<double> > similarity_cost_history;
   std::vector<std::vector<double> > smoothness_cost_history;
   std::vector<std::vector<double> > dmp_orien_cost_history;
   std::vector<std::vector<double> > dmp_scale_cost_history;
   std::vector<std::vector<double> > dmp_rel_change_cost_history;
 
   //std::vector<std::vector<std::vector<double> > > jacobian_history; // for pass points, store in 3d
-  std::vector<std::vector<double> > sim_jacobian_history; // for DMP, store in 2d
+  // std::vector<std::vector<double> > sim_jacobian_history; // for DMP, store in 2d
   std::vector<std::vector<double> > track_jacobian_history; // for DMP, store in 2d
   std::vector<std::vector<double> > orien_jacobian_history; // for DMP orientation cost (vectors pointing from starts to goals)
   std::vector<std::vector<double> > scale_jacobian_history; // for DMP scale cost (scale margin of vectors)
@@ -5902,14 +5902,13 @@ int main(int argc, char *argv[])
       std::cout << finger_cost[s] << " ";
     std::cout << std::endl;      
     // 4)
-    std::vector<double> similarity_cost;
-    similarity_cost.push_back(similarity_edge->return_similarity_cost());
-    similarity_cost_history.push_back(similarity_cost);
-    // 
-    std::cout << "debug: similarity_cost = ";
-    for (unsigned s = 0; s < similarity_cost.size(); s++)
-      std::cout << similarity_cost[s] << " ";
-    std::cout << std::endl;       
+    // std::vector<double> similarity_cost;
+    // similarity_cost.push_back(similarity_edge->return_similarity_cost());
+    // similarity_cost_history.push_back(similarity_cost);
+    // std::cout << "debug: similarity_cost = ";
+    // for (unsigned s = 0; s < similarity_cost.size(); s++)
+    //   std::cout << similarity_cost[s] << " ";
+    // std::cout << std::endl;       
     // 5)
     std::vector<double> dmp_orien_cost;
     dmp_orien_cost.push_back(dmp_edge->output_orien_cost());
@@ -5942,16 +5941,16 @@ int main(int argc, char *argv[])
     std::cout << "Recording DMP jacobians.." << std::endl;
     MatrixXd jacobians(1, DMPPOINTS_DOF);    
     // 1)
-    jacobians = similarity_edge->output_jacobian();
+    // jacobians = similarity_edge->output_jacobian();
     std::vector<double> jacobian_vec(DMPPOINTS_DOF); // from MatrixXd to std::vector<std::vector<double>>
-    std::cout << "debug: sim_jacobian = ";
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-    {
-      jacobian_vec[j] = jacobians(0, j);
-      std::cout << jacobians(0, j) << " ";
-    }
-    std::cout << std::endl;
-    sim_jacobian_history.push_back(jacobian_vec);
+    // std::cout << "debug: sim_jacobian = ";
+    // for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+    // {
+    //   jacobian_vec[j] = jacobians(0, j);
+    //   std::cout << jacobians(0, j) << " ";
+    // }
+    // std::cout << std::endl;
+    // sim_jacobian_history.push_back(jacobian_vec);
     // 2)
     jacobians = tracking_edge->output_dmp_jacobian();
     std::cout << "debug: track_jacobian = ";
@@ -6199,9 +6198,9 @@ int main(int argc, char *argv[])
                          finger_cost_history.size(), finger_cost_history[0].size(), finger_cost_history);
   std::cout << "finger_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
-  result_flag = write_h5(out_file_name, in_group_name, "similarity_cost_history", \
-                         similarity_cost_history.size(), similarity_cost_history[0].size(), similarity_cost_history);
-  std::cout << "similarity_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  // result_flag = write_h5(out_file_name, in_group_name, "similarity_cost_history", \
+  //                        similarity_cost_history.size(), similarity_cost_history[0].size(), similarity_cost_history);
+  // std::cout << "similarity_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
   result_flag = write_h5(out_file_name, in_group_name, "smoothness_cost_history", \
                          smoothness_cost_history.size(), smoothness_cost_history[0].size(), smoothness_cost_history);
@@ -6226,9 +6225,9 @@ int main(int argc, char *argv[])
                             jacobian_history.size(), jacobian_history[0].size(), jacobian_history[0][0].size(), jacobian_history);
   //std::cout << "jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
   // 2 - use DMP
-  result_flag = write_h5(out_file_name, in_group_name, "sim_jacobian_history", \
-                            sim_jacobian_history.size(), sim_jacobian_history[0].size(), sim_jacobian_history);
-  std::cout << "sim_jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+  // result_flag = write_h5(out_file_name, in_group_name, "sim_jacobian_history", \
+  //                           sim_jacobian_history.size(), sim_jacobian_history[0].size(), sim_jacobian_history);
+  // std::cout << "sim_jacobian_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
   
   result_flag = write_h5(out_file_name, in_group_name, "track_jacobian_history", \
                             track_jacobian_history.size(), track_jacobian_history[0].size(), track_jacobian_history);
@@ -6257,9 +6256,9 @@ int main(int argc, char *argv[])
   std::cout << "Collision checking " << count_col 
             << " times, with total time = " << total_col 
             << " s, average time = " << total_col / count_col << " s." << std::endl;
-  std::cout << "Similarity computation " << count_sim 
-            << " times, with total time = " << total_sim 
-            << " s, average time = " << total_sim / count_sim << " s." << std::endl;
+  // std::cout << "Similarity computation " << count_sim 
+  //           << " times, with total time = " << total_sim 
+  //           << " s, average time = " << total_sim / count_sim << " s." << std::endl;
   std::cout << "Trajectory generation " << count_traj 
             << " times, with total time = " << total_traj 
             << " s, average time = " << total_traj / count_traj << " s." << std::endl;
