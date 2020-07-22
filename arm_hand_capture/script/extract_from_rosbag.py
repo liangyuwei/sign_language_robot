@@ -4,6 +4,7 @@ import pdb
 import h5py
 import numpy as np
 import tf
+import copy
 
 import sys
 import getopt
@@ -60,6 +61,11 @@ def bag_to_h5_video(bag_name, h5_name, hand_length, fps=15.0):
   l_glove_angle = np.zeros([count, 14])
   r_glove_angle = np.zeros([count, 14])
 
+  # inferred hand tip by extending corresponding wrist positions along z-axis of local frame (which is specific to the hand marker setting for human motion capture)
+  l_hand_tip_pos = np.zeros([count, 3])
+  r_hand_tip_pos = np.zeros([count, 3])
+
+  # used in DMP_learn.m to reconstruct robotic expected wrist positions
   hand_length_store = np.zeros([1, 1])
   hand_length_store[0, 0] = hand_length
   
@@ -80,7 +86,7 @@ def bag_to_h5_video(bag_name, h5_name, hand_length, fps=15.0):
     l_fr_pos[idx, :] = pos_to_ndarray(msg.left_forearm_pose.pose.position)
     l_fr_quat[idx, :] = quat_to_ndarray(msg.left_forearm_pose.pose.orientation)
     l_hd_pos[idx, :] = pos_to_ndarray(msg.left_hand_pose.pose.position)
-    l_hd_quat[idx, :] = quat_to_ndarray(msg.left_hand_pose.pose.orientation)   
+    l_hd_quat[idx, :] = quat_to_ndarray(msg.left_hand_pose.pose.orientation)  # returned quaternion is (x, y, z, w) 
  
     r_up_pos[idx, :] = pos_to_ndarray(msg.right_upperarm_pose.pose.position)
     r_up_quat[idx, :] = quat_to_ndarray(msg.right_upperarm_pose.pose.orientation)
@@ -95,6 +101,16 @@ def bag_to_h5_video(bag_name, h5_name, hand_length, fps=15.0):
     #import pdb
     #pdb.set_trace()
 
+    ## infer human hand tip positions from captured wrist pos and ori data
+    l_hand_quat = copy.deepcopy(l_hd_quat[idx, :])
+    r_hand_quat = copy.deepcopy(r_hd_quat[idx, :])
+    l_hand_rot = tf.transformations.quaternion_matrix(l_hand_quat)    
+    r_hand_rot = tf.transformations.quaternion_matrix(r_hand_quat)    
+    l_hand_tip_pos[idx, :] = l_hd_pos[idx, :] + np.dot(l_hand_rot[0:3, 0:3], np.array([0, 0, 1.0 * hand_length])) # move along z-axis of hand marker's local frame
+    r_hand_tip_pos[idx, :] = r_hd_pos[idx, :] + np.dot(r_hand_rot[0:3, 0:3], np.array([0, 0, 1.0 * hand_length]))
+
+    # import pdb
+    # pdb.set_trace()
 
     ## video
     cv2_img = bridge.imgmsg_to_cv2(msg.image, 'bgr8') # shape is (480, 640, 3), type is ndarray, encoding is 'rgb8'
@@ -139,12 +155,13 @@ def bag_to_h5_video(bag_name, h5_name, hand_length, fps=15.0):
   group.create_dataset("l_glove_angle", data=l_glove_angle, dtype=float)
   group.create_dataset("r_glove_angle", data=r_glove_angle, dtype=float)
 
+  group.create_dataset("l_hand_tip_pos", data=l_hand_tip_pos, dtype=float)
+  group.create_dataset("r_hand_tip_pos", data=r_hand_tip_pos, dtype=float)
   group.create_dataset("demonstrator_hand_length", data=hand_length_store, dtype=float)
 
   group.create_dataset("time", data=time, dtype=float)
 
   f.close()
-
 
 
 def h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name):
@@ -169,6 +186,8 @@ def h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name):
   l_glove_angle = f[group_name + '/l_glove_angle'][:]
   r_glove_angle = f[group_name + '/r_glove_angle'][:]
 
+  l_hand_tip_pos = f[group_name + '/l_hand_tip_pos'][:]
+  r_hand_tip_pos = f[group_name + '/r_hand_tip_pos'][:]
   hand_length = f[group_name + '/demonstrator_hand_length'][:]
 
   time = f[group_name + '/time'][:] # remember to store the timestamps information
@@ -229,6 +248,8 @@ def h5_to_ur5_wrist_elbow(in_h5_name, out_h5_name, group_name):
   group.create_dataset("l_glove_angle", data=l_glove_angle, dtype=float)
   group.create_dataset("r_glove_angle", data=r_glove_angle, dtype=float)
 
+  group.create_dataset("l_hand_tip_pos", data=l_hand_tip_pos, dtype=float)
+  group.create_dataset("r_hand_tip_pos", data=r_hand_tip_pos, dtype=float)
   group.create_dataset("demonstrator_hand_length", data=hand_length, dtype=float)
 
   group.create_dataset("time", data=time, dtype=float)
@@ -260,6 +281,9 @@ def h5_to_yumi_wrist_elbow(in_h5_name, out_h5_name, group_name):
 
   hand_length = f[group_name + '/demonstrator_hand_length'][:]
 
+  l_hand_tip_pos = f[group_name + '/l_hand_tip_pos'][:]
+  r_hand_tip_pos = f[group_name + '/r_hand_tip_pos'][:]
+
   time = f[group_name + '/time'][:] # remember to store the timestamps information
 
   f.close()
@@ -318,6 +342,8 @@ def h5_to_yumi_wrist_elbow(in_h5_name, out_h5_name, group_name):
   group.create_dataset("l_glove_angle", data=l_glove_angle, dtype=float)
   group.create_dataset("r_glove_angle", data=r_glove_angle, dtype=float)
 
+  group.create_dataset("l_hand_tip_pos", data=l_hand_tip_pos, dtype=float)
+  group.create_dataset("r_hand_tip_pos", data=r_hand_tip_pos, dtype=float)
   group.create_dataset("demonstrator_hand_length", data=hand_length, dtype=float)
 
   group.create_dataset("time", data=time, dtype=float)
@@ -371,7 +397,7 @@ if __name__ == '__main__':
       h5_name = value
     if option in ("-l", "--length-of-hand"):
       print("Demonstrator's hand length is: {0} m\n".format(value))
-      demonstrator_hand_length = value
+      demonstrator_hand_length = float(value) # convert to float type!!
   # export video 
   video_name = bag_name
   # extract necessary info for learning
