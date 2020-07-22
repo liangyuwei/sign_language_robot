@@ -22,6 +22,10 @@ find_package(catkin REQUIRED COMPONENTS
   message_filters
 )
 
+# Find HDF5
+find_package(HDF5 REQUIRED COMPONENTS C CXX HL) # this works...
+include_directories(${HDF5_INCLUDE_DIRS})
+
 add_message_files(
   FILES
   GloveState.msg
@@ -94,6 +98,13 @@ add_executable(load_visualization_markers src/load_visualization_markers.cpp)
 target_link_libraries(load_visualization_markers ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
 add_dependencies(load_visualization_markers ${PROJECT_NAME}_generate_messages_cpp)
 
+
+## Visualization directly using h5 file (used during data collection)
+add_executable(visualize_recorded_movements src/visualize_recorded_movements.cpp)
+target_link_libraries(visualize_recorded_movements ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+add_dependencies(visualize_recorded_movements ${PROJECT_NAME}_generate_messages_cpp)
+
+
 ## Sync the arm-hand state with the corresponding image
 add_executable(sync_state_with_image src/sync_state_with_image.cpp)
 target_link_libraries(sync_state_with_image ${catkin_LIBRARIES})
@@ -104,5 +115,19 @@ target_link_libraries(unpack_synced_message_with_image ${catkin_LIBRARIES})
 add_dependencies(unpack_synced_message_with_image ${PROJECT_NAME}_generate_messages_cpp)
 
 
+## For displaying original and adjusted movements (hand tip as the base, and adjust according to human hand length and robot hand length)
+add_executable(unpack_original_movement_message src/unpack_original_movement_message.cpp)
+target_link_libraries(unpack_original_movement_message ${catkin_LIBRARIES})
+add_dependencies(unpack_original_movement_message ${PROJECT_NAME}_generate_messages_cpp)
 
+add_executable(unpack_adjusted_movement_message src/unpack_adjusted_movement_message.cpp)
+target_link_libraries(unpack_adjusted_movement_message ${catkin_LIBRARIES})
+add_dependencies(unpack_adjusted_movement_message ${PROJECT_NAME}_generate_messages_cpp)
 
+add_executable(load_original_visualization_markers src/load_original_visualization_markers.cpp)
+target_link_libraries(load_original_visualization_markers ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+add_dependencies(load_original_visualization_markers ${PROJECT_NAME}_generate_messages_cpp)
+
+add_executable(load_adjusted_visualization_markers src/load_adjusted_visualization_markers.cpp)
+target_link_libraries(load_adjusted_visualization_markers ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+add_dependencies(load_adjusted_visualization_markers ${PROJECT_NAME}_generate_messages_cpp)

@@ -15,3 +15,4 @@ arm_hand_capture/GloveState glove_state
 
 # Corresponding image
 sensor_msgs/Image image
+

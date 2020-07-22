@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  
+  <!-- Unpack original and adjusted movement message, for Visualization -->
+  <node name="unpack_original_movement_message_node" pkg="arm_hand_capture" type="unpack_original_movement_message" /> <!-- output="screen" /-->
+  <node name="unpack_adjusted_movement_message_node" pkg="arm_hand_capture" type="unpack_adjusted_movement_message" /> <!-- output="screen" /-->
+
+
+  <!-- Start Rviz for visualization -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find arm_hand_capture)/rviz/mocap_tf_original_adjusted.rviz" />
+
+
+  <!-- For visualization -->
+  <node name="original_arm_viz_node" pkg="arm_hand_capture" type="load_original_visualization_markers" />
+  <node name="adjusted_arm_viz_node" pkg="arm_hand_capture" type="load_adjusted_visualization_markers" />
+
+
+</launch>
