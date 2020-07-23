@@ -251,7 +251,7 @@ Pose getPose(std::vector<double> pos, std::vector<double> quat)
   pose.orientation.x = quat[0];
   pose.orientation.y = quat[1];
   pose.orientation.z = quat[2];
-  pose.orientation.w = quat[3];
+  pose.orientation.w = quat[3]; 
 
   return pose;
 }

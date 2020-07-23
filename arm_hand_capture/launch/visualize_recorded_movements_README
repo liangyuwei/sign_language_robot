@@ -1,0 +1,25 @@
+1. arm_hand_capture/script/extract_fom_rosbag.py
+
+	Manually set demonstrator hand length to compute left and right hand tip trajectories.
+
+
+
+==> 2. MATLAB, DMP_learn.py
+
+	Manually set robot hand length to compute robot's left and right wrist trajectories from human hand tip trajectories.
+
+
+
+==> 3. arm_hand_capture/src/load_{adjusted/original}_visualization_markers.cpp
+
+	Manually set demonstrator's and robot's hand length respectively, so as to set up appropriate markers for both hands.
+	Note that here the data should be inconsistent with the data used above, since here we won't load them from h5 file.
+
+
+
+==> 4. roslaunch arm_hand_capture visualize_recorder_movements.launch to open RViz, waiting for visualization_marks message and tf transform
+
+
+
+
+==> 5. Run visualize_recorded_movements node to read selected movements from h5 file, and generate corresponding state message, for RViz to receive and display.

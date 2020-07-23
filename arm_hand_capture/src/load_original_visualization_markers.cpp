@@ -32,8 +32,8 @@ void set_segment(Eigen::Vector3d point_1, Eigen::Vector3d point_2, visualization
   marker.pose.orientation.y = quat_shoulders.y();
   marker.pose.orientation.z = quat_shoulders.z();
   marker.pose.orientation.w = quat_shoulders.w();
-  marker.scale.x = 0.04;
-  marker.scale.y = 0.08;
+  marker.scale.x = 0.08; //0.04;
+  marker.scale.y = 0.04; //0.08;  // should be reverted...
   marker.scale.z = (point_1 - point_2).norm();
 }
 
@@ -111,7 +111,7 @@ void GetPosAndVisualize::posCallback(const arm_hand_capture::DualArmDualHandStat
 
 
   // Draw hands
-  double human_hand_length = 0.12; // my data, by LYW 2020/07/21
+  double human_hand_length = 0.145; // measured by using Motion Capture, by LYW 2020/07/23
   Eigen::Vector3d hand_axis(0.0, 0.0, 1.0); // along z-axis
 
   marker.id = 5;

@@ -769,7 +769,7 @@ class DMPConstraints : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGo
     double rw_len;
 
     // thresholds
-    double max_theta = M_PI / 36.0;  // 5 deg max
+    double max_theta = 5.0 * M_PI / 180.0;  // 5 deg max
 
     // Store jacobians
     Matrix<double, 1, DMPPOINTS_DOF> orien_jacobians_for_dmp;  // the jacobians of vector orientation cost w.r.t DMP starts and goals
@@ -1009,13 +1009,14 @@ double DMPConstraints::compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> 
   double rew_goal_change = (rew_new_goal.transpose() - this->rew_goal).norm();
 
   // set error
-  double max_margin = 0.02;//0.01; // within 1 cm (a bad result displays 0.05 offset, calculated in MATLAB) // relax a few
-  double rel_change_cost = std::max(lrw_start_change - max_margin, 0.0) +
-                           std::max(lrw_goal_change - max_margin, 0.0) +
-                           std::max(lew_start_change - max_margin, 0.0) +
-                           std::max(lew_goal_change - max_margin, 0.0) +
-                           std::max(rew_start_change - max_margin, 0.0) +
-                           std::max(rew_goal_change - max_margin, 0.0);
+  double lrw_margin = 0.0;//0.02;//0.01; // within 1 cm (a bad result displays 0.05 offset, calculated in MATLAB) // relax a few
+  double ew_margin = 0.05; //0.02; // relative change between elbow and wrist, allow for robot with different configuration to track
+  double rel_change_cost = std::max(lrw_start_change - lrw_margin, 0.0) +
+                           std::max(lrw_goal_change - lrw_margin, 0.0) +
+                           std::max(lew_start_change - ew_margin, 0.0) +
+                           std::max(lew_goal_change - ew_margin, 0.0) +
+                           std::max(rew_start_change - ew_margin, 0.0) +
+                           std::max(rew_goal_change - ew_margin, 0.0);
 
 
   return rel_change_cost;
@@ -1089,7 +1090,7 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
     double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct &fdata);
     double compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
-    double compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
+    // double compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     double compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q_whole, my_constraint_struct &fdata);
 
     void computeError();
@@ -1143,11 +1144,14 @@ void MyUnaryConstraints::linearizeOplus()
   
     e_plus = compute_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
     e_minus = compute_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+    
+    _jacobianOplusXi(0, d) = K_COL * (e_plus - e_minus) / (2*col_eps);
 
     // std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
     // std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
     // std::cout << "spent " << t_0011.count() << " s." << std::endl;
 
+    /*
     if (e_plus - e_minus > 3.0) // (4, 0), cope with possible numeric error
     {
       _jacobianOplusXi(0, d) = K_COL * simple_update; //(e_plus - e_minus) / (2*col_eps);
@@ -1167,7 +1171,6 @@ void MyUnaryConstraints::linearizeOplus()
       // _jacobianOplusXi(0, d) = 0.0;
 
       // 3 - find reference outside of collision area (increase eps to find reliable points)
-      /*
       double col_eps_tmp = col_eps;
       while ((e_plus > 3.0 && e_minus > 3.0) && col_eps_tmp <= 5.0 * M_PI / 180)
       {
@@ -1192,7 +1195,6 @@ void MyUnaryConstraints::linearizeOplus()
       {
         _jacobianOplusXi(0, d) = 0.0;
       }
-      */
 
       // 4 - use penetration depth when in contact (more accurate compute_distance_cost())
       if (collision_check_or_distance_compute)
@@ -1218,6 +1220,8 @@ void MyUnaryConstraints::linearizeOplus()
     {
       _jacobianOplusXi(0, d) = 0.0;
     }    
+    */
+
 
     // record
     col_jacobians[d] = _jacobianOplusXi(0, d);
@@ -1249,10 +1253,16 @@ double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q
 
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-  // 1 - check collision (+1 / -1) is not quite reasonable in that points deep inside infeasible areas won't get updated
-  double min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x); 
-  // 2 - penetration depth can cope with the above issue, and all points in colliding state will be dealt with in order (since it's minimum depth..)
-  // double min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance(x); 
+  double min_distance;
+  if (collision_check_or_distance_compute)
+  {
+    // 1 - check collision (+1 / -1) is not quite reasonable in that points deep inside infeasible areas won't get updated
+    min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x); 
+  }
+  else{
+    // 2 - penetration depth can cope with the above issue, and all points in colliding state will be dealt with in order (since it's minimum depth..)
+    min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance(x); 
+  }
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   total_col += t_spent.count();
@@ -1261,16 +1271,24 @@ double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q
   // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
 
   // Compute cost for collision avoidance
-  // 1
-  double cost = (min_distance + 1) * (min_distance + 1); // 1 for colliding state, -1 for non
-  // 2
-  // double margin_of_safety = 0.0;//0.01;
-  // double cost = std::max(margin_of_safety - min_distance, 0.0); // <0 means colliding, >0 is ok
+  double cost;
+  if (collision_check_or_distance_compute)
+  {
+    // 1
+    cost = std::max(min_distance, 0.0);//(min_distance + 1) * (min_distance + 1); // 1 for colliding state, -1 for non
+  }
+  else
+  {
+    // 2
+    double margin_of_safety = 0.01;
+    cost = std::max(margin_of_safety - min_distance, 0.0); // <0 means colliding, >0 is ok
+  }
 
   return cost;
 
 }
 
+/*
 double MyUnaryConstraints::compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
 {
   // convert from matrix to std::vector
@@ -1301,12 +1319,12 @@ double MyUnaryConstraints::compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_
   return cost;
 
 }
-
+*/
 
 double MyUnaryConstraints::compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q_whole, my_constraint_struct &fdata)
 {
   // add safety margin for ease of limiting
-  double safety_margin = 0.01;
+  double safety_margin = 0.0;//0.01;
 
   // compute out-of-bound cost
   double cost = 0;
@@ -1314,9 +1332,9 @@ double MyUnaryConstraints::compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q
   {
     // within [lb+margin, ub-margin], sub-set of [lb, ub]
     if (fdata.q_pos_ub[i] - safety_margin < q_whole[i])
-      cost += (q_whole[i] - fdata.q_pos_ub[i] + safety_margin) * (q_whole[i] - fdata.q_pos_ub[i] + safety_margin);
+      cost += std::max(q_whole[i] - (fdata.q_pos_ub[i] - safety_margin), 0.0); //(q_whole[i] - fdata.q_pos_ub[i] + safety_margin) * (q_whole[i] - fdata.q_pos_ub[i] + safety_margin);
     if (fdata.q_pos_lb[i] + safety_margin > q_whole[i])
-      cost += (fdata.q_pos_lb[i] + safety_margin - q_whole[i]) * (fdata.q_pos_lb[i] + safety_margin - q_whole[i]);
+      cost += std::max((fdata.q_pos_lb[i] + safety_margin) - q_whole[i], 0.0);//(fdata.q_pos_lb[i] + safety_margin - q_whole[i]) * (fdata.q_pos_lb[i] + safety_margin - q_whole[i]);
   }
 
   return cost;
@@ -1607,6 +1625,9 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     
+    // set up bounds ?
+    double margin_of_smoothness = std::sqrt(std::pow(1.0 * M_PI / 180.0, 2) * JOINT_DOF);
+
     void computeError()
     {
 
@@ -1623,7 +1644,7 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
       const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
       // Compute smoothness cost
-      _error(0, 0) = K_SMOOTHNESS * (x0 - x1).norm();
+      _error(0, 0) = K_SMOOTHNESS * max( (x0 - x1).norm() - margin_of_smoothness, 0.0);
       //std::cout << "Smoothness cost=";
       //std::cout << _error(0, 0) << std::endl;
 
@@ -1645,7 +1666,7 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
       const Matrix<double, JOINT_DOF, 1> x0 = v0->estimate(); 
       const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
-      return (x0 - x1).norm();
+      return max( (x0 - x1).norm() - margin_of_smoothness, 0.0);
     }
 
     virtual void linearizeOplus()
@@ -4378,10 +4399,16 @@ int main(int argc, char *argv[])
 
     // Manually set an initial state for DMPs
     std::cout << ">>>> Manually set initial state for DMPs" << std::endl;
-    MatrixXd lw_set_start(1, 3); lw_set_start(0, 0) = 0.409; lw_set_start(0, 1) = 0.181; lw_set_start(0, 2) = 0.191; 
+    MatrixXd lw_set_start(1, 3); //lw_set_start(0, 0) = 0.409; lw_set_start(0, 1) = 0.181; lw_set_start(0, 2) = 0.191; 
     MatrixXd le_set_start(1, 3); le_set_start(0, 0) = 0.218; le_set_start(0, 1) = 0.310; le_set_start(0, 2) = 0.378; 
     MatrixXd rw_set_start(1, 3); rw_set_start(0, 0) = 0.410; rw_set_start(0, 1) = -0.179; rw_set_start(0, 2) = 0.191; 
     MatrixXd re_set_start(1, 3); re_set_start(0, 0) = 0.218; re_set_start(0, 1) = -0.310; re_set_start(0, 2) = 0.377; 
+    // set rw start to ensure rw start and lw start symmetric to x-z plane, and leave the others
+    lw_set_start = rw_set_start + trajectory_generator_ptr->lrw_start;
+    double dist_y = std::abs(lw_set_start(0, 1) - rw_set_start(0,1));
+    lw_set_start(0, 1) = dist_y / 2.0;
+    rw_set_start(0, 1) = -dist_y / 2.0;
+
     // compute starts for corresponding relative DMPs
     MatrixXd lrw_set_start(1, 3); lrw_set_start = lw_set_start - rw_set_start;
     MatrixXd lew_set_start(1, 3); lew_set_start = le_set_start - lw_set_start;
@@ -5164,6 +5191,9 @@ int main(int argc, char *argv[])
   double K_DMPSTARTSGOALS_MAX = 2.0;
   double K_DMPSCALEMARGIN_MAX = 2.0;
   double K_DMPRELCHANGE_MAX = 2.0;
+
+  double K_WRIST_POS_MAX = 10.0;
+
   
   // constraints bounds
   double col_cost_bound = 1.0; // to cope with possible numeric error
@@ -5173,6 +5203,9 @@ int main(int argc, char *argv[])
   double dmp_orien_cost_bound = 0.0; // better be 0, margin is already set in it!!!
   double dmp_scale_cost_bound = 0.0; // better be 0
   double dmp_rel_change_cost_bound = 0.0; // better be 0
+
+  double wrist_pos_cost_bound = std::sqrt( (std::pow(0.01, 2) * 3) ) * NUM_DATAPOINTS; // 1 cm allowable error
+
 
   double scale = 1.5;  // increase coefficients by 20% 
   // double step = 1.0;
@@ -5212,6 +5245,7 @@ int main(int argc, char *argv[])
     double tmp_col_cost;
     double tmp_pos_limit_cost;
     double tmp_smoothness_cost;
+    double tmp_wrist_pos_cost;
 
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", q stage: "<< std::endl;
 
@@ -5291,8 +5325,12 @@ int main(int argc, char *argv[])
     finger_cost_history.push_back(finger_cost); // store
     // display
     std::cout << "debug: wrist_pos_cost = ";
+    tmp_wrist_pos_cost = 0.0;
     for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
+    {  
       std::cout << wrist_pos_cost[s] << " ";
+      tmp_wrist_pos_cost += wrist_pos_cost[s];
+    }
     std::cout << std::endl << std::endl;    
     //
     std::cout << "debug: l_wrist_pos_cost = ";
@@ -5401,7 +5439,7 @@ int main(int argc, char *argv[])
     std::cout << "Total col_cost = " << tmp_col_cost << std::endl;
     std::cout << "Total pos_limit_cost = " << tmp_pos_limit_cost << std::endl;
     std::cout << "Total smoothness_cost = " << tmp_smoothness_cost << std::endl;
-
+    std::cout << "Total wrist_cost = " << tmp_wrist_pos_cost << std::endl;
 
     // check if constraints met, and automatically adjust weights
     if (tmp_col_cost > col_cost_bound && K_COL <= K_COL_MAX) 
@@ -5422,20 +5460,26 @@ int main(int argc, char *argv[])
       // K_POS_LIMIT = K_POS_LIMIT + step;
     }
 
+    if (tmp_wrist_pos_cost > wrist_pos_cost_bound && K_WRIST_POS <= K_WRIST_POS_MAX)
+    {
+      K_WRIST_POS = K_WRIST_POS * scale;
+    }
     // test: use collision checking just one round, only for fast tracking convergence!!!
     // break;
 
 
     }while( (K_COL <= K_COL_MAX && tmp_col_cost > col_cost_bound) || 
             (K_SMOOTHNESS <= K_SMOOTHNESS_MAX && tmp_smoothness_cost > smoothness_bound) || 
-            (K_POS_LIMIT <= K_POS_LIMIT_MAX && tmp_pos_limit_cost > pos_limit_bound) ); // when coefficients still within bounds, and costs still out of bounds
+            (K_POS_LIMIT <= K_POS_LIMIT_MAX && tmp_pos_limit_cost > pos_limit_bound) ||
+            (K_WRIST_POS <= K_WRIST_POS_MAX && tmp_wrist_pos_cost > wrist_pos_cost_bound) ); // when coefficients still within bounds, and costs still out of bounds
     
     std::cout << "Final weights: K_COL = " << K_COL 
               << ", K_SMOOTHNESS = " << K_SMOOTHNESS 
               << ", K_POS_LIMIT = " << K_POS_LIMIT 
               << ", with col_cost = " << tmp_col_cost
               << ", smoothness_cost = " << tmp_smoothness_cost
-              << ", pos_limit_cost = " << tmp_pos_limit_cost << std::endl << std::endl;
+              << ", pos_limit_cost = " << tmp_pos_limit_cost 
+              << ", wrist_cost = " << tmp_wrist_pos_cost << std::endl << std::endl;
 
 
     // Extra checking: if possibly deep inside collision area
@@ -5733,6 +5777,7 @@ int main(int argc, char *argv[])
 
 
     // 2 - Manually move DMPs starts and goals; 
+    /*
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", Manually set initial guess for rw DMP: "<< std::endl;
     // get current estimates on relative DMPs
     DMPStartsGoalsVertex *dmp_vertex_tmp_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0)); // the last vertex connected
@@ -5794,6 +5839,7 @@ int main(int argc, char *argv[])
     xx.block(18, 0, 3, 1) = rw_new_goal;
     xx.block(21, 0, 3, 1) = rw_new_start;
     dmp_vertex_tmp_tmp->setEstimate(xx);
+
     // store the manually moved DMP starts and goals
     // initialization
     std::vector<std::vector<double> > dmp_starts_goals_moved_vec_vec;
@@ -5809,6 +5855,8 @@ int main(int argc, char *argv[])
                                  dmp_starts_goals_moved_vec_vec.size(), dmp_starts_goals_moved_vec_vec[0].size(), 
                                  dmp_starts_goals_moved_vec_vec);
     std::cout << "moved dmp starts and goals stored " << (result_moved ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+    */
 
 
     // 3 - optimize DMP for a number of iterations

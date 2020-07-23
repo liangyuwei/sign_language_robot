@@ -375,7 +375,7 @@ if __name__ == '__main__':
   # export information from bag file
   bag_name = 'qie' # no `.bag` here
   h5_name = 'glove_test_data'
-  demonstrator_hand_length = 0.12 # actually, should be the distance from hand marker's origin to the tip of hand
+  demonstrator_hand_length = 0.145 # data obtained by motion capture # actually, should be the distance from hand marker's origin to the tip of hand
   try:
     options, args = getopt.getopt(sys.argv[1:], "hi:o:l:", ["help", "bag-name=", "h5-name=", "length-of-hand="])
   except getopt.GetoptError:
