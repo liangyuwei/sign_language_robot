@@ -50,8 +50,17 @@ class DualArmDualHandCollision
     double check_world_collision(const std::vector<double> q_in);    
     double check_full_collision(const std::vector<double> q_in);
     double compute_self_distance(const std::vector<double> q_in);
+
+    double compute_self_distance_test(const std::vector<double> q_in);
+
     double compute_world_distance(const std::vector<double> q_in);
     // planning_scene.distanceToCollision??? --> no such API in my knowledge
+
+
+    // 
+    Eigen::MatrixXd get_robot_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, 
+                                     bool arm_hand_together, bool arm_or_hand, bool left_or_right);
+    
 
 
     // Methods setting joint values for different robot configurations
@@ -88,6 +97,10 @@ class DualArmDualHandCollision
     const robot_model::JointModelGroup *right_arm_group_ = current_state_.getJointModelGroup("right_arm");
     const robot_model::JointModelGroup *left_hand_group_ = current_state_.getJointModelGroup("left_hand");
     const robot_model::JointModelGroup *right_hand_group_ = current_state_.getJointModelGroup("right_hand");
+    
+    const robot_model::JointModelGroup *left_arm_hand_group_ = current_state_.getJointModelGroup("left_arm_hand");    
+    const robot_model::JointModelGroup *right_arm_hand_group_ = current_state_.getJointModelGroup("right_arm_hand");
+
     collision_detection::CollisionRequest collision_request_;
     collision_detection::CollisionResult collision_result_;
     collision_detection::DistanceRequest distance_request_;
