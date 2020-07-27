@@ -130,3 +130,161 @@ controller_list:
   - name: fake_Empty_controller
     joints:
       []
+  - name: fake_left_thumb_controller
+    joints:
+      - link5
+      - link51
+      - link52
+      - link53
+  - name: fake_left_index_controller
+    joints:
+      - link1
+      - link11
+  - name: fake_left_middle_controller
+    joints:
+      - link2
+      - link22
+  - name: fake_left_ring_controller
+    joints:
+      - link3
+      - link33
+  - name: fake_left_little_controller
+    joints:
+      - link4
+      - link44
+  - name: fake_left_arm_thumb_controller
+    joints:
+      - yumi_joint_1_l
+      - yumi_joint_2_l
+      - yumi_joint_7_l
+      - yumi_joint_3_l
+      - yumi_joint_4_l
+      - yumi_joint_5_l
+      - yumi_joint_6_l
+      - link5
+      - link51
+      - link52
+      - link53
+  - name: fake_left_arm_index_controller
+    joints:
+      - yumi_joint_1_l
+      - yumi_joint_2_l
+      - yumi_joint_7_l
+      - yumi_joint_3_l
+      - yumi_joint_4_l
+      - yumi_joint_5_l
+      - yumi_joint_6_l
+      - link1
+      - link11
+  - name: fake_left_arm_middle_controller
+    joints:
+      - yumi_joint_1_l
+      - yumi_joint_2_l
+      - yumi_joint_7_l
+      - yumi_joint_3_l
+      - yumi_joint_4_l
+      - yumi_joint_5_l
+      - yumi_joint_6_l
+      - link2
+      - link22
+  - name: fake_left_arm_ring_controller
+    joints:
+      - yumi_joint_1_l
+      - yumi_joint_2_l
+      - yumi_joint_7_l
+      - yumi_joint_3_l
+      - yumi_joint_4_l
+      - yumi_joint_5_l
+      - yumi_joint_6_l
+      - link3
+      - link33
+  - name: fake_left_arm_little_controller
+    joints:
+      - yumi_joint_1_l
+      - yumi_joint_2_l
+      - yumi_joint_7_l
+      - yumi_joint_3_l
+      - yumi_joint_4_l
+      - yumi_joint_5_l
+      - yumi_joint_6_l
+      - link4
+      - link44
+  - name: fake_right_thumb_controller
+    joints:
+      - Link5
+      - Link51
+      - Link52
+      - Link53
+  - name: fake_right_index_controller
+    joints:
+      - Link1
+      - Link11
+  - name: fake_right_middle_controller
+    joints:
+      - Link2
+      - Link22
+  - name: fake_right_ring_controller
+    joints:
+      - Link3
+      - Link33
+  - name: fake_right_little_controller
+    joints:
+      - Link4
+      - Link44
+  - name: fake_right_arm_thumb_controller
+    joints:
+      - yumi_joint_1_r
+      - yumi_joint_2_r
+      - yumi_joint_7_r
+      - yumi_joint_3_r
+      - yumi_joint_4_r
+      - yumi_joint_5_r
+      - yumi_joint_6_r
+      - Link5
+      - Link51
+      - Link52
+      - Link53
+  - name: fake_right_arm_index_controller
+    joints:
+      - yumi_joint_1_r
+      - yumi_joint_2_r
+      - yumi_joint_7_r
+      - yumi_joint_3_r
+      - yumi_joint_4_r
+      - yumi_joint_5_r
+      - yumi_joint_6_r
+      - Link1
+      - Link11
+  - name: fake_right_arm_middle_controller
+    joints:
+      - yumi_joint_1_r
+      - yumi_joint_2_r
+      - yumi_joint_7_r
+      - yumi_joint_3_r
+      - yumi_joint_4_r
+      - yumi_joint_5_r
+      - yumi_joint_6_r
+      - Link2
+      - Link22
+  - name: fake_right_arm_ring_controller
+    joints:
+      - yumi_joint_1_r
+      - yumi_joint_2_r
+      - yumi_joint_7_r
+      - yumi_joint_3_r
+      - yumi_joint_4_r
+      - yumi_joint_5_r
+      - yumi_joint_6_r
+      - Link3
+      - Link33
+  - name: fake_right_arm_little_controller
+    joints:
+      - yumi_joint_1_r
+      - yumi_joint_2_r
+      - yumi_joint_7_r
+      - yumi_joint_3_r
+      - yumi_joint_4_r
+      - yumi_joint_5_r
+      - yumi_joint_6_r
+      - Link4
+      - Link44

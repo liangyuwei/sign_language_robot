@@ -177,13 +177,38 @@ DualArmDualHandCollision::DualArmDualHandCollision(std::string urdf_string, std:
 }
 
 
+/* Get the global transform (translation + rotation) of the specified link under the current configuration/state (current_state_) 
+ * For use in calculating reference point position from nearest point position
+ */
+Eigen::Vector3d DualArmDualHandCollision::get_global_link_transform(std::string target_link_name)
+{
+  const Eigen::Affine3d target_link_state = this->current_state_.getGlobalLinkTransform(target_link_name);
+
+  Eigen::Vector3d position = target_link_state.translation();
+  Eigen::Matrix3d rotation = target_link_state.rotation();
+
+  // std::cout << "debug: " << std::endl;
+  // std::cout << "Translation: \n" << target_link_state.translation() << std::endl;
+  // std::cout << "Rotation: \n" << target_link_state.rotation() << std::endl;
+
+  return position;
+}
+
+/* Get robot jacobian with the given link and reference_point_position. 
+ * arm_hand_together: whether to compute arm and hand(one finger actually) as a serial link
+ * arm_or_hand: only arm or only hand(a finger)
+ * finger_id: 0 - thumb, 1 - index, 2 - middle, 3 - ring, 4 - little
+ * left_or_right: choose left of right
+ */
+ /*
 Eigen::MatrixXd DualArmDualHandCollision::get_robot_jacobian(std::string target_link_name, 
                                                              Eigen::Vector3d ref_point_pos, 
                                                              bool arm_hand_together,
                                                              bool arm_or_hand,
+                                                             int finger_id,
                                                              bool left_or_right)
 {
-  // Prepr
+  // Prep
   Eigen::MatrixXd jacobian;
   bool result;
 
@@ -253,6 +278,252 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_jacobian(std::string target_
   return jacobian;
 
 }
+*/
+
+
+/* Get robot arm jacobian with the given link and reference_point_position. 
+ * left_or_right: choose left of right
+ */
+Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right)
+{
+  // Prep
+  Eigen::MatrixXd jacobian;
+  bool result;
+
+  // See which groups to compute robot jacobian for
+  if (left_or_right) // left arm + left hand
+  {
+    result = this->current_state_.getJacobian(this->left_arm_group_, 
+                                              this->current_state_.getLinkModel(target_link_name),
+                                              ref_point_pos, jacobian);
+  }
+  else
+  {
+    result = this->current_state_.getJacobian(this->right_arm_group_, 
+                                              this->current_state_.getLinkModel(target_link_name),
+                                              ref_point_pos, jacobian);
+  }
+
+
+  // Check the results
+  if (result)
+  {
+    std::cout << "Jacobian calculated successfully !" << std::endl;
+    std::cout << "Size of robot jacobian: " << jacobian.rows() << " x " << jacobian.cols() << std::endl;
+  }
+  else
+  {
+    std::cout << "Failed to compute robot jacobian for " << target_link_name << " at ref_point_pos = " << ref_point_pos.transpose() << std::endl;
+    exit(-1);
+  }
+
+  return jacobian;
+
+}
+
+
+/* Get finger jacobian with the given link and reference_point_position. 
+ * finger_id: 0 - thumb, 1 - index, 2 - middle, 3 - ring, 4 - little
+ * left_or_right: choose left of right
+ */
+Eigen::MatrixXd DualArmDualHandCollision::get_robot_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right)
+{
+// Prep
+  Eigen::MatrixXd jacobian;
+  bool result;
+
+  // See which groups to compute robot jacobian for
+  if (left_or_right) // left arm + left hand
+  {
+    switch (finger_id)
+    {
+      case 0: // thumb
+        result = this->current_state_.getJacobian(this->left_thumb_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 1: // index
+        result = this->current_state_.getJacobian(this->left_index_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 2: // middle
+        result = this->current_state_.getJacobian(this->left_middle_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 3: // ring
+        result = this->current_state_.getJacobian(this->left_ring_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 4: // little
+        result = this->current_state_.getJacobian(this->left_little_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+
+      default:
+        std::cerr << "Finger ID does not lie in {0, 1, 2, 3, 4} !!!" << std::endl;
+        exit(-1);
+        break;
+    }
+  }
+  else
+  {
+    switch (finger_id)
+    {
+      case 0: // thumb
+        result = this->current_state_.getJacobian(this->right_thumb_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 1: // index
+        result = this->current_state_.getJacobian(this->right_index_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 2: // middle
+        result = this->current_state_.getJacobian(this->right_middle_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 3: // ring
+        result = this->current_state_.getJacobian(this->right_ring_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 4: // little
+        result = this->current_state_.getJacobian(this->right_little_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+
+      default:
+        std::cerr << "Finger ID does not lie in {0, 1, 2, 3, 4} !!!" << std::endl;
+        exit(-1);
+        break;
+    }
+  }
+
+
+  // Check the results
+  if (result)
+  {
+    std::cout << "Jacobian calculated successfully !" << std::endl;
+    std::cout << "Size of robot jacobian: " << jacobian.rows() << " x " << jacobian.cols() << std::endl;
+  }
+  else
+  {
+    std::cout << "Failed to compute robot jacobian for " << target_link_name << " at ref_point_pos = " << ref_point_pos.transpose() << std::endl;
+    exit(-1);
+  }
+
+  return jacobian;
+}
+
+
+
+/* Get arm+hand jacobian with the given link and reference_point_position. 
+ * finger_id: 0 - thumb, 1 - index, 2 - middle, 3 - ring, 4 - little
+ * left_or_right: choose left of right
+ */
+Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right)
+{
+  // Prep
+  Eigen::MatrixXd jacobian;
+  bool result;
+
+  // See which groups to compute robot jacobian for
+  if (left_or_right) // left arm + left hand
+  {
+    switch (finger_id)
+    {
+      case 0: // thumb
+        result = this->current_state_.getJacobian(this->left_arm_thumb_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 1: // index
+        result = this->current_state_.getJacobian(this->left_arm_index_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 2: // middle
+        result = this->current_state_.getJacobian(this->left_arm_middle_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 3: // ring
+        result = this->current_state_.getJacobian(this->left_arm_ring_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 4: // little
+        result = this->current_state_.getJacobian(this->left_arm_little_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+
+      default:
+        std::cerr << "Finger ID does not lie in {0, 1, 2, 3, 4} !!!" << std::endl;
+        exit(-1);
+        break;
+    }
+  }
+  else
+  {
+    switch (finger_id)
+    {
+      case 0: // thumb
+        result = this->current_state_.getJacobian(this->right_arm_thumb_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 1: // index
+        result = this->current_state_.getJacobian(this->right_arm_index_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 2: // middle
+        result = this->current_state_.getJacobian(this->right_arm_middle_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 3: // ring
+        result = this->current_state_.getJacobian(this->right_arm_ring_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+      case 4: // little
+        result = this->current_state_.getJacobian(this->right_arm_little_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
+
+      default:
+        std::cerr << "Finger ID does not lie in {0, 1, 2, 3, 4} !!!" << std::endl;
+        exit(-1);
+        break;
+    }
+  }
+
+
+  // Check the results
+  if (result)
+  {
+    std::cout << "Jacobian calculated successfully !" << std::endl;
+    std::cout << "Size of robot jacobian: " << jacobian.rows() << " x " << jacobian.cols() << std::endl;
+  }
+  else
+  {
+    std::cout << "Failed to compute robot jacobian for " << target_link_name << " at ref_point_pos = " << ref_point_pos.transpose() << std::endl;
+    exit(-1);
+  }
+
+  return jacobian;
+}
+
 
 
 /* Self-collision checking via PlanningScene::checkSelfCollision */
@@ -570,6 +841,15 @@ double DualArmDualHandCollision::compute_self_distance_test(const std::vector<do
   // a normalized vector pointing from link_names[0] to link_names[1]
   std::cout << "Normal vector is v = " << this->distance_result_.minimum_distance.normal.transpose() << std::endl; 
 
+  
+  // Store data for later possible processing
+  this->min_distance = this->distance_result_.minimum_distance.distance;
+  this->nearest_points[0] = this->distance_result_.minimum_distance.nearest_points[0];
+  this->nearest_points[1] = this->distance_result_.minimum_distance.nearest_points[1];
+  this->link_names[0] = this->distance_result_.minimum_distance.link_names[0];
+  this->link_names[1] = this->distance_result_.minimum_distance.link_names[1];
+  this->normal = this->distance_result_.minimum_distance.normal;
+
 
   // Return result
   double result = this->distance_result_.minimum_distance.distance;
@@ -578,6 +858,39 @@ double DualArmDualHandCollision::compute_self_distance_test(const std::vector<do
 
 }
 
+
+/* Check which part a link belongs to: 0 - left_arm, 1 - right_arm, 2 - left_hand, 3 - right_hand, -1 - others */
+int DualArmDualHandCollision::check_link_belonging(std::string link_name)
+{
+  bool group_id = -1;
+
+  if (this->left_arm_group_->hasLinkModel(link_name))
+  {
+    group_id = 0;
+    return group_id;
+  }
+
+  if (this->right_arm_group_->hasLinkModel(link_name))
+  {
+    group_id = 1;
+    return group_id;
+  }
+
+  if (this->left_hand_group_->hasLinkModel(link_name))
+  {
+    group_id = 2;
+    return group_id;
+  }
+
+  if (this->right_hand_group_->hasLinkModel(link_name))
+  {
+    group_id = 3;
+    return group_id;
+  }  
+
+  return group_id; // belongs to group outside of left/right arm/hand, possibly body segment or environment obstacles
+
+}
 
 
 
@@ -958,7 +1271,7 @@ int main(int argc, char **argv)
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance = " << result3 << std::endl;
-  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;      
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl << std::endl;      
 
 
   // Closest contact points and gradient
@@ -974,6 +1287,13 @@ int main(int argc, char **argv)
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Nearest links are " << dual_arm_dual_hand_collision_ptr->link_names[0] << " and " 
+                                    << dual_arm_dual_hand_collision_ptr->link_names[1] << ", " << std::endl
+                                    << "with p1 = " << dual_arm_dual_hand_collision_ptr->nearest_points[0].transpose() << " and "
+                                    << "p2 = " << dual_arm_dual_hand_collision_ptr->nearest_points[1].transpose() << std::endl;
+  // Test on getting global transform under current configuration/state
+  dual_arm_dual_hand_collision_ptr->get_global_link_transform(dual_arm_dual_hand_collision_ptr->link_names[0]);
+  dual_arm_dual_hand_collision_ptr->get_global_link_transform(dual_arm_dual_hand_collision_ptr->link_names[1]);
   std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;
 
   std::vector<double> q_arm_col_hand_noncol_armhand_noncol_2(38);      
@@ -1017,7 +1337,6 @@ int main(int argc, char **argv)
   std::cout << "Minimum distance = " << result3 << std::endl;
   std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;  
 
-
   // 3
   std::cout << ">> 8. (Arm Col, Hand Col, Arm-Hand Col) = (N, N, N): " << std::endl;
   q_arm_noncol_hand_noncol_armhand_noncol[0] = 0.75;
@@ -1026,7 +1345,7 @@ int main(int argc, char **argv)
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance = " << result3 << std::endl;
-  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;   
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl << std::endl;   
 
 
 
@@ -1034,22 +1353,22 @@ int main(int argc, char **argv)
   Eigen::MatrixXd robot_jacobian;
   std::cout << ">>>> Test on getting robot jacobian" << std::endl;
   bool arm_hand_together, arm_or_hand, left_or_right;
-  // 1
+  // 1 - note that if given link is not controlled by any joint, the corresponding jacobian would be zero!!! no need to worry!!!
   arm_hand_together = false; 
   arm_or_hand = true;
   left_or_right = true;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("yumi_link_4_l", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_1_l", Eigen::Vector3d::Zero(), left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  std::cout << ">> Left Arm, yumi_link_4_l" << std::endl << "jacobian = " << robot_jacobian << std::endl;
+  std::cout << ">> Left Arm, yumi_link_1_l" << std::endl << "jacobian = " << robot_jacobian << std::endl;
   std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
   // 2
   arm_hand_together = false; 
   arm_or_hand = true;
   left_or_right = false;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("yumi_link_5_r", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_5_r", Eigen::Vector3d::Zero(), left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << ">> Right Arm, yumi_link_5_r" << std::endl << "jacobian = " << robot_jacobian << std::endl;
@@ -1058,8 +1377,9 @@ int main(int argc, char **argv)
   arm_hand_together = false; 
   arm_or_hand = false;
   left_or_right = true;
+  int finger_id = 1;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("link11", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian("link11", Eigen::Vector3d::Zero(), finger_id, left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << ">> Left Hand, link11" << std::endl << "jacobian = " << robot_jacobian << std::endl;
@@ -1068,8 +1388,9 @@ int main(int argc, char **argv)
   arm_hand_together = false; 
   arm_or_hand = false;
   left_or_right = false;
+  finger_id = 0;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("Link53", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian("Link53", Eigen::Vector3d::Zero(), finger_id, left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << ">> Right Hand, Link53" << std::endl << "jacobian = " << robot_jacobian << std::endl;  
@@ -1077,8 +1398,9 @@ int main(int argc, char **argv)
   // 5 
   arm_hand_together = true; 
   left_or_right = true;
+  finger_id = 0;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("link53", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian("link53", Eigen::Vector3d::Zero(), finger_id, left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << ">> Left Arm + Hand, link53" << std::endl << "jacobian = " << robot_jacobian << std::endl;  
@@ -1086,12 +1408,14 @@ int main(int argc, char **argv)
   // 6 
   arm_hand_together = true; 
   left_or_right = false;
+  finger_id = 0;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("Link111", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian("Link111", Eigen::Vector3d::Zero(), finger_id, left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << ">> Right Arm + Hand, Link111" << std::endl << "jacobian = " << robot_jacobian << std::endl;  
   std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
+
 
   return 0;
 

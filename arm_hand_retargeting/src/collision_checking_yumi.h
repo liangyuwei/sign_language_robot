@@ -28,6 +28,7 @@
 
 // Eigen
 #include <Eigen/Eigen>
+#include <Eigen/Geometry>
 
 // For collision objects
 #include "geometric_shapes/shapes.h"
@@ -57,11 +58,14 @@ class DualArmDualHandCollision
     // planning_scene.distanceToCollision??? --> no such API in my knowledge
 
 
-    // 
-    Eigen::MatrixXd get_robot_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, 
-                                     bool arm_hand_together, bool arm_or_hand, bool left_or_right);
-    
-
+    // Get robot jacobians under the current state(configuration)
+    int check_link_belonging(std::string link_name);
+    // Eigen::MatrixXd get_robot_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, 
+                                    //  bool arm_hand_together, bool arm_or_hand, bool left_or_right);
+    Eigen::MatrixXd get_robot_arm_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right);
+    Eigen::MatrixXd get_robot_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right);
+    Eigen::MatrixXd get_robot_arm_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right);
+    Eigen::Vector3d get_global_link_transform(std::string target_link_name); // this is the transform of specified link under the current configuration (this->current_state_)
 
     // Methods setting joint values for different robot configurations
     void set_joint_values_yumi(const std::vector<double> q_in);
@@ -76,6 +80,11 @@ class DualArmDualHandCollision
     void apply_collision_objects();
     void remove_collision_objects();
 
+    // Distance Result
+    std::string link_names[2];
+    Eigen::Vector3d nearest_points[2]; // array
+    double min_distance;
+    Eigen::Vector3d normal; // a normalized vector point from link_names[0] to link_names[1]
 
 
   private:
@@ -93,27 +102,51 @@ class DualArmDualHandCollision
     planning_scene_monitor::PlanningSceneMonitorPtr planning_scene_monitor_ = std::make_shared<planning_scene_monitor::PlanningSceneMonitor>("robot_description"); // this would print lots of useless information, do it just once
 
 
+    // Set up joint groups for later use
+    // arm only
     const robot_model::JointModelGroup *left_arm_group_ = current_state_.getJointModelGroup("left_arm");
     const robot_model::JointModelGroup *right_arm_group_ = current_state_.getJointModelGroup("right_arm");
     const robot_model::JointModelGroup *left_hand_group_ = current_state_.getJointModelGroup("left_hand");
     const robot_model::JointModelGroup *right_hand_group_ = current_state_.getJointModelGroup("right_hand");
-    
-    const robot_model::JointModelGroup *left_arm_hand_group_ = current_state_.getJointModelGroup("left_arm_hand");    
-    const robot_model::JointModelGroup *right_arm_hand_group_ = current_state_.getJointModelGroup("right_arm_hand");
+    // fingers only
+    const robot_model::JointModelGroup *left_thumb_group_ = current_state_.getJointModelGroup("left_thumb");    
+    const robot_model::JointModelGroup *left_index_group_ = current_state_.getJointModelGroup("left_index");    
+    const robot_model::JointModelGroup *left_middle_group_ = current_state_.getJointModelGroup("left_middle");    
+    const robot_model::JointModelGroup *left_ring_group_ = current_state_.getJointModelGroup("left_ring");    
+    const robot_model::JointModelGroup *left_little_group_ = current_state_.getJointModelGroup("left_little");  
 
+    const robot_model::JointModelGroup *right_thumb_group_ = current_state_.getJointModelGroup("right_thumb");    
+    const robot_model::JointModelGroup *right_index_group_ = current_state_.getJointModelGroup("right_index");    
+    const robot_model::JointModelGroup *right_middle_group_ = current_state_.getJointModelGroup("right_middle");    
+    const robot_model::JointModelGroup *right_ring_group_ = current_state_.getJointModelGroup("right_ring");    
+    const robot_model::JointModelGroup *right_little_group_ = current_state_.getJointModelGroup("right_little");  
+    // arm + finger
+    const robot_model::JointModelGroup *left_arm_thumb_group_ = current_state_.getJointModelGroup("left_arm_thumb");    
+    const robot_model::JointModelGroup *left_arm_index_group_ = current_state_.getJointModelGroup("left_arm_index");    
+    const robot_model::JointModelGroup *left_arm_middle_group_ = current_state_.getJointModelGroup("left_arm_middle");    
+    const robot_model::JointModelGroup *left_arm_ring_group_ = current_state_.getJointModelGroup("left_arm_ring");    
+    const robot_model::JointModelGroup *left_arm_little_group_ = current_state_.getJointModelGroup("left_arm_little");
+
+    const robot_model::JointModelGroup *right_arm_thumb_group_ = current_state_.getJointModelGroup("right_arm_thumb");    
+    const robot_model::JointModelGroup *right_arm_index_group_ = current_state_.getJointModelGroup("right_arm_index");    
+    const robot_model::JointModelGroup *right_arm_middle_group_ = current_state_.getJointModelGroup("right_arm_middle");    
+    const robot_model::JointModelGroup *right_arm_ring_group_ = current_state_.getJointModelGroup("right_arm_ring");    
+    const robot_model::JointModelGroup *right_arm_little_group_ = current_state_.getJointModelGroup("right_arm_little");
+
+    //
     collision_detection::CollisionRequest collision_request_;
     collision_detection::CollisionResult collision_result_;
     collision_detection::DistanceRequest distance_request_;
     collision_detection::DistanceResult distance_result_;
     collision_detection::AllowedCollisionMatrix acm_ = local_planning_scene_.getAllowedCollisionMatrix();
 
-
+    // Link names
     std::vector<std::string> left_arm_link_names_ = left_arm_group_->getLinkModelNames();
     std::vector<std::string> right_arm_link_names_ = right_arm_group_->getLinkModelNames();
     std::vector<std::string> left_hand_link_names_ = left_hand_group_->getLinkModelNames();
     std::vector<std::string> right_hand_link_names_ = right_hand_group_->getLinkModelNames();
 
-
+    
 };
 
 
