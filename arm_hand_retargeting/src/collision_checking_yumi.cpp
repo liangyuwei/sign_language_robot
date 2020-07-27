@@ -125,8 +125,8 @@ void DualArmDualHandCollision::set_joint_values_yumi(const std::vector<double> q
   // Get the joint angles for each group
   //std::cout << "Update the robot state with the given joint angles" << std::endl;
   // Remember to change the joint value assignment here when switching to robots with different DOFs!!!
-  std::vector<double> q_left_arm(q_in.begin(), q_in.begin()+7); //(6); 
-  std::vector<double> q_right_arm(q_in.begin()+7, q_in.begin()+14); //(6);
+  std::vector<double> q_left_arm(q_in.begin(), q_in.begin()+7); //(7); 
+  std::vector<double> q_right_arm(q_in.begin()+7, q_in.begin()+14); //(7);
   std::vector<double> q_left_finger(q_in.begin()+14, q_in.begin()+26); //(12); 
   std::vector<double> q_right_finger(q_in.begin()+26, q_in.begin()+38); //(12);
 
@@ -167,7 +167,7 @@ planning_scene::PlanningScenePtr DualArmDualHandCollision::get_move_group_planni
 }
 
 
-
+/* Constructor initialization */
 DualArmDualHandCollision::DualArmDualHandCollision(std::string urdf_string, std::string srdf_string) : options_(urdf_string, srdf_string), robot_model_loader_(options_), local_planning_scene_(kinematic_model_)
 {
 
@@ -176,6 +176,83 @@ DualArmDualHandCollision::DualArmDualHandCollision(std::string urdf_string, std:
 
 }
 
+
+Eigen::MatrixXd DualArmDualHandCollision::get_robot_jacobian(std::string target_link_name, 
+                                                             Eigen::Vector3d ref_point_pos, 
+                                                             bool arm_hand_together,
+                                                             bool arm_or_hand,
+                                                             bool left_or_right)
+{
+  // Prepr
+  Eigen::MatrixXd jacobian;
+  bool result;
+
+  // See which groups to compute robot jacobian for
+  if (arm_hand_together)
+  {
+    if (left_or_right) // left arm + left hand
+    {
+      result = this->current_state_.getJacobian(this->left_arm_hand_group_, 
+                                                this->current_state_.getLinkModel(target_link_name),
+                                                ref_point_pos, jacobian);
+    }
+    else               // right arm + right hand
+    {
+      result = this->current_state_.getJacobian(this->right_arm_hand_group_, 
+                                                this->current_state_.getLinkModel(target_link_name),
+                                                ref_point_pos, jacobian);
+    }
+  }
+  else
+  {
+    if(arm_or_hand)
+    {
+      if (left_or_right)  // left arm only
+      {
+        result = this->current_state_.getJacobian(this->left_arm_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+      }
+      else                // right arm only
+      {
+        result = this->current_state_.getJacobian(this->right_arm_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+      }
+    }
+    else
+    {
+      if (left_or_right)  // left hand only
+      {
+        result = this->current_state_.getJacobian(this->left_hand_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+      }
+      else                // right hand only
+      {
+        result = this->current_state_.getJacobian(this->right_hand_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+      }
+    }
+  }
+  
+
+  // Check the results
+  if (result)
+  {
+    std::cout << "Jacobian calculated successfully !" << std::endl;
+    std::cout << "Size of robot jacobian: " << jacobian.rows() << " x " << jacobian.cols() << std::endl;
+  }
+  else
+  {
+    std::cout << "Failed to compute robot jacobian for " << target_link_name << " at ref_point_pos = " << ref_point_pos.transpose() << std::endl;
+    exit(-1);
+  }
+
+  return jacobian;
+
+}
 
 
 /* Self-collision checking via PlanningScene::checkSelfCollision */
@@ -447,6 +524,60 @@ double DualArmDualHandCollision::compute_self_distance(const std::vector<double>
   return result;
 
 }
+
+
+/* Compute minimum distance to the robot itself */
+double DualArmDualHandCollision::compute_self_distance_test(const std::vector<double> q_in)
+{
+
+  // Set up a distance request
+  this->distance_request_.group_name = ""; 
+  this->distance_request_.enable_signed_distance = true;
+  
+  this->distance_request_.compute_gradient = true; // get normalized vector
+  this->distance_request_.enable_nearest_points = true; // calculate nearest point information
+  this->distance_request_.verbose = true; // Log debug information
+  this->distance_request_.max_contacts_per_body = 1000; // ?
+
+  this->distance_request_.type = collision_detection::DistanceRequestType::SINGLE; // global minimum
+  this->distance_request_.enableGroup(this->kinematic_model_); // specify which group to check
+  this->distance_request_.acm = &(this->acm_); // specify acm to ignore adjacent links' collision check
+  this->distance_request_.distance_threshold = 0.02;//0.05; // compute only for objects within this threshold to each other
+
+  this->distance_result_.clear();
+
+
+  // Construct a CollisionRobotFCL for calling distanceSelf function
+  collision_detection::CollisionRobotFCL collision_robot_fcl(this->kinematic_model_); // construct collisionrobot from RobotModelConstPtr
+
+
+  // Update robot state with the given joint values
+  this->set_joint_values_yumi(q_in);
+
+
+  // Compute minimum distance
+  collision_robot_fcl.distanceSelf(this->distance_request_, this->distance_result_, this->current_state_);
+
+
+  // Display debug information
+  std::cout << ">> Debug information: " << std::endl;
+  std::cout << "The robot is " << (this->distance_result_.collision ? "in" : "not in") << " self-collision" << std::endl;  
+  std::cout << "Minimum distance is " << this->distance_result_.minimum_distance.distance << ", between " << this->distance_result_.minimum_distance.link_names[0] << " and " << this->distance_result_.minimum_distance.link_names[1] << std::endl;
+  std::cout << "Closest links are " << this->distance_result_.minimum_distance.link_names[0] << " and " << this->distance_result_.minimum_distance.link_names[1] << std::endl;
+  // When in collision, nearest_points[0] and nearest_points[1] are the same.
+  std::cout << "Nearest points are p1 = " << this->distance_result_.minimum_distance.nearest_points[0].transpose() 
+            << " and p2 = " << this->distance_result_.minimum_distance.nearest_points[1].transpose() << std::endl;
+  // a normalized vector pointing from link_names[0] to link_names[1]
+  std::cout << "Normal vector is v = " << this->distance_result_.minimum_distance.normal.transpose() << std::endl; 
+
+
+  // Return result
+  double result = this->distance_result_.minimum_distance.distance;
+  this->distance_result_.clear(); // should clear the results, in case the result object is used again!!!
+  return result;
+
+}
+
 
 
 
@@ -830,6 +961,137 @@ int main(int argc, char **argv)
   std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;      
 
 
+  // Closest contact points and gradient
+  std::cout << ">>>> Checking closest points and gradient information <<<<" << std::endl;
+  // 1
+  std::cout << ">> 1. (Arm Col, Hand Col, Arm-Hand Col) = (Y, N, N): " << std::endl;
+  std::vector<double> q_arm_col_hand_noncol_armhand_noncol_1(38);      
+  q_arm_col_hand_noncol_armhand_noncol_1[0] = -0.23;
+  q_arm_col_hand_noncol_armhand_noncol_1[1] = 0.49;//0.25;
+  q_arm_col_hand_noncol_armhand_noncol_1[2] = -0.2;
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_col_hand_noncol_armhand_noncol_1);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;
+
+  std::vector<double> q_arm_col_hand_noncol_armhand_noncol_2(38);      
+  q_arm_col_hand_noncol_armhand_noncol_2[0] = -0.23;
+  q_arm_col_hand_noncol_armhand_noncol_2[1] = -0.15;//0.49;//0.25;
+  q_arm_col_hand_noncol_armhand_noncol_2[2] = -0.2;
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_col_hand_noncol_armhand_noncol_2);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;
+
+  // 2
+  std::cout << ">> 6. (Arm Col, Hand Col, Arm-Hand Col) = (N, Y, N): " << std::endl;
+  q_arm_noncol_hand_col_armhand_noncol[0] = 0.96;
+  q_arm_noncol_hand_col_armhand_noncol[1] = -0.42;
+  q_arm_noncol_hand_col_armhand_noncol[2] = -0.29;
+  q_arm_noncol_hand_col_armhand_noncol[3] = 0.59;
+  q_arm_noncol_hand_col_armhand_noncol[26] = -0.4;//-0.95;
+  q_arm_noncol_hand_col_armhand_noncol[35] = 0.4;
+  q_arm_noncol_hand_col_armhand_noncol[36] = -0.4;
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_col_armhand_noncol);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;     
+
+  q_arm_noncol_hand_col_armhand_noncol[0] = 0.96;
+  q_arm_noncol_hand_col_armhand_noncol[1] = -0.42;
+  q_arm_noncol_hand_col_armhand_noncol[2] = -0.29;
+  q_arm_noncol_hand_col_armhand_noncol[3] = 0.59;
+  q_arm_noncol_hand_col_armhand_noncol[26] = -1.38;//-0.4;//-0.95;
+  q_arm_noncol_hand_col_armhand_noncol[35] = 0.32;//0.4;
+  q_arm_noncol_hand_col_armhand_noncol[36] = -0.4;
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_col_armhand_noncol);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;  
+
+
+  // 3
+  std::cout << ">> 8. (Arm Col, Hand Col, Arm-Hand Col) = (N, N, N): " << std::endl;
+  q_arm_noncol_hand_noncol_armhand_noncol[0] = 0.75;
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_noncol_armhand_noncol);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;   
+
+
+
+  // Test getting robot jacobian
+  Eigen::MatrixXd robot_jacobian;
+  std::cout << ">>>> Test on getting robot jacobian" << std::endl;
+  bool arm_hand_together, arm_or_hand, left_or_right;
+  // 1
+  arm_hand_together = false; 
+  arm_or_hand = true;
+  left_or_right = true;
+  t0 = std::chrono::steady_clock::now();
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("yumi_link_4_l", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << ">> Left Arm, yumi_link_4_l" << std::endl << "jacobian = " << robot_jacobian << std::endl;
+  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
+  // 2
+  arm_hand_together = false; 
+  arm_or_hand = true;
+  left_or_right = false;
+  t0 = std::chrono::steady_clock::now();
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("yumi_link_5_r", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << ">> Right Arm, yumi_link_5_r" << std::endl << "jacobian = " << robot_jacobian << std::endl;
+  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
+  // 3 
+  arm_hand_together = false; 
+  arm_or_hand = false;
+  left_or_right = true;
+  t0 = std::chrono::steady_clock::now();
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("link11", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << ">> Left Hand, link11" << std::endl << "jacobian = " << robot_jacobian << std::endl;
+  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
+  // 4 
+  arm_hand_together = false; 
+  arm_or_hand = false;
+  left_or_right = false;
+  t0 = std::chrono::steady_clock::now();
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("Link53", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << ">> Right Hand, Link53" << std::endl << "jacobian = " << robot_jacobian << std::endl;  
+  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
+  // 5 
+  arm_hand_together = true; 
+  left_or_right = true;
+  t0 = std::chrono::steady_clock::now();
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("link53", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << ">> Left Arm + Hand, link53" << std::endl << "jacobian = " << robot_jacobian << std::endl;  
+  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
+  // 6 
+  arm_hand_together = true; 
+  left_or_right = false;
+  t0 = std::chrono::steady_clock::now();
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_jacobian("Link111", Eigen::Vector3d::Zero(), arm_hand_together, arm_or_hand, left_or_right);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << ">> Right Arm + Hand, Link111" << std::endl << "jacobian = " << robot_jacobian << std::endl;  
+  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
 
   return 0;
 
