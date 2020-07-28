@@ -759,7 +759,7 @@ double DualArmDualHandCollision::check_full_collision(const std::vector<double> 
 /* Compute minimum distance to the robot itself */
 double DualArmDualHandCollision::compute_self_distance(const std::vector<double> q_in)
 {
-
+  
   // Set up a distance request
   this->distance_request_.group_name = ""; 
   this->distance_request_.enable_signed_distance = true;
@@ -769,6 +769,13 @@ double DualArmDualHandCollision::compute_self_distance(const std::vector<double>
   this->distance_request_.distance_threshold = 0.02;//0.05; // compute only for objects within this threshold to each other
 
   this->distance_result_.clear();
+
+  // for debug
+  bool debug = this->kinematic_model_->hasJointModelGroup("");
+  std::cout << "debug: Group \"\" " << (debug ? "does" : "does not") << " exist in kinematic state!" << std::endl;
+  std::cout << "debug: Number of active components: " 
+            << ((this->distance_request_.active_components_only) ? this->distance_request_.active_components_only->size() : 0) << std::endl;
+
 
 
   // Construct a CollisionRobotFCL for calling distanceSelf function
@@ -798,11 +805,11 @@ double DualArmDualHandCollision::compute_self_distance(const std::vector<double>
 
 
 /* Compute minimum distance to the robot itself */
-double DualArmDualHandCollision::compute_self_distance_test(const std::vector<double> q_in)
+double DualArmDualHandCollision::compute_self_distance_test(const std::vector<double> q_in, std::string group_name, double distance_threshold)
 {
-
+  
   // Set up a distance request
-  this->distance_request_.group_name = ""; 
+  this->distance_request_.group_name = group_name; //"dual_arms"; 
   this->distance_request_.enable_signed_distance = true;
   
   this->distance_request_.compute_gradient = true; // get normalized vector
@@ -811,11 +818,39 @@ double DualArmDualHandCollision::compute_self_distance_test(const std::vector<do
   this->distance_request_.max_contacts_per_body = 1000; // ?
 
   this->distance_request_.type = collision_detection::DistanceRequestType::SINGLE; // global minimum
-  this->distance_request_.enableGroup(this->kinematic_model_); // specify which group to check
   this->distance_request_.acm = &(this->acm_); // specify acm to ignore adjacent links' collision check
-  this->distance_request_.distance_threshold = 0.02;//0.05; // compute only for objects within this threshold to each other
+  this->distance_request_.distance_threshold = distance_threshold;//0.02;//0.05; // compute only for objects within this threshold to each other
 
+  // decide which group to check (set active_components_only)
+  // 1 - enableGroup(), includes all the links that get updated when the state of the group is changed, including links that are ***outside*** of this group
+  // this->distance_request_.enableGroup(this->kinematic_model_); // specify which group to check
+  // 2 - manually set active_components_only, which better satisfies our needs!!!
+  const std::vector<const robot_model::LinkModel*>* ac = &(this->kinematic_model_)->getJointModelGroup(group_name)->getLinkModels();
+  const std::set<const robot_model::LinkModel*> ac_set(ac->begin(), ac->end()); // from std::vector to std::set
+  // const std::set<const robot_model::LinkModel*>* ac_set_p = &ac_set; // get pointer type
+  this->distance_request_.active_components_only = &ac_set; // get pointer type
+
+
+  // Clear distance result for a new query
   this->distance_result_.clear();
+
+
+  // for debug
+  // Note that, enableGroup() assigns to .active_components_only all the links that get updated when the state of the specified group is changed, and thus including links that are ***outside*** of this group!!!
+  /*
+  bool debug = this->kinematic_model_->hasJointModelGroup(group_name);
+  std::cout << "debug: Group " << group_name << " " << (debug ? "does" : "does not") << " exist in kinematic state!" << std::endl;
+  std::cout << "debug: Number of active components: " 
+            << ((this->distance_request_.active_components_only) ? this->distance_request_.active_components_only->size() : 0) << std::endl;
+  if (this->distance_request_.active_components_only)
+  {
+    std::cout << "debug: active components: " << std::endl;
+    auto ac = this->distance_request_.active_components_only;
+    for (auto s = ac->begin(); s != ac->end(); s++)
+      std::cout << (*s)->getName() << " ";
+    std::cout << std::endl;
+  }
+  */
 
 
   // Construct a CollisionRobotFCL for calling distanceSelf function
@@ -859,10 +894,30 @@ double DualArmDualHandCollision::compute_self_distance_test(const std::vector<do
 }
 
 
+/* Check out how to add active_components_only that satisfies our needs */
+void DualArmDualHandCollision::test_active_components(std::string group_name)
+{
+  std::cout << ">>>> Test on getting active components (links of a group)" << std::endl;
+  const std::set<const robot_model::LinkModel*>* ac1 = &(this->kinematic_model_)->getJointModelGroup(group_name)->getUpdatedLinkModelsSet();
+  std::cout << "Results of getUpdatedLinkModelsSet(): " << std::endl;
+  for (auto s = ac1->begin(); s != ac1->end(); s++)
+    std::cout << (*s)->getName() << " " << std::endl;
+  std::cout << std::endl;
+
+  const std::vector<const robot_model::LinkModel*>* ac2 = &(this->kinematic_model_)->getJointModelGroup(group_name)->getLinkModels();
+  const std::set<const robot_model::LinkModel*> ac2_set(ac2->begin(), ac2->end()); // from std::vector to std::set
+  const std::set<const robot_model::LinkModel*>* ac2_set_p = &ac2_set; // get pointer type (which can be assigned to .active_components_only directly)
+  std::cout << "Results of getLinkModels(): " << std::endl;
+  for (auto s = ac2_set_p->begin(); s != ac2_set_p->end(); s++)
+    std::cout << (*s)->getName() << " " << std::endl;
+  std::cout << std::endl;
+}
+
+
 /* Check which part a link belongs to: 0 - left_arm, 1 - right_arm, 2 - left_hand, 3 - right_hand, -1 - others */
 int DualArmDualHandCollision::check_link_belonging(std::string link_name)
 {
-  bool group_id = -1;
+  int group_id = -1;
 
   if (this->left_arm_group_->hasLinkModel(link_name))
   {
@@ -892,6 +947,82 @@ int DualArmDualHandCollision::check_link_belonging(std::string link_name)
 
 }
 
+
+/* Check which finger a link belongs to: 0 - thumb, 1 - index, 2 - middle, 3 - ring, 4 - little */
+int DualArmDualHandCollision::check_finger_belonging(std::string link_name, bool left_or_right)
+{
+  int finger_id;
+
+  if (left_or_right)
+  {
+    if (this->left_arm_thumb_group_->hasLinkModel(link_name))
+    {
+      finger_id = 0;
+      return finger_id;
+    }
+
+    if (this->left_arm_index_group_->hasLinkModel(link_name))
+    {
+      finger_id = 1;
+      return finger_id;
+    }
+
+    if (this->left_arm_middle_group_->hasLinkModel(link_name))
+    {
+      finger_id = 2;
+      return finger_id;
+    }
+
+    if (this->left_arm_ring_group_->hasLinkModel(link_name))
+    {
+      finger_id = 3;
+      return finger_id;
+    }  
+
+    if (this->left_arm_little_group_->hasLinkModel(link_name))
+    {
+      finger_id = 4;
+      return finger_id;
+    }      
+  }
+  else
+  {
+    if (this->right_arm_thumb_group_->hasLinkModel(link_name))
+    {
+      finger_id = 0;
+      return finger_id;
+    }
+
+    if (this->right_arm_index_group_->hasLinkModel(link_name))
+    {
+      finger_id = 1;
+      return finger_id;
+    }
+
+    if (this->right_arm_middle_group_->hasLinkModel(link_name))
+    {
+      finger_id = 2;
+      return finger_id;
+    }
+
+    if (this->right_arm_ring_group_->hasLinkModel(link_name))
+    {
+      finger_id = 3;
+      return finger_id;
+    }  
+
+    if (this->right_arm_little_group_->hasLinkModel(link_name))
+    {
+      finger_id = 4;
+      return finger_id;
+    }      
+  }
+
+  std::cerr << "Error: something went wrong, the given link does not belong to any finger group !!!" << std::endl;
+  exit(-1);
+  return -1; 
+
+}
 
 
 /* Compute minimum distance to the environment */
@@ -1114,7 +1245,7 @@ int main(int argc, char **argv)
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance of the robot under self-colliding-free state(no collision objects) is " << result << std::endl;
-  std::cout << "Time used: " << t0_1.count() << " s." << std::endl;
+  std::cout << "Time used: " << t0_1.count() << " s." << std::endl << std::endl;
 
 
   // Full distance computation
@@ -1283,7 +1414,7 @@ int main(int argc, char **argv)
   q_arm_col_hand_noncol_armhand_noncol_1[1] = 0.49;//0.25;
   q_arm_col_hand_noncol_armhand_noncol_1[2] = -0.2;
   t0 = std::chrono::steady_clock::now();
-  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_col_hand_noncol_armhand_noncol_1);
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_col_hand_noncol_armhand_noncol_1, "dual_arms", 0.02);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance = " << result3 << std::endl;
@@ -1301,7 +1432,7 @@ int main(int argc, char **argv)
   q_arm_col_hand_noncol_armhand_noncol_2[1] = -0.15;//0.49;//0.25;
   q_arm_col_hand_noncol_armhand_noncol_2[2] = -0.2;
   t0 = std::chrono::steady_clock::now();
-  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_col_hand_noncol_armhand_noncol_2);
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_col_hand_noncol_armhand_noncol_2, "dual_arms", 0.02);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance = " << result3 << std::endl;
@@ -1317,7 +1448,7 @@ int main(int argc, char **argv)
   q_arm_noncol_hand_col_armhand_noncol[35] = 0.4;
   q_arm_noncol_hand_col_armhand_noncol[36] = -0.4;
   t0 = std::chrono::steady_clock::now();
-  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_col_armhand_noncol);
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_col_armhand_noncol, "dual_hands", 0.02);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance = " << result3 << std::endl;
@@ -1331,7 +1462,7 @@ int main(int argc, char **argv)
   q_arm_noncol_hand_col_armhand_noncol[35] = 0.32;//0.4;
   q_arm_noncol_hand_col_armhand_noncol[36] = -0.4;
   t0 = std::chrono::steady_clock::now();
-  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_col_armhand_noncol);
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_col_armhand_noncol, "dual_hands", 0.02);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance = " << result3 << std::endl;
@@ -1340,14 +1471,43 @@ int main(int argc, char **argv)
   // 3
   std::cout << ">> 8. (Arm Col, Hand Col, Arm-Hand Col) = (N, N, N): " << std::endl;
   q_arm_noncol_hand_noncol_armhand_noncol[0] = 0.75;
+  std::cout << ">> Trial 1 on dual_arms group: " << std::endl;
   t0 = std::chrono::steady_clock::now();
-  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_noncol_armhand_noncol);
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_noncol_armhand_noncol, "dual_arms", 0.02);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance = " << result3 << std::endl;
   std::cout << "Time used for computing distance: " << t0_1.count() << std::endl << std::endl;   
 
+  std::cout << ">> Trial 2 on dual_hands group: " << std::endl;
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_noncol_armhand_noncol, "dual_hands", 0.02);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl << std::endl;   
 
+  // 4 (arm collides with hand)
+  std::cout << ">> 7. (Arm Col, Hand Col, Arm-Hand Col) = (N, N, Y): " << std::endl;
+  q_arm_noncol_hand_noncol_armhand_col[0] = -0.23;
+  q_arm_noncol_hand_noncol_armhand_col[1] = -0.42;
+  q_arm_noncol_hand_noncol_armhand_col[2] = -0.29;
+  q_arm_noncol_hand_noncol_armhand_col[3] = 0.59;
+  std::cout << ">> Trial 1 on dual_arms group: " << std::endl;
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_noncol_armhand_col, "dual_arms", 0.02);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;   
+
+  std::cout << ">> Trial 2 on dual_hands group: " << std::endl;
+  t0 = std::chrono::steady_clock::now();
+  result3 = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_arm_noncol_hand_noncol_armhand_col, "dual_hands", 0.02);
+  t1 = std::chrono::steady_clock::now();
+  t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "Minimum distance = " << result3 << std::endl;
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;  
 
   // Test getting robot jacobian
   Eigen::MatrixXd robot_jacobian;
@@ -1414,7 +1574,16 @@ int main(int argc, char **argv)
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << ">> Right Arm + Hand, Link111" << std::endl << "jacobian = " << robot_jacobian << std::endl;  
-  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
+  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl << std::endl;
+
+
+  // Test getting active components
+  // active_components_only is std::set<LinkModel*>.
+  // getUpdatedLinkModelsSet() returns std::set, while getLinkModels() returns std::vector
+  // getUpdatedLinkModelsSet() would return links that would be transformed when the state of the specified joint group is changed, and therefore may include links that are ***outside*** of the specified joint group!
+  // getLinkModels() returns only the links that are part of the group!
+  dual_arm_dual_hand_collision_ptr->test_active_components("dual_arms");
+
 
 
   return 0;

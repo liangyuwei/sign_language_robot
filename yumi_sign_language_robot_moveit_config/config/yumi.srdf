@@ -10,6 +10,13 @@
     <!--CHAINS: When a chain is specified, all the links along the chain (including endpoints) are included in the group. Additionally, all the joints that are parents to included links are also included. This means that joints along the chain and the parent joint of the base link are included in the group-->
     <!--SUBGROUPS: Groups can also be formed by referencing to already defined group names-->
     <group name="left_arm">
+        <link name="yumi_link_1_l" />
+        <link name="yumi_link_2_l" />
+        <link name="yumi_link_3_l" />
+        <link name="yumi_link_4_l" />
+        <link name="yumi_link_5_l" />
+        <link name="yumi_link_6_l" />
+        <link name="yumi_link_7_l" />
         <joint name="yumi_joint_1_l" />
         <joint name="yumi_joint_2_l" />
         <joint name="yumi_joint_7_l" />
@@ -20,6 +27,13 @@
         <chain base_link="yumi_link_1_l" tip_link="yumi_link_7_l" />
     </group>
     <group name="right_arm">
+        <link name="yumi_link_1_r" />
+        <link name="yumi_link_2_r" />
+        <link name="yumi_link_3_r" />
+        <link name="yumi_link_4_r" />
+        <link name="yumi_link_5_r" />
+        <link name="yumi_link_6_r" />
+        <link name="yumi_link_7_r" />
         <joint name="yumi_joint_1_r" />
         <joint name="yumi_joint_2_r" />
         <joint name="yumi_joint_7_r" />

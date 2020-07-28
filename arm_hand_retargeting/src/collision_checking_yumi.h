@@ -52,7 +52,7 @@ class DualArmDualHandCollision
     double check_full_collision(const std::vector<double> q_in);
     double compute_self_distance(const std::vector<double> q_in);
 
-    double compute_self_distance_test(const std::vector<double> q_in);
+    double compute_self_distance_test(const std::vector<double> q_in, std::string group_name, double distance_threshold);
 
     double compute_world_distance(const std::vector<double> q_in);
     // planning_scene.distanceToCollision??? --> no such API in my knowledge
@@ -60,8 +60,8 @@ class DualArmDualHandCollision
 
     // Get robot jacobians under the current state(configuration)
     int check_link_belonging(std::string link_name);
-    // Eigen::MatrixXd get_robot_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, 
-                                    //  bool arm_hand_together, bool arm_or_hand, bool left_or_right);
+    int check_finger_belonging(std::string link_name, bool left_or_right);
+
     Eigen::MatrixXd get_robot_arm_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right);
     Eigen::MatrixXd get_robot_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right);
     Eigen::MatrixXd get_robot_arm_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right);
@@ -85,6 +85,9 @@ class DualArmDualHandCollision
     Eigen::Vector3d nearest_points[2]; // array
     double min_distance;
     Eigen::Vector3d normal; // a normalized vector point from link_names[0] to link_names[1]
+
+    // just for debug
+    void test_active_components(std::string group_name);
 
 
   private:
