@@ -1244,7 +1244,7 @@ void MyUnaryConstraints::linearizeOplus()
 
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double e_cur;
-  double speed = 0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
+  double speed = 100.0;//10.0;//1.0;//0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
   double min_distance;
   // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -1282,7 +1282,7 @@ void MyUnaryConstraints::linearizeOplus()
     std::string link_name_1 = dual_arm_dual_hand_collision_ptr->link_names[0];
     std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
 
-    std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
+    // std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
     // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
 
     // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
@@ -1597,17 +1597,12 @@ void MyUnaryConstraints::linearizeOplus()
         int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_1, left_or_right_1);
 
         // compute robot jacobian for arm+hand group and compute updates
-        Eigen::MatrixXd jacobian;
-        Eigen::MatrixXd dq_col_update;
-        if (finger_id != -1) // if not palm group
-        {
-          jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_1,
-                                                                                  ref_point_pos_1,
-                                                                                  finger_id,
-                                                                                  left_or_right_1);
-          dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);                                                                                  
-          // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
-        }
+        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_1,
+                                                                                                 ref_point_pos_1,
+                                                                                                 finger_id,
+                                                                                                 left_or_right_1);
+        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);                                                                                  
+        // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
 
 
         // assign updates to col jacobian
@@ -1641,10 +1636,11 @@ void MyUnaryConstraints::linearizeOplus()
           case 4: // little
             _jacobianOplusXi.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
             break;
-          case -1: // palm, do nothing
+          case -1: // palm, zero updates would be provided for finger joints, but the size is in consistent with little finger_group since it's used in get_robot_arm_hand_jacobian()
+            _jacobianOplusXi.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
             break;
           default:
-            std::cerr << "error: Finger ID doesn't lie in {0,1,2,3,4}!!!" << std::endl;
+            std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
             exit(-1);
             break;
         }
@@ -1690,6 +1686,7 @@ void MyUnaryConstraints::linearizeOplus()
         // prep
         int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right_2);
 
+
         // compute robot jacobian for arm+hand group
         Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_2,
                                                                                                  ref_point_pos_2,
@@ -1698,7 +1695,7 @@ void MyUnaryConstraints::linearizeOplus()
 
         // compute updates
         Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, speed);
-        // std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update.transpose() << std::endl;
+       
 
         // assign updates to col jacobian
         // arm part
@@ -1731,8 +1728,11 @@ void MyUnaryConstraints::linearizeOplus()
           case 4: // little
             _jacobianOplusXi.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
             break;
+          case -1: // palm, zero updates would be provided for finger joints, but the size is in consistent with little finger_group since it's used in get_robot_arm_hand_jacobian()
+            _jacobianOplusXi.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
           default:
-            std::cerr << "error: Finger ID doesn't lie in {0,1,2,3,4}!!!" << std::endl;
+            std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
             exit(-1);
             break;
         }
@@ -1857,7 +1857,6 @@ double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q
   std::vector<double> x(JOINT_DOF);
   for (unsigned int i = 0; i < JOINT_DOF; ++i)
     x[i] = q_whole[i];
-
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double cost;
   double min_distance;
@@ -2110,7 +2109,14 @@ double MyUnaryConstraints::return_col_cost()
   q_cur_finger_r = x.block<12, 1>(26, 0); 
   
   // 3 (for ease of distinction, won't use distance_computation here)
-  double collision_cost = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
+  std::vector<double> xx(JOINT_DOF);
+  for (unsigned int d = 0; d < JOINT_DOF; d++)
+    xx[d] = x[d];
+  double col_result = dual_arm_dual_hand_collision_ptr->check_self_collision(xx);
+  double collision_cost = (col_result > 0.0)? 1.0 : 0.0; // col_result 1 for colliding, -1 for collision-free
+    //(col_result > 0.0)? 1.0 : 0.0; // col_result 1 for colliding, -1 for collision-free
+    //compute_collision_cost(xx, dual_arm_dual_hand_collision_ptr);
+  
   //std::cout << "Collision cost=";
   //std::cout << collision_cost << ", ";
 
@@ -5260,7 +5266,7 @@ int main(int argc, char *argv[])
   
   unsigned int num_rounds = 20;//1;//10;//20;//200;
   unsigned int dmp_per_iterations = 10;//5;//10;
-  unsigned int q_per_iterations = 50;
+  unsigned int q_per_iterations = 50;//5;//50;
   unsigned int max_round; // record for ease
 
   // coefficients search space
@@ -5276,7 +5282,7 @@ int main(int argc, char *argv[])
 
   
   // constraints bounds
-  double col_cost_bound = 1.0; // to cope with possible numeric error
+  double col_cost_bound = 1.0; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
   double smoothness_bound = std::sqrt(std::pow(2.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 2 degree allowable difference for each joint 
   double pos_limit_bound = 0.0;
 
@@ -5341,6 +5347,13 @@ int main(int argc, char *argv[])
 
     std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
 
+    K_WRIST_ORI = 1.0;
+
+    do 
+    {
+
+      std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
+    
     // optimize for a few iterations
     std::cout << "Optimizing q..." << std::endl;
     unsigned int q_iter = optimizer.optimize(q_per_iterations); 
@@ -5514,12 +5527,23 @@ int main(int argc, char *argv[])
     }
     std::cout << std::endl << std::endl;    
 
+    // check wrist cost
+    std::cout << "Total wrist_cost = " << tmp_wrist_pos_cost << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
+
+    if (tmp_wrist_pos_cost > wrist_pos_cost_bound && K_WRIST_POS <= K_WRIST_POS_MAX)
+    {
+      K_WRIST_POS = K_WRIST_POS * scale;
+    }
+    // test: use collision checking just one round, only for fast tracking convergence!!!
+    // break;
+
+    }while(K_WRIST_POS <= K_WRIST_POS_MAX && tmp_wrist_pos_cost > wrist_pos_cost_bound);
 
     // Conclusion
-    std::cout << "Total col_cost = " << tmp_col_cost << std::endl;
-    std::cout << "Total pos_limit_cost = " << tmp_pos_limit_cost << std::endl;
-    std::cout << "Total smoothness_cost = " << tmp_smoothness_cost << std::endl;
-    std::cout << "Total wrist_cost = " << tmp_wrist_pos_cost << std::endl;
+    std::cout << "Total col_cost = " << tmp_col_cost << " (bound: " << col_cost_bound << ")" << std::endl;
+    std::cout << "Total pos_limit_cost = " << tmp_pos_limit_cost << " (bound: " << pos_limit_bound << ")" << std::endl;
+    std::cout << "Total smoothness_cost = " << tmp_smoothness_cost << " (bound: " << smoothness_bound << ")" << std::endl;
+    std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
 
     // check if constraints met, and automatically adjust weights
     if (tmp_col_cost > col_cost_bound && K_COL <= K_COL_MAX) 
@@ -5540,18 +5564,10 @@ int main(int argc, char *argv[])
       // K_POS_LIMIT = K_POS_LIMIT + step;
     }
 
-    if (tmp_wrist_pos_cost > wrist_pos_cost_bound && K_WRIST_POS <= K_WRIST_POS_MAX)
-    {
-      K_WRIST_POS = K_WRIST_POS * scale;
-    }
-    // test: use collision checking just one round, only for fast tracking convergence!!!
-    // break;
-
-
+  
     }while( (K_COL <= K_COL_MAX && tmp_col_cost > col_cost_bound) || 
             (K_SMOOTHNESS <= K_SMOOTHNESS_MAX && tmp_smoothness_cost > smoothness_bound) || 
-            (K_POS_LIMIT <= K_POS_LIMIT_MAX && tmp_pos_limit_cost > pos_limit_bound) ||
-            (K_WRIST_POS <= K_WRIST_POS_MAX && tmp_wrist_pos_cost > wrist_pos_cost_bound) ); // when coefficients still within bounds, and costs still out of bounds
+            (K_POS_LIMIT <= K_POS_LIMIT_MAX && tmp_pos_limit_cost > pos_limit_bound)); // when coefficients still within bounds, and costs still out of bounds
     
     std::cout << "Final weights: K_COL = " << K_COL 
               << ", K_SMOOTHNESS = " << K_SMOOTHNESS 

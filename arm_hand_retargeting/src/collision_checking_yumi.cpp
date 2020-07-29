@@ -328,7 +328,7 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_jacobian(std::string tar
  */
 Eigen::MatrixXd DualArmDualHandCollision::get_robot_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right)
 {
-// Prep
+  // Prep
   Eigen::MatrixXd jacobian;
   bool result;
 
@@ -365,9 +365,8 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_hand_jacobian(std::string ta
       case -1: // palm
         result = true;
         break;
-
       default:
-        std::cerr << "Finger ID does not lie in {0, 1, 2, 3, 4} !!!" << std::endl;
+        std::cerr << "Finger ID does not lie in {-1, 0, 1, 2, 3, 4} !!!" << std::endl;
         exit(-1);
         break;
     }
@@ -401,7 +400,6 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_hand_jacobian(std::string ta
                                                   this->current_state_.getLinkModel(target_link_name),
                                                   ref_point_pos, jacobian);
         break;
-      
       case -1: // palm
         result = true;
         break;
@@ -471,9 +469,13 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_hand_jacobian(std::strin
                                                   this->current_state_.getLinkModel(target_link_name),
                                                   ref_point_pos, jacobian);
         break;
-
+      case -1: // palm, treat as any other finger_groups, since palm link is not root link for any arm_hand_groups!!
+        result = this->current_state_.getJacobian(this->left_arm_little_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
       default:
-        std::cerr << "Finger ID does not lie in {0, 1, 2, 3, 4} !!!" << std::endl;
+        std::cerr << "Finger ID does not lie in {-1, 0, 1, 2, 3, 4} !!!" << std::endl;
         exit(-1);
         break;
     }
@@ -507,9 +509,13 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_hand_jacobian(std::strin
                                                   this->current_state_.getLinkModel(target_link_name),
                                                   ref_point_pos, jacobian);
         break;
-
+      case -1: // palm, treat as any other finger_groups, since palm link is not root link for any arm_hand_groups!!
+        result = this->current_state_.getJacobian(this->right_arm_little_group_, 
+                                                  this->current_state_.getLinkModel(target_link_name),
+                                                  ref_point_pos, jacobian);
+        break;
       default:
-        std::cerr << "Finger ID does not lie in {0, 1, 2, 3, 4} !!!" << std::endl;
+        std::cerr << "Finger ID does not lie in {-1, 0, 1, 2, 3, 4} !!!" << std::endl;
         exit(-1);
         break;
     }
