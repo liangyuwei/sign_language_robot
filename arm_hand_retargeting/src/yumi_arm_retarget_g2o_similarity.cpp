@@ -39,6 +39,7 @@
 #include <Eigen/Core>
 #include <Eigen/Dense>
 #include <Eigen/Geometry> 
+#include <Eigen/QR>
 
 
 // For KDL
@@ -102,7 +103,7 @@ double K_DMPSTARTSGOALS = 1.0;
 double K_DMPSCALEMARGIN = 1.0;
 double K_DMPRELCHANGE = 1.0;
 
-bool collision_check_or_distance_compute = true;
+// bool collision_check_or_distance_compute = true;
 
 using namespace g2o;
 using namespace Eigen;
@@ -1116,8 +1117,9 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
 
     // safety setting, note that d_check must be stricly greater than d_safe !!!
     // use different margins of safety for arms and hands
-    double d_arm_check = 0.02;
-    double d_arm_safe = 0.01;
+    // here the safety margin should be set according to actual condition: set a collision-free state and check minimum distance for dual_arms and dual_hands using collision_checking_yumi.cpp
+    double d_arm_check = 0.003; // 0.02;
+    double d_arm_safe = 0.002; //0.01 is actually too large, for some links are very close to each other, e.g. _5_l and _7_l
     double d_hand_check = 0.002; // threshold, pairs with distance above which would not be checked further, so as to reduce number of queries
     double d_hand_safe = 0.001; // margin of safety
   
@@ -1140,22 +1142,79 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
  */
 Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobian, Eigen::Vector3d d_pos, double speed)
 {
+  // dx = J * dq, given dx and J, solve for dq ==> J'*(J*J')^-1 * dx = dq. This is solvable only when rank(J) = rank(J, dx).
+  // So when rank(J) != 6, there is rank(J,dx) > rank(J), and the result would either be incorrect or NaN.
+  // Constrain the rows of J to 3, i.e. processing only position data, this way when row rank of J is >= 3, there is rank(J, dx) >= 3, and therefore rank(J, dx) = 3 = rank(J).
+
   // prep
   Eigen::Matrix<double, 6, 1> d_pos_ori = Eigen::Matrix<double, 6, 1>::Zero();
   d_pos_ori.block(0, 0, 3, 1) = d_pos;
-  unsigned int num_joints = jacobian.cols();
+  unsigned int num_cols = jacobian.cols();
   Eigen::MatrixXd d_q;
-  // d_q.resize(num_joints, 1); 
 
-  // compute 
-  d_q = jacobian.transpose() * (jacobian * jacobian.transpose()).inverse() * d_pos_ori;
 
-  // debug
-  std::cout << "debug: " << std::endl;
-  std::cout << "size of d_q is: " << d_q.rows() << " x " << d_q.cols() << std::endl;
+  // pre-processing J and dx to cope with rank issue. If rank is smaller than 6, J rows will be reduced to the same number, and so does d_pos_ori.
+  // *** Pros and Cons: Although dpos calculated by J*dq would be consistent with d_pos_ori, J*dq might produce huge deviation in dori part !!!
+  unsigned int rank = jacobian.colPivHouseholderQr().rank(); 
+  Eigen::MatrixXd d_x = d_pos_ori;//d_pos_ori.block(0, 0, rank, 1);
+  Eigen::MatrixXd J = jacobian;//jacobian.block(0, 0, rank, num_cols);
+  // std::cout << "debug: rank(J) = " << rank << std::endl;
+  // std::cout << "debug: original J = " << jacobian << std::endl;
+  // std::cout << "debug: processed J = " << J << std::endl;
+  // std::cout << "debug: original dx = " << d_pos_ori.transpose() << std::endl;
+  // std::cout << "debug: processed dx = " << d_x.transpose() << std::endl;
 
-  //
+
+  // solve for dq
+  std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
+  // 1 - direct calculation
+  // d_q = J.transpose() * (J * J.transpose()).inverse() * d_x;
+  // 2 - use SVD
+  JacobiSVD<MatrixXd> svd(J, ComputeThinU | ComputeThinV); // svd.singularValues()/.matrixU()/.matrixV()
+  d_q = svd.solve(d_x);
+  std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+  // std::cout << "SVD solution took " << t_0011.count() << " s." << std::endl;
+  // debug:
+  // std::cout << "debug: d_q = " << d_q.transpose() << std::endl;
+  // std::cout << "debug: original J * dq = " << (jacobian * d_q).transpose() << std::endl;
+  // std::cout << "debug: processed J * dq = " << (J * d_q).transpose() << std::endl;
+  // std::cout << "debug: d_x = " << d_x.transpose() << std::endl;
+  // std::cout << "debug: d_pos_ori = " << d_pos_ori.transpose() << std::endl;
+  // std::cout << "size of d_q is: " << d_q.rows() << " x " << d_q.cols() << std::endl;
+
+
+  // post-processing on dq, to speed up and apply weighting
   d_q = K_COL * speed * d_q;
+
+  
+  // debug on NaN issue
+  /*
+  bool debug = isnan(d_q.norm());
+  if (debug)
+  {
+    std::cout << "NaN error: d_q = " << d_q.transpose() << std::endl;
+    std::cout << "J = \n" << jacobian << std::endl << std::endl;
+    std::cout << "J*JT = \n" << (jacobian * jacobian.transpose()) << std::endl << std::endl;
+    std::cout << "(J*JT)^-1 = \n" << (jacobian * jacobian.transpose()).inverse() << std::endl << std::endl;
+    std::cout << "d_pos_ori = " << d_pos_ori.transpose() << std::endl;
+    std::cout << "End" << std::endl;
+
+    // Qr can't solve ...
+    std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
+    // MatrixXd dq = jacobian.householderQr().solve(d_pos_ori);
+    Eigen::MatrixXd dq = jacobian.colPivHouseholderQr().solve(d_pos_ori); 
+    std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+    std::cout << "QR decomposition spent " << t_0011.count() << " s." << std::endl;
+    // assert(d_pos_ori.isApprox(jacobian * d_q));
+    std::cout << "Results of QR decomposition: dq = " << dq.transpose() << std::endl;
+    std::cout << "J * dq = " << (jacobian * dq).transpose() << std::endl;
+    std::cout << "d_pos_ori = " << d_pos_ori.transpose() << std::endl;
+    std::cout << "End" << std::endl;
+  }
+  */
+
 
   return d_q;
 
@@ -1166,8 +1225,8 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
 void MyUnaryConstraints::linearizeOplus()
 {
   // epsilons
-  double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
-  double simple_update = 0.1;//0.1; // update step for (4,0) or (0,4), i.e. only one end is in colliding state, close to boundary
+  // double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
+  // double simple_update = 0.1;//0.1; // update step for (4,0) or (0,4), i.e. only one end is in colliding state, close to boundary
   double pos_limit_eps = 0.02;
 
   // Get current joint angles
@@ -1185,7 +1244,7 @@ void MyUnaryConstraints::linearizeOplus()
 
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double e_cur;
-  double speed = 1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
+  double speed = 0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
   double min_distance;
   // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -1224,7 +1283,7 @@ void MyUnaryConstraints::linearizeOplus()
     std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
 
     std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
-    std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+    // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
 
     // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
     Eigen::Vector3d link_pos_1 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_1);
@@ -1239,7 +1298,7 @@ void MyUnaryConstraints::linearizeOplus()
         (group_id_1 == 1 && group_id_2 == 1) ) // collision between arm and arm (could be the same), update only q_arm
     {
       // debug display
-      std::cout << "debug: possible collision between arm and arm... update only q_arm" << std::endl;
+      // std::cout << "debug: possible collision between arm and arm... update only q_arm" << std::endl;
       
       // determine left or right
       bool left_or_right_1 = (group_id_1 == 0); 
@@ -1257,8 +1316,8 @@ void MyUnaryConstraints::linearizeOplus()
       Eigen::MatrixXd dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, speed);
       Eigen::MatrixXd dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, speed);
 
-      std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() 
-                               << ", dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
+      // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() 
+      //                          << ", dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
 
       // assign jacobians for collision cost
       // init
@@ -1272,7 +1331,15 @@ void MyUnaryConstraints::linearizeOplus()
       {
         _jacobianOplusXi.block(0, 7, 1, 7) += dq_col_update_1.transpose();
       }
-      std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
+      // for debug
+      bool debug = isnan(_jacobianOplusXi.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+        double a;
+      }
+
       // second link
       if (left_or_right_2)
       {
@@ -1282,35 +1349,50 @@ void MyUnaryConstraints::linearizeOplus()
       {
         _jacobianOplusXi.block(0, 7, 1, 7) += dq_col_update_2.transpose();
       }
-      std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
+
+      // for debug
+      debug = isnan(_jacobianOplusXi.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+        double a;
+      }
 
     }
     else if ((group_id_1 == 2 && group_id_2 == 2) || (group_id_1 == 3 && group_id_2 == 3) ) // collision between hand and hand (the same one), update only q_finger
     {
       // debug display
-      std::cout << "debug: possible collision between fingers of the same hand... update only q_finger" << std::endl;
+      // std::cout << "debug: possible collision between fingers of the same hand... update only q_finger" << std::endl;
 
       // prep
       bool left_or_right = (group_id_1 == 2);
       int finger_id_1 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_1, left_or_right);
       int finger_id_2 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right);
 
-      // compute robot jacobians (for fingers), return is 6 x N, N could be 4(thumb) or 2(others).
-      Eigen::MatrixXd jacobian_1 = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian(link_name_1, 
-                                                                                             ref_point_pos_1, 
-                                                                                             finger_id_1,
-                                                                                             left_or_right);
-      Eigen::MatrixXd jacobian_2 = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian(link_name_2, 
-                                                                                             ref_point_pos_2, 
-                                                                                             finger_id_2,
-                                                                                             left_or_right);
-
-      // compute updates
-      Eigen::MatrixXd dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, speed);
-      Eigen::MatrixXd dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, speed);
-
-      std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() 
-                               << ", dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
+      // compute robot jacobians (for fingers), return is 6 x N, N could be 4(thumb) or 2(others); and compute updates
+      Eigen::MatrixXd jacobian_1;
+      Eigen::MatrixXd jacobian_2;
+      Eigen::MatrixXd dq_col_update_1;
+      Eigen::MatrixXd dq_col_update_2;
+      if (finger_id_1 != -1) // if not belonging to palm groups!!!
+      {
+        jacobian_1 = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian(link_name_1, 
+                                                                               ref_point_pos_1, 
+                                                                               finger_id_1,
+                                                                               left_or_right);
+        dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, speed);                                                                               
+        // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() << std::endl;
+      }
+      if (finger_id_2 != -1) // if not belonging to palm groups!!!
+      {
+        jacobian_2 = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian(link_name_2, 
+                                                                               ref_point_pos_2, 
+                                                                               finger_id_2,
+                                                                               left_or_right);
+        dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, speed);                                                                               
+        // std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
+      }
 
 
       // assign jacobians for collision cost
@@ -1335,13 +1417,22 @@ void MyUnaryConstraints::linearizeOplus()
         case 4: // little
           _jacobianOplusXi.block(0, 20 + d, 1, 2) += dq_col_update_1.transpose();
           break;
+        case -1: // palm, do nothing
+          break;
         default:
-          std::cerr << "error: Finger ID doesn't lie in {0,1,2,3,4}!!!" << std::endl;
+          std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
           exit(-1);
           break;
       }
-      std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
-      
+      // std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
+      // for debug
+      bool debug = isnan(_jacobianOplusXi.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+        double a;
+      }
+
       // second link
       switch (finger_id_2)
       {
@@ -1360,17 +1451,30 @@ void MyUnaryConstraints::linearizeOplus()
         case 4: // little
           _jacobianOplusXi.block(0, 20 + d, 1, 2) += dq_col_update_2.transpose();
           break;
+        case -1: // palm, do nothing
+          break;
         default:
-          std::cerr << "error: Finger ID doesn't lie in {0,1,2,3,4}!!!" << std::endl;
+          std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
           exit(-1);
           break;
       }
 
-      std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
+
+       // for debug
+      debug = isnan(_jacobianOplusXi.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+        double a;
+      }
 
     }
     else if (group_id_1 == -1 || group_id_2 == -1) // one of the object doesn't belong to arms or hands, update only one arm+hand
     {
+
+      // std::cout << "debug: possible collision between robot arms/hands and others..." << std::endl;
+
       // just in case
       if (group_id_1 == -1 && group_id_2 == -1)
       {
@@ -1394,15 +1498,18 @@ void MyUnaryConstraints::linearizeOplus()
         // compute robot jacobians
         bool left_or_right = (group_id == 2);
         int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name, left_or_right);
-        jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name,
-                                                                                 ref_point_pos,
-                                                                                 finger_id,
-                                                                                 left_or_right);
+        if (finger_id != -1) // if not palm group !!!
+        {
+          jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name,
+                                                                                  ref_point_pos,
+                                                                                  finger_id,
+                                                                                  left_or_right);
+          // compute updates
+          double direction = (group_id_1 == -1) ? 1.0 : -1.0;
+          dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, speed);
+          // std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;                                                                                  
+        }
         
-        // compute updates
-        double direction = (group_id_1 == -1) ? 1.0 : -1.0;
-        dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, speed);
-        std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;
 
         // assign updates to col jacobian
         // arm part
@@ -1427,10 +1534,19 @@ void MyUnaryConstraints::linearizeOplus()
           case 4: // little
             _jacobianOplusXi.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
             break;
+          case -1: // palm, do nothing
+            break;
           default:
-            std::cerr << "error: Finger ID doesn't lie in {0,1,2,3,4}!!!" << std::endl;
+            std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
             exit(-1);
             break;
+        }
+        // for debug
+        bool debug = isnan(_jacobianOplusXi.norm());
+        if (debug)
+        {
+          std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+          double a;
         }
 
       }
@@ -1445,19 +1561,29 @@ void MyUnaryConstraints::linearizeOplus()
         // compute updates
         double direction = (group_id_1 == -1) ? 1.0 : -1.0;
         dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, speed);
-        std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;
+        // std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;
 
         // assign updates to col jacobian
         unsigned int d_arm = left_or_right ? 0 : 7;
         _jacobianOplusXi.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
 
+        // for debug
+        bool debug = isnan(_jacobianOplusXi.norm());
+        if (debug)
+        {
+          std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+          double a;
+        }
+
       }
 
-      std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
   
     }
-    else // all the other condition, update both q_arm and q_finger ()
+    else // all the other conditions, update both q_arm and q_finger ()
     {
+      // std::cout << "debug: Possible collision between arm and hand, or left and right hands... update both q_arm and q_finger" << std::endl;
+
       // prep
       bool left_or_right_1 = ( (group_id_1 == 0) || (group_id_1 == 2) );
       bool left_or_right_2 = ( (group_id_2 == 0) || (group_id_2 == 2) );
@@ -1470,20 +1596,32 @@ void MyUnaryConstraints::linearizeOplus()
         // prep
         int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_1, left_or_right_1);
 
-        // compute robot jacobian for arm+hand group
-        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_1,
-                                                                                 ref_point_pos_1,
-                                                                                 finger_id,
-                                                                                 left_or_right_1);
-        
-        // compute updates
-        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);
-        std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
+        // compute robot jacobian for arm+hand group and compute updates
+        Eigen::MatrixXd jacobian;
+        Eigen::MatrixXd dq_col_update;
+        if (finger_id != -1) // if not palm group
+        {
+          jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_1,
+                                                                                  ref_point_pos_1,
+                                                                                  finger_id,
+                                                                                  left_or_right_1);
+          dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);                                                                                  
+          // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
+        }
+
 
         // assign updates to col jacobian
         // arm part
         unsigned int d_arm = left_or_right_1 ? 0 : 7;
         _jacobianOplusXi.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
+        // for debug
+        bool debug = isnan(_jacobianOplusXi.norm());
+        if (debug)
+        {
+          std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+          double a;
+        }
+
         // hand part
         unsigned int d_hand = left_or_right_1 ? 0 : 12;
         switch (finger_id)
@@ -1503,10 +1641,19 @@ void MyUnaryConstraints::linearizeOplus()
           case 4: // little
             _jacobianOplusXi.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
             break;
+          case -1: // palm, do nothing
+            break;
           default:
             std::cerr << "error: Finger ID doesn't lie in {0,1,2,3,4}!!!" << std::endl;
             exit(-1);
             break;
+        }
+        // for debug
+        debug = isnan(_jacobianOplusXi.norm());
+        if (debug)
+        {
+          std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+          double a;
         }
 
       }
@@ -1520,14 +1667,21 @@ void MyUnaryConstraints::linearizeOplus()
         
         // compute updates
         Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);
-        std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
+        // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
 
         // assign updates to col jacobian
         // arm part
         unsigned int d_arm = left_or_right_1 ? 0 : 7;
         _jacobianOplusXi.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
+        // for debug
+        bool debug = isnan(_jacobianOplusXi.norm());
+        if (debug)
+        {
+          std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+          double a;
+        }
       }
-      std::cout << "debug: 1 - jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "debug: 1 - jacobian = " << _jacobianOplusXi << std::endl;
       
      
       // process the second link
@@ -1544,12 +1698,20 @@ void MyUnaryConstraints::linearizeOplus()
 
         // compute updates
         Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, speed);
-        std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update.transpose() << std::endl;
+        // std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update.transpose() << std::endl;
 
         // assign updates to col jacobian
         // arm part
         unsigned int d_arm = left_or_right_2 ? 0 : 7;
         _jacobianOplusXi.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
+        // for debug
+        bool debug = isnan(_jacobianOplusXi.norm());
+        if (debug)
+        {
+          std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+          double a;
+        }
+
         // hand part
         unsigned int d_hand = left_or_right_2 ? 0 : 12;
         switch (finger_id)
@@ -1574,6 +1736,13 @@ void MyUnaryConstraints::linearizeOplus()
             exit(-1);
             break;
         }
+        // for debug
+        debug = isnan(_jacobianOplusXi.norm());
+        if (debug)
+        {
+          std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+          double a;
+        }
 
       }
       else // 0 or 1, arm, should calculate robot jacobian for arm group
@@ -1586,14 +1755,22 @@ void MyUnaryConstraints::linearizeOplus()
         
         // compute updates
         Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, speed);
-        std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update.transpose() << std::endl;
+        // std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update.transpose() << std::endl;
 
         // assign updates to col jacobian
         // arm part
         unsigned int d_arm = left_or_right_2 ? 0 : 7;
         _jacobianOplusXi.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
+        // for debug
+        bool debug = isnan(_jacobianOplusXi.norm());
+        if (debug)
+        {
+          std::cout << "debug: jacobian = " << _jacobianOplusXi << std::endl;
+          double a;
+        }
+
       }
-      std::cout << "debug: 2 - jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "debug: 2 - jacobian = " << _jacobianOplusXi << std::endl;
 
     } // END of calculating collision jacobian for optimization
   }
@@ -1602,11 +1779,13 @@ void MyUnaryConstraints::linearizeOplus()
     _jacobianOplusXi = Matrix<double, 1, JOINT_DOF>::Zero(); // assign no updates for avoiding collision
   } // END of calculating collision jacobian for optimization
 
+  // debug:
+  // std::cout << "debug: col jacobians = " << _jacobianOplusXi << std::endl;
 
   // record col jacobians
   col_jacobians = _jacobianOplusXi.transpose();
-  
 
+  
   // iterate to calculate pos_limit jacobians
   double e_plus, e_minus;
   for (unsigned int d = 0; d < JOINT_DOF; d++)
@@ -1642,8 +1821,31 @@ void MyUnaryConstraints::linearizeOplus()
     delta_x[d] = 0.0;
   }
 
-  //std::cout << "debug: collision jacobians = " << col_jacobians.transpose() << std::endl;
+
+  // debug:
+  /*
+  std::cout << "debug: norms of col_jacobian = " << col_jacobians.norm() << std::endl;
+  std::cout << "debug: norms of whole_jacobian = " << whole_jacobians.norm() << std::endl;
+  std::cout << "debug: col_jacobians = " << col_jacobians.transpose() << std::endl;
+  std::cout << "debug: whole_jacobians = " << whole_jacobians.transpose() << std::endl;
+
+  bool result1 = isnan(col_jacobians.norm());
+  bool result2 = isnan(whole_jacobians.norm());
+
+  if (result1)
+  {
+    std::cout << "debug: col_jacobians contains NaN!!!" << std::endl;
+    double a;
+  }
+
+  if (result2)
+  {
+    std::cout << "debug: whole_jacobians contains NaN!!!" << std::endl;
+    double a;
+  }
+  // std::cout << "debug: unary jacobians = " <<  _jacobianOplusXi << std::endl;
   //double debug;
+  */
 
 }
 
@@ -5058,7 +5260,7 @@ int main(int argc, char *argv[])
   
   unsigned int num_rounds = 20;//1;//10;//20;//200;
   unsigned int dmp_per_iterations = 10;//5;//10;
-  unsigned int q_per_iterations = 50;//100;//300;//100;//30;
+  unsigned int q_per_iterations = 50;
   unsigned int max_round; // record for ease
 
   // coefficients search space
@@ -5141,7 +5343,6 @@ int main(int argc, char *argv[])
 
     // optimize for a few iterations
     std::cout << "Optimizing q..." << std::endl;
-    optimizer.optimize(3); // optimize for a few rounds to get different joint angles
     unsigned int q_iter = optimizer.optimize(q_per_iterations); 
     
     // Store cost results
@@ -5362,6 +5563,7 @@ int main(int argc, char *argv[])
 
 
     // Extra checking: if possibly deep inside collision area
+    /*
     if (tmp_col_cost > 1.0) // still in collision, very likely it's stuck deep inside collision area
     {
 
@@ -5602,7 +5804,7 @@ int main(int argc, char *argv[])
       if (tmp_col_cost > 1.0)
         std::cout << "The result optimized by distance_computation is still in collision, better not use this result !!!!\n" << std::endl;
     } // END of Collision fix
-    
+    */
 
     // reset
     std::cout << "Re-activate DMP vertex." << std::endl;

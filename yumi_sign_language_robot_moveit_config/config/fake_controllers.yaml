@@ -288,3 +288,9 @@ controller_list:
       - yumi_joint_6_r
       - Link4
       - Link44
+  - name: fake_left_palm_controller
+    joints:
+      []
+  - name: fake_right_palm_controller
+    joints:
+      []

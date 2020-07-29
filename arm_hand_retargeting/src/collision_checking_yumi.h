@@ -112,6 +112,9 @@ class DualArmDualHandCollision
     const robot_model::JointModelGroup *left_hand_group_ = current_state_.getJointModelGroup("left_hand");
     const robot_model::JointModelGroup *right_hand_group_ = current_state_.getJointModelGroup("right_hand");
     // fingers only
+    const robot_model::JointModelGroup *left_palm_group_ = current_state_.getJointModelGroup("left_palm");    
+    const robot_model::JointModelGroup *right_palm_group_ = current_state_.getJointModelGroup("right_palm");    
+    
     const robot_model::JointModelGroup *left_thumb_group_ = current_state_.getJointModelGroup("left_thumb");    
     const robot_model::JointModelGroup *left_index_group_ = current_state_.getJointModelGroup("left_index");    
     const robot_model::JointModelGroup *left_middle_group_ = current_state_.getJointModelGroup("left_middle");    
