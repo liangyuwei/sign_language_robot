@@ -1171,11 +1171,11 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
   unsigned int rank = jacobian.colPivHouseholderQr().rank(); 
   Eigen::MatrixXd d_x = d_pos_ori;//d_pos_ori.block(0, 0, rank, 1);
   Eigen::MatrixXd J = jacobian;//jacobian.block(0, 0, rank, num_cols);
-  // std::cout << "debug: rank(J) = " << rank << std::endl;
-  // std::cout << "debug: original J = " << jacobian << std::endl;
-  // std::cout << "debug: processed J = " << J << std::endl;
-  // std::cout << "debug: original dx = " << d_pos_ori.transpose() << std::endl;
-  // std::cout << "debug: processed dx = " << d_x.transpose() << std::endl;
+  std::cout << "debug: rank(J) = " << rank << std::endl;
+  std::cout << "debug: original J = " << jacobian << std::endl;
+  std::cout << "debug: processed J = " << J << std::endl;
+  std::cout << "debug: original dx = " << d_pos_ori.transpose() << std::endl;
+  std::cout << "debug: processed dx = " << d_x.transpose() << std::endl;
 
 
   // solve for dq
