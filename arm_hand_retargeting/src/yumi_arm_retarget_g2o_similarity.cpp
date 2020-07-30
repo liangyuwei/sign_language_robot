@@ -1100,6 +1100,9 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     double return_pos_limit_cost();
     double return_col_cost();
 
+    // display for debug
+    void output_distance_result();
+
     // for computing collision updates
     Eigen::MatrixXd compute_col_q_update(Eigen::MatrixXd jacobian, Eigen::Vector3d dx, double speed);
 
@@ -1119,9 +1122,9 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     // use different margins of safety for arms and hands
     // here the safety margin should be set according to actual condition: set a collision-free state and check minimum distance for dual_arms and dual_hands using collision_checking_yumi.cpp
     double d_arm_check = 0.003; // 0.02;
-    double d_arm_safe = 0.002; //0.01 is actually too large, for some links are very close to each other, e.g. _5_l and _7_l
+    double d_arm_safe = 0.0; //0.002; //0.01 is actually too large, for some links are very close to each other, e.g. _5_l and _7_l
     double d_hand_check = 0.002; // threshold, pairs with distance above which would not be checked further, so as to reduce number of queries
-    double d_hand_safe = 0.001; // margin of safety
+    double d_hand_safe = 0.0; //0.001; // margin of safety
   
 
   public:
@@ -1132,6 +1135,16 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr;
 
 };
+
+/* This function outputs distance computation results, for checking on collision. */
+void MyUnaryConstraints::output_distance_result()
+{
+  std::cout << "Distance result: " << std::endl;
+  std::cout << "Collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] << " and " 
+                                    << dual_arm_dual_hand_collision_ptr->link_names[1] << ", with min_dist = "
+                                    << dual_arm_dual_hand_collision_ptr->min_distance << "." << std::endl;
+
+}
 
 
 /* This function computes q velocity from Cartesian velocity, through the use of robot jacobian. 
@@ -1176,12 +1189,12 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
   std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
   // std::cout << "SVD solution took " << t_0011.count() << " s." << std::endl;
   // debug:
-  // std::cout << "debug: d_q = " << d_q.transpose() << std::endl;
-  // std::cout << "debug: original J * dq = " << (jacobian * d_q).transpose() << std::endl;
-  // std::cout << "debug: processed J * dq = " << (J * d_q).transpose() << std::endl;
-  // std::cout << "debug: d_x = " << d_x.transpose() << std::endl;
-  // std::cout << "debug: d_pos_ori = " << d_pos_ori.transpose() << std::endl;
-  // std::cout << "size of d_q is: " << d_q.rows() << " x " << d_q.cols() << std::endl;
+  std::cout << "debug: d_q = " << d_q.transpose() << std::endl;
+  std::cout << "debug: original J * dq = " << (jacobian * d_q).transpose() << std::endl;
+  std::cout << "debug: processed J * dq = " << (J * d_q).transpose() << std::endl;
+  std::cout << "debug: d_x = " << d_x.transpose() << std::endl;
+  std::cout << "debug: d_pos_ori = " << d_pos_ori.transpose() << std::endl;
+  std::cout << "size of d_q is: " << d_q.rows() << " x " << d_q.cols() << std::endl;
 
 
   // post-processing on dq, to speed up and apply weighting
@@ -1244,7 +1257,7 @@ void MyUnaryConstraints::linearizeOplus()
 
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double e_cur;
-  double speed = 1000.0;//10.0;//1.0;//100.0;//1.0;//10.0;//50.0;//100.0;//10.0;//1.0;//0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
+  double speed = 1.0;//1000.0;//10.0;//1.0;//100.0;//1.0;//10.0;//50.0;//100.0;//10.0;//1.0;//0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
   double min_distance;
   // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -1274,6 +1287,8 @@ void MyUnaryConstraints::linearizeOplus()
   // determine updates when in collision state or safety is not met
   if (e_cur > 0.0) // in collision state or within safety of margin
   {
+    // std::cout << "debug: e_cur = " << e_cur << std::endl;
+
     // get group belonging information: 0 - left_arm, 1 - right_arm, 2 - left_hand, 3 - right_hand, -1 - others
     int group_id_1 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[0]);
     int group_id_2 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[1]);
@@ -1282,7 +1297,7 @@ void MyUnaryConstraints::linearizeOplus()
     std::string link_name_1 = dual_arm_dual_hand_collision_ptr->link_names[0];
     std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
 
-    // std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
+    std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
     // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
 
     // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
@@ -1313,8 +1328,8 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                             left_or_right_2);  
       
       // note that .normal is the normalized vector pointing from link_names[0] to link_names[1]; output is column vector with size N x 1
-      Eigen::MatrixXd dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);
-      Eigen::MatrixXd dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);
+      Eigen::MatrixXd dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, speed);
+      Eigen::MatrixXd dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, speed);
 
       // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() 
       //                          << ", dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
@@ -1381,8 +1396,8 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                ref_point_pos_1, 
                                                                                finger_id_1,
                                                                                left_or_right);
-        dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);                                                                               
-        // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() << std::endl;
+        dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, speed);                                                                               
+        std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() << std::endl;
       }
       if (finger_id_2 != -1) // if not belonging to palm groups!!!
       {
@@ -1390,8 +1405,8 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                ref_point_pos_2, 
                                                                                finger_id_2,
                                                                                left_or_right);
-        dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);                                                                               
-        // std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
+        dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, speed);                                                                               
+        std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
       }
 
 
@@ -1402,7 +1417,7 @@ void MyUnaryConstraints::linearizeOplus()
       // first link
       switch (finger_id_1)
       {
-        case 0: // thummb
+        case 0: // thumb
           _jacobianOplusXi.block(0, 22 + d, 1, 4) += dq_col_update_1.transpose();
           break;
         case 1: //index
@@ -1424,7 +1439,7 @@ void MyUnaryConstraints::linearizeOplus()
           exit(-1);
           break;
       }
-      // std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
+      std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
       // for debug
       bool debug = isnan(_jacobianOplusXi.norm());
       if (debug)
@@ -1436,7 +1451,7 @@ void MyUnaryConstraints::linearizeOplus()
       // second link
       switch (finger_id_2)
       {
-        case 0: // thummb
+        case 0: // thumb
           _jacobianOplusXi.block(0, 22 + d, 1, 4) += dq_col_update_2.transpose();
           break;
         case 1: //index
@@ -1459,7 +1474,7 @@ void MyUnaryConstraints::linearizeOplus()
           break;
       }
 
-      // std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
+      std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
 
        // for debug
       debug = isnan(_jacobianOplusXi.norm());
@@ -1506,7 +1521,7 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                   left_or_right);
           // compute updates
           double direction = (group_id_1 == -1) ? 1.0 : -1.0;
-          dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);
+          dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, speed);
           // std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;                                                                                  
         }
         
@@ -1560,7 +1575,7 @@ void MyUnaryConstraints::linearizeOplus()
         
         // compute updates
         double direction = (group_id_1 == -1) ? 1.0 : -1.0;
-        dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);
+        dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, speed);
         // std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;
 
         // assign updates to col jacobian
@@ -1601,7 +1616,7 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                                  ref_point_pos_1,
                                                                                                  finger_id,
                                                                                                  left_or_right_1);
-        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);                                                                                  
+        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);                                                                                  
         // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
 
 
@@ -1662,7 +1677,7 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                             left_or_right_1);
         
         // compute updates
-        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);
+        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);
         // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
 
         // assign updates to col jacobian
@@ -1694,7 +1709,7 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                                  left_or_right_2);
 
         // compute updates
-        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);
+        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, speed);
        
 
         // assign updates to col jacobian
@@ -1754,7 +1769,7 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                             left_or_right_2);
         
         // compute updates
-        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, e_cur * speed);
+        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, speed);
         // std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update.transpose() << std::endl;
 
         // assign updates to col jacobian
@@ -5266,13 +5281,13 @@ int main(int argc, char *argv[])
 
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   
-  unsigned int num_rounds = 20;//1;//10;//20;//200;
+  unsigned int num_rounds = 1;//20;//1;//10;//20;//200;
   unsigned int dmp_per_iterations = 10;//5;//10;
   unsigned int q_per_iterations = 50;//5;//50;
   unsigned int max_round; // record for ease
 
   // coefficients search space
-  double K_COL_MAX = 500.0;//200.0;//1000;//20.0;//15.0;//10.0;
+  double K_COL_MAX = 1000000.0;//200.0;//1000;//20.0;//15.0;//10.0;
   double K_POS_LIMIT_MAX = 30.0;//20;//20.0;//15.0;//10.0;
   double K_SMOOTHNESS_MAX = 30.0;//20.0;//15.0;//10.0;//10.0;
 
@@ -5281,6 +5296,7 @@ int main(int argc, char *argv[])
   double K_DMPRELCHANGE_MAX = 2.0;
 
   double K_WRIST_POS_MAX = 10.0;
+  double K_ELBOW_POS_MAX = 10.0;
 
   
   // constraints bounds
@@ -5293,6 +5309,7 @@ int main(int argc, char *argv[])
   double dmp_rel_change_cost_bound = 0.0; // better be 0
 
   double wrist_pos_cost_bound = std::sqrt( (std::pow(0.02, 2) * 3) ) * NUM_DATAPOINTS; // 2 cm allowable error
+  double elbow_pos_cost_bound = std::sqrt( (std::pow(0.03, 2) * 3) ) * NUM_DATAPOINTS; // 3 cm allowable error
 
 
   double scale = 1.5;  // increase coefficients by 20% 
@@ -5324,7 +5341,7 @@ int main(int argc, char *argv[])
   {
     // 1 - Optimize q vertices
     // coefficients
-    K_COL = 50.0;//10.0;//100.0;//1.0;
+    K_COL = 1.0; //50.0;//10.0;//100.0;//1.0;
     K_POS_LIMIT = 1.0;//10.0;//5.0;//10.0;//5.0; 
     K_WRIST_ORI = 1.0;
     K_WRIST_POS = 1.0;
@@ -5336,6 +5353,7 @@ int main(int argc, char *argv[])
     double tmp_pos_limit_cost;
     double tmp_smoothness_cost;
     double tmp_wrist_pos_cost;
+    double tmp_elbow_pos_cost;
 
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", q stage: "<< std::endl;
 
@@ -5356,10 +5374,12 @@ int main(int argc, char *argv[])
 
     do 
     {
-      std::cout << ">>>> Inner loop: adjust K_WRIST_POS" << std::endl;
+      std::cout << ">>>> Inner loop: adjust K_WRIST_POS, K_ELBOW_POS" << std::endl;
 
       std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
-    
+      std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
+
+
     // optimize for a few iterations
     std::cout << "Optimizing q..." << std::endl;
     unsigned int q_iter = optimizer.optimize(q_per_iterations); 
@@ -5448,8 +5468,12 @@ int main(int argc, char *argv[])
     std::cout << std::endl << std::endl;    
     // 
     std::cout << "debug: elbow_pos_cost = ";
+    tmp_elbow_pos_cost = 0.0;
     for (unsigned s = 0; s < elbow_pos_cost.size(); s++)
+    {
       std::cout << elbow_pos_cost[s] << " ";
+      tmp_elbow_pos_cost += elbow_pos_cost[s];
+    }
     std::cout << std::endl << std::endl;    
     // 
     std::cout << "debug: l_elbow_pos_cost = ";
@@ -5535,15 +5559,33 @@ int main(int argc, char *argv[])
 
     // check wrist cost
     std::cout << "Total wrist_cost = " << tmp_wrist_pos_cost << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
+    std::cout << "Total elbow_cost = " << tmp_elbow_pos_cost << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
 
     if (tmp_wrist_pos_cost > wrist_pos_cost_bound && K_WRIST_POS <= K_WRIST_POS_MAX)
     {
       K_WRIST_POS = K_WRIST_POS * inner_scale;
     }
+
+    if (tmp_elbow_pos_cost > elbow_pos_cost_bound && K_ELBOW_POS <= K_ELBOW_POS_MAX)
+    {
+      K_ELBOW_POS = K_ELBOW_POS * inner_scale;
+    }
     // test: use collision checking just one round, only for fast tracking convergence!!!
     // break;
 
-    }while(K_WRIST_POS <= K_WRIST_POS_MAX && tmp_wrist_pos_cost > wrist_pos_cost_bound);
+    }while( (K_WRIST_POS <= K_WRIST_POS_MAX && tmp_wrist_pos_cost > wrist_pos_cost_bound) ||
+            (K_ELBOW_POS <= K_ELBOW_POS_MAX && tmp_elbow_pos_cost > elbow_pos_cost_bound) );
+
+    
+    // Checking collision situation
+    std::cout << ">> Collision condition <<" << std::endl;
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      std::cout << ">> Path point " << (n+1) << "/" << NUM_DATAPOINTS << " <<" << std::endl;
+      unary_edges[n]->output_distance_result();
+      std::cout << "col_jacobians = " << unary_edges[n]->col_jacobians.transpose() << std::endl;
+    }
+
 
     // Conclusion
     std::cout << "Total col_cost = " << tmp_col_cost << " (bound: " << col_cost_bound << ")" << std::endl;
@@ -5578,10 +5620,13 @@ int main(int argc, char *argv[])
     std::cout << "Final weights: K_COL = " << K_COL 
               << ", K_SMOOTHNESS = " << K_SMOOTHNESS 
               << ", K_POS_LIMIT = " << K_POS_LIMIT 
+              << ", K_WRIST_POS = " << K_WRIST_POS
+              << ", K_ELBOW_POS = " << K_ELBOW_POS
               << ", with col_cost = " << tmp_col_cost
               << ", smoothness_cost = " << tmp_smoothness_cost
               << ", pos_limit_cost = " << tmp_pos_limit_cost 
-              << ", wrist_cost = " << tmp_wrist_pos_cost << std::endl << std::endl;
+              << ", wrist_cost = " << tmp_wrist_pos_cost 
+              << ", elbow_cost = " << tmp_elbow_pos_cost << std::endl << std::endl;
 
 
     // Extra checking: if possibly deep inside collision area
