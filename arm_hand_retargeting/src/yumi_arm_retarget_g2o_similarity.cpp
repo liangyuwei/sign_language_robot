@@ -1091,6 +1091,9 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
     double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct &fdata);
     double compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
+    
+    double compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
+    
     // double compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     double compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q_whole, my_constraint_struct &fdata);
 
@@ -1171,11 +1174,11 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
   unsigned int rank = jacobian.colPivHouseholderQr().rank(); 
   Eigen::MatrixXd d_x = d_pos_ori;//d_pos_ori.block(0, 0, rank, 1);
   Eigen::MatrixXd J = jacobian;//jacobian.block(0, 0, rank, num_cols);
-  std::cout << "debug: rank(J) = " << rank << std::endl;
-  std::cout << "debug: original J = " << jacobian << std::endl;
-  std::cout << "debug: processed J = " << J << std::endl;
-  std::cout << "debug: original dx = " << d_pos_ori.transpose() << std::endl;
-  std::cout << "debug: processed dx = " << d_x.transpose() << std::endl;
+  // std::cout << "debug: rank(J) = " << rank << std::endl;
+  // std::cout << "debug: original J = " << jacobian << std::endl;
+  // std::cout << "debug: processed J = " << J << std::endl;
+  // std::cout << "debug: original dx = " << d_pos_ori.transpose() << std::endl;
+  // std::cout << "debug: processed dx = " << d_x.transpose() << std::endl;
 
 
   // solve for dq
@@ -1189,12 +1192,12 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
   std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
   // std::cout << "SVD solution took " << t_0011.count() << " s." << std::endl;
   // debug:
-  std::cout << "debug: d_q = " << d_q.transpose() << std::endl;
-  std::cout << "debug: original J * dq = " << (jacobian * d_q).transpose() << std::endl;
-  std::cout << "debug: processed J * dq = " << (J * d_q).transpose() << std::endl;
-  std::cout << "debug: d_x = " << d_x.transpose() << std::endl;
-  std::cout << "debug: d_pos_ori = " << d_pos_ori.transpose() << std::endl;
-  std::cout << "size of d_q is: " << d_q.rows() << " x " << d_q.cols() << std::endl;
+  // std::cout << "debug: d_q = " << d_q.transpose() << std::endl;
+  // std::cout << "debug: original J * dq = " << (jacobian * d_q).transpose() << std::endl;
+  // std::cout << "debug: processed J * dq = " << (J * d_q).transpose() << std::endl;
+  // std::cout << "debug: d_x = " << d_x.transpose() << std::endl;
+  // std::cout << "debug: d_pos_ori = " << d_pos_ori.transpose() << std::endl;
+  // std::cout << "size of d_q is: " << d_q.rows() << " x " << d_q.cols() << std::endl;
 
 
   // post-processing on dq, to speed up and apply weighting
@@ -1238,8 +1241,8 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
 void MyUnaryConstraints::linearizeOplus()
 {
   // epsilons
-  // double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
-  // double simple_update = 0.1;//0.1; // update step for (4,0) or (0,4), i.e. only one end is in colliding state, close to boundary
+  double col_eps = 5.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
+  double simple_update = 0.2;//0.1;//0.1; // update step for (4,0) or (0,4), i.e. only one end is in colliding state, close to boundary
   double pos_limit_eps = 0.02;
 
   // Get current joint angles
@@ -1258,6 +1261,7 @@ void MyUnaryConstraints::linearizeOplus()
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double e_cur;
   double speed = 1.0;//1000.0;//10.0;//1.0;//100.0;//1.0;//10.0;//50.0;//100.0;//10.0;//1.0;//0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
+  double hand_speed = 200.0;//100.0;// 1.0; // for collision between links belonging to the same hand !!!
   double min_distance;
   // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -1297,7 +1301,7 @@ void MyUnaryConstraints::linearizeOplus()
     std::string link_name_1 = dual_arm_dual_hand_collision_ptr->link_names[0];
     std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
 
-    std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
+    // std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
     // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
 
     // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
@@ -1386,6 +1390,7 @@ void MyUnaryConstraints::linearizeOplus()
       int finger_id_2 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right);
 
       // compute robot jacobians (for fingers), return is 6 x N, N could be 4(thumb) or 2(others); and compute updates
+      /*
       Eigen::MatrixXd jacobian_1;
       Eigen::MatrixXd jacobian_2;
       Eigen::MatrixXd dq_col_update_1;
@@ -1396,7 +1401,7 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                ref_point_pos_1, 
                                                                                finger_id_1,
                                                                                left_or_right);
-        dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, speed);                                                                               
+        dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, hand_speed*speed);                                                                               
         std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() << std::endl;
       }
       if (finger_id_2 != -1) // if not belonging to palm groups!!!
@@ -1405,32 +1410,100 @@ void MyUnaryConstraints::linearizeOplus()
                                                                                ref_point_pos_2, 
                                                                                finger_id_2,
                                                                                left_or_right);
-        dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, speed);                                                                               
+        dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, hand_speed*speed);                                                                               
         std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
       }
-
+      */
 
       // assign jacobians for collision cost
       // init
       _jacobianOplusXi = Matrix<double, 1, JOINT_DOF>::Zero();
+      Matrix<double, 1, JOINT_DOF> jacobian_way_1 = Matrix<double, 1, JOINT_DOF>::Zero();
+      Matrix<double, 1, JOINT_DOF> jacobian_way_2 = Matrix<double, 1, JOINT_DOF>::Zero();
       unsigned int d = left_or_right ? 0 : 12;
+      double e_up, e_down;
       // first link
       switch (finger_id_1)
       {
         case 0: // thumb
-          _jacobianOplusXi.block(0, 22 + d, 1, 4) += dq_col_update_1.transpose();
+          for (unsigned int s = 0; s < 4; s++)
+          {
+            // set
+            delta_x[22+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+            jacobian_way_1(0, 22+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 22 + d, 1, 4) += dq_col_update_1.transpose();
+            // reset
+            delta_x[22+d+s] = 0.0;
+          }
           break;
         case 1: //index
-          _jacobianOplusXi.block(0, 14 + d, 1, 2) += dq_col_update_1.transpose();
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[14+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+            jacobian_way_1(0, 14+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 14 + d, 1, 2) += dq_col_update_1.transpose();
+            // reset
+            delta_x[14+d+s] = 0.0;
+          }
           break;
         case 2: //middle
-          _jacobianOplusXi.block(0, 16 + d, 1, 2) += dq_col_update_1.transpose();
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[16+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+            jacobian_way_1(0, 16+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 16 + d, 1, 2) += dq_col_update_1.transpose();
+            // reset
+            delta_x[16+d+s] = 0.0;
+          }
           break;
         case 3: // ring
-          _jacobianOplusXi.block(0, 18 + d, 1, 2) += dq_col_update_1.transpose();
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[18+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+            jacobian_way_1(0, 18+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 18 + d, 1, 2) += dq_col_update_1.transpose();
+            // reset
+            delta_x[18+d+s] = 0.0;
+          }
           break;
         case 4: // little
-          _jacobianOplusXi.block(0, 20 + d, 1, 2) += dq_col_update_1.transpose();
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[20+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+            jacobian_way_1(0, 20+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 20 + d, 1, 2) += dq_col_update_1.transpose();
+            // reset
+            delta_x[20+d+s] = 0.0;
+          }
           break;
         case -1: // palm, do nothing
           break;
@@ -1439,7 +1512,10 @@ void MyUnaryConstraints::linearizeOplus()
           exit(-1);
           break;
       }
-      std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "1 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
+      // std::cout << "1 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
+
       // for debug
       bool debug = isnan(_jacobianOplusXi.norm());
       if (debug)
@@ -1452,19 +1528,84 @@ void MyUnaryConstraints::linearizeOplus()
       switch (finger_id_2)
       {
         case 0: // thumb
-          _jacobianOplusXi.block(0, 22 + d, 1, 4) += dq_col_update_2.transpose();
+          for (unsigned int s = 0; s < 4; s++)
+          {
+            // set
+            delta_x[22+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+            jacobian_way_1(0, 22+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 22 + d, 1, 4) += dq_col_update_2.transpose();
+            // reset
+            delta_x[22+d+s] = 0.0;
+          }
           break;
         case 1: //index
-          _jacobianOplusXi.block(0, 14 + d, 1, 2) += dq_col_update_2.transpose();
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[14+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+            jacobian_way_1(0, 14+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 14 + d, 1, 2) += dq_col_update_2.transpose();
+            // reset
+            delta_x[14+d+s] = 0.0;
+          }
           break;
         case 2: //middle
-          _jacobianOplusXi.block(0, 16 + d, 1, 2) += dq_col_update_2.transpose();
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[16+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+            jacobian_way_1(0, 16+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 16 + d, 1, 2) += dq_col_update_2.transpose();
+            // reset
+            delta_x[16+d+s] = 0.0;
+          }
           break;
         case 3: // ring
-          _jacobianOplusXi.block(0, 18 + d, 1, 2) += dq_col_update_2.transpose();
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[18+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); // 
+            jacobian_way_1(0, 18+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 18 + d, 1, 2) += dq_col_update_2.transpose();
+            // reset
+            delta_x[18+d+s] = 0.0;
+          }
           break;
         case 4: // little
-          _jacobianOplusXi.block(0, 20 + d, 1, 2) += dq_col_update_2.transpose();
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[20+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            _jacobianOplusXi(0, 20+d+s) +=  hand_speed * (e_up - e_down) / (2*col_eps); //
+            jacobian_way_1(0, 20+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+            jacobian_way_2(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // _jacobianOplusXi.block(0, 20 + d, 1, 2) += dq_col_update_2.transpose();
+            // reset
+            delta_x[20+d+s] = 0.0;
+          }
           break;
         case -1: // palm, do nothing
           break;
@@ -1474,7 +1615,9 @@ void MyUnaryConstraints::linearizeOplus()
           break;
       }
 
-      std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
+      // std::cout << "2 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
+      // std::cout << "2 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
 
        // for debug
       debug = isnan(_jacobianOplusXi.norm());
@@ -1864,6 +2007,46 @@ void MyUnaryConstraints::linearizeOplus()
 
 }
 
+double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
+{
+  // convert from matrix to std::vector
+  std::vector<double> x(JOINT_DOF);
+  for (unsigned int i = 0; i < JOINT_DOF; ++i)
+    x[i] = q_whole[i];
+  // Collision checking (or distance computation), check out the DualArmDualHandCollision class
+  double cost;
+  double min_distance;
+  // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
+  // std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  // min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_arms", d_arm_check); 
+  // std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  // std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  // total_col += t_spent.count();
+  // count_col++;
+  // std::cout << "debug: time spent on computing minimum distance = " << t_spent.count() << std::endl;
+  // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
+  // if (min_distance > d_arm_safe) // arm safe
+  // {
+    // check hands 
+   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+    min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_hands", d_hand_check); 
+   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+    total_col += t_spent.count();
+    count_col++;
+    cost = std::max(d_hand_safe - min_distance, 0.0);
+  // }
+  // else
+  // {
+  //   cost = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
+  // }
+    
+
+  cost = K_COL * cost; // weighting...
+
+  return cost;
+
+}
 
 
 double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
@@ -4874,7 +5057,7 @@ int main(int argc, char *argv[])
 
   // Choose update rule
   OptimizationAlgorithmLevenberg *solver = new OptimizationAlgorithmLevenberg(std::move(solver_ptr));
-  //OptimizationAlgorithmGaussNewton *solver = new OptimizationAlgorithmGaussNewton(std::move(solver_ptr));
+  // OptimizationAlgorithmGaussNewton *solver = new OptimizationAlgorithmGaussNewton(std::move(solver_ptr));
   //OptimizationAlgorithmDogleg *solver = new OptimizationAlgorithmDogleg(std::move(solver_ptr));
 
   // Construct an optimizer (a graph model)
@@ -5283,11 +5466,11 @@ int main(int argc, char *argv[])
   
   unsigned int num_rounds = 1;//20;//1;//10;//20;//200;
   unsigned int dmp_per_iterations = 10;//5;//10;
-  unsigned int q_per_iterations = 50;//5;//50;
+  unsigned int q_per_iterations = 50;//10;//30;//50;//5;//50;
   unsigned int max_round; // record for ease
 
   // coefficients search space
-  double K_COL_MAX = 1000000.0;//200.0;//1000;//20.0;//15.0;//10.0;
+  double K_COL_MAX = 100.0;//1000.0;//1000000.0;//200.0;//1000;//20.0;//15.0;//10.0;
   double K_POS_LIMIT_MAX = 30.0;//20;//20.0;//15.0;//10.0;
   double K_SMOOTHNESS_MAX = 30.0;//20.0;//15.0;//10.0;//10.0;
 
@@ -5295,8 +5478,8 @@ int main(int argc, char *argv[])
   double K_DMPSCALEMARGIN_MAX = 2.0;
   double K_DMPRELCHANGE_MAX = 2.0;
 
-  double K_WRIST_POS_MAX = 10.0;
-  double K_ELBOW_POS_MAX = 10.0;
+  double K_WRIST_POS_MAX = 20.0;//10.0;
+  double K_ELBOW_POS_MAX = 20.0;//10.0;
 
   
   // constraints bounds
@@ -5314,8 +5497,9 @@ int main(int argc, char *argv[])
 
   double scale = 1.5;  // increase coefficients by 20% 
   double outer_scale = 1.5;//2.0;
-  double inner_scale = 1.5;
-  // double step = 1.0;
+  double inner_scale = 2.0;//1.5;
+  double step = 1.0;
+  double level = 0.0;
 
   // store initial DMP starts and goals
   // initialization
@@ -5355,6 +5539,16 @@ int main(int argc, char *argv[])
     double tmp_wrist_pos_cost;
     double tmp_elbow_pos_cost;
 
+    double wrist_pos_cost_before_optim;
+    double wrist_pos_cost_after_optim;
+    double elbow_pos_cost_before_optim;
+    double elbow_pos_cost_after_optim;    
+
+    double cur_wrist_pos_cost_update;
+    double cur_elbow_pos_cost_update;
+    double last_wrist_pos_cost_update = 0.0;
+    double last_elbow_pos_cost_update = 0.0;
+
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", q stage: "<< std::endl;
 
     // Fix DMP starts and goals
@@ -5370,7 +5564,9 @@ int main(int argc, char *argv[])
       std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
 
       // reset inner loop coefficients (not reasonable to reset, because in the outer loop we aim to adjust K_COL, K_POS_LIMIT and K_SMOOTHNESS)
-      //K_WRIST_POS = 1.0;
+      std::cout << "Reset K_WRIST_POS, K_ELBOW_POS..." << std::endl;
+      K_WRIST_POS = 1.0;
+      K_ELBOW_POS = 1.0;
 
     do 
     {
@@ -5378,6 +5574,20 @@ int main(int argc, char *argv[])
 
       std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
       std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
+
+      // record costs before optimizing
+      std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+      std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
+      wrist_pos_cost_before_optim = 0.0;
+      for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
+      {  
+        wrist_pos_cost_before_optim += wrist_pos_cost[s];
+      }
+      elbow_pos_cost_before_optim = 0.0;
+      for (unsigned s = 0; s < elbow_pos_cost.size(); s++)
+      {  
+        elbow_pos_cost_before_optim += elbow_pos_cost[s];
+      }
 
 
     // optimize for a few iterations
@@ -5426,11 +5636,11 @@ int main(int argc, char *argv[])
     std::cout << std::endl << std::endl;        
     smoothness_cost_history.push_back(smoothness_cost);  
     // tracking   
-    std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+    wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
     std::vector<double> l_wrist_pos_cost = tracking_edge->return_l_wrist_pos_cost_history();
     std::vector<double> r_wrist_pos_cost = tracking_edge->return_r_wrist_pos_cost_history();
     std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
-    std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
+    elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
     std::vector<double> l_elbow_pos_cost = tracking_edge->return_l_elbow_pos_cost_history();
     std::vector<double> r_elbow_pos_cost = tracking_edge->return_r_elbow_pos_cost_history();
     std::vector<double> finger_cost = tracking_edge->return_finger_cost_history(); 
@@ -5451,6 +5661,7 @@ int main(int argc, char *argv[])
       tmp_wrist_pos_cost += wrist_pos_cost[s];
     }
     std::cout << std::endl << std::endl;    
+    wrist_pos_cost_after_optim = tmp_wrist_pos_cost;
     //
     std::cout << "debug: l_wrist_pos_cost = ";
     for (unsigned s = 0; s < l_wrist_pos_cost.size(); s++)
@@ -5475,6 +5686,7 @@ int main(int argc, char *argv[])
       tmp_elbow_pos_cost += elbow_pos_cost[s];
     }
     std::cout << std::endl << std::endl;    
+    elbow_pos_cost_after_optim = tmp_elbow_pos_cost;
     // 
     std::cout << "debug: l_elbow_pos_cost = ";
     for (unsigned s = 0; s < l_elbow_pos_cost.size(); s++)
@@ -5561,15 +5773,26 @@ int main(int argc, char *argv[])
     std::cout << "Total wrist_cost = " << tmp_wrist_pos_cost << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
     std::cout << "Total elbow_cost = " << tmp_elbow_pos_cost << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
 
+    // evaluate updates under the current setting
+    cur_wrist_pos_cost_update = wrist_pos_cost_before_optim - wrist_pos_cost_after_optim;
+    cur_elbow_pos_cost_update = elbow_pos_cost_before_optim - elbow_pos_cost_after_optim;
+
     if (tmp_wrist_pos_cost > wrist_pos_cost_bound && K_WRIST_POS <= K_WRIST_POS_MAX)
     {
-      K_WRIST_POS = K_WRIST_POS * inner_scale;
+      if (cur_wrist_pos_cost_update < last_wrist_pos_cost_update) // update slowing down, increase coefficients
+        K_WRIST_POS = K_WRIST_POS + step; //inner_scale * (++level); //* inner_scale;
     }
 
     if (tmp_elbow_pos_cost > elbow_pos_cost_bound && K_ELBOW_POS <= K_ELBOW_POS_MAX)
     {
-      K_ELBOW_POS = K_ELBOW_POS * inner_scale;
+      if (cur_elbow_pos_cost_update < last_elbow_pos_cost_update) // update slowing down, increase coefficients
+        K_ELBOW_POS = K_ELBOW_POS + step; //inner_scale * (++level); //* inner_scale;
     }
+
+    // update update information
+    last_wrist_pos_cost_update = cur_wrist_pos_cost_update;
+    last_elbow_pos_cost_update = cur_elbow_pos_cost_update;
+
     // test: use collision checking just one round, only for fast tracking convergence!!!
     // break;
 
