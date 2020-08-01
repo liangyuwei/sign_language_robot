@@ -1125,9 +1125,9 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     // use different margins of safety for arms and hands
     // here the safety margin should be set according to actual condition: set a collision-free state and check minimum distance for dual_arms and dual_hands using collision_checking_yumi.cpp
     double d_arm_check = 0.003; // 0.02;
-    double d_arm_safe = 0.0; //0.002; //0.01 is actually too large, for some links are very close to each other, e.g. _5_l and _7_l
+    double d_arm_safe = 0.001; //0.0; //0.002; //0.01 is actually too large, for some links are very close to each other, e.g. _5_l and _7_l
     double d_hand_check = 0.002; // threshold, pairs with distance above which would not be checked further, so as to reduce number of queries
-    double d_hand_safe = 0.0; //0.001; // margin of safety
+    double d_hand_safe = 0.001;//0.0; //0.001; // margin of safety
   
 
   public:
@@ -1240,6 +1240,12 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
 
 void MyUnaryConstraints::linearizeOplus()
 {
+  if (K_COL == 0.0)
+  {
+    _jacobianOplusXi = Matrix<double, 1, JOINT_DOF>::Zero();
+    return;
+  }
+
   // epsilons
   double col_eps = 5.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
   double simple_update = 0.2;//0.1;//0.1; // update step for (4,0) or (0,4), i.e. only one end is in colliding state, close to boundary
@@ -1261,7 +1267,7 @@ void MyUnaryConstraints::linearizeOplus()
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double e_cur;
   double speed = 1.0;//1000.0;//10.0;//1.0;//100.0;//1.0;//10.0;//50.0;//100.0;//10.0;//1.0;//0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
-  double hand_speed = 200.0;//100.0;// 1.0; // for collision between links belonging to the same hand !!!
+  double hand_speed = 400.0;//200.0;//100.0;// 1.0; // for collision between links belonging to the same hand !!!
   double min_distance;
   // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -2051,6 +2057,10 @@ double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOIN
 
 double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
 {
+  // bypass
+  if (K_COL == 0.0)
+    return 0.0;
+
   // convert from matrix to std::vector
   std::vector<double> x(JOINT_DOF);
   for (unsigned int i = 0; i < JOINT_DOF; ++i)
@@ -2294,6 +2304,8 @@ double MyUnaryConstraints::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
 
 double MyUnaryConstraints::return_col_cost()
 {
+  if (K_COL == 0.0)
+    return 0.0;
 
   // get the current joint value
   // _vertices is a VertexContainer type, a std::vector<Vertex*>
@@ -2312,6 +2324,7 @@ double MyUnaryConstraints::return_col_cost()
   std::vector<double> xx(JOINT_DOF);
   for (unsigned int d = 0; d < JOINT_DOF; d++)
     xx[d] = x[d];
+ 
   double col_result = dual_arm_dual_hand_collision_ptr->check_self_collision(xx);
   double collision_cost = (col_result > 0.0)? 1.0 : 0.0; // col_result 1 for colliding, -1 for collision-free
     //(col_result > 0.0)? 1.0 : 0.0; // col_result 1 for colliding, -1 for collision-free
@@ -5474,16 +5487,16 @@ int main(int argc, char *argv[])
   unsigned int max_round; // record for ease
 
   // coefficients search space
-  double K_COL_MAX = 100.0;//1000.0;//1000000.0;//200.0;//1000;//20.0;//15.0;//10.0;
-  double K_POS_LIMIT_MAX = 30.0;//20;//20.0;//15.0;//10.0;
-  double K_SMOOTHNESS_MAX = 30.0;//20.0;//15.0;//10.0;//10.0;
+  double K_COL_MAX = 300.0;//100.0;//1000.0;//1000000.0;//200.0;//1000;//20.0;//15.0;//10.0;
+  double K_POS_LIMIT_MAX = 50.0;//30.0;//20;//20.0;//15.0;//10.0;
+  double K_SMOOTHNESS_MAX = 50.0;//30.0;//20.0;//15.0;//10.0;//10.0;
 
   double K_DMPSTARTSGOALS_MAX = 2.0;
   double K_DMPSCALEMARGIN_MAX = 2.0;
   double K_DMPRELCHANGE_MAX = 2.0;
 
-  double K_WRIST_POS_MAX = 50.0;//20.0;//10.0;
-  double K_ELBOW_POS_MAX = 50.0;//20.0;//10.0;
+  double K_WRIST_POS_MAX = 100.0;//20.0;//10.0;
+  double K_ELBOW_POS_MAX = 100.0;//20.0;//10.0;
 
   
   // constraints bounds
@@ -5584,20 +5597,25 @@ int main(int argc, char *argv[])
     double cur_elbow_pos_cost;
 
     // iterate to ensure collision, pos_limit costs
-    do
-    {
+    // do
+    // {
       // Reset coefficients for tracking loop to adjust
-      K_WRIST_ORI = 1.0;//10.0;//1.0;
-      K_WRIST_POS = 1.0;//10.0;//1.0;
-      K_ELBOW_POS = 1.0;//10.0;
-      K_FINGER = 1.0;//10.0;
+      // K_WRIST_ORI = 1.0;//10.0;//1.0;
+      // K_WRIST_POS = 1.0;//10.0;//1.0;
+      // K_ELBOW_POS = 1.0;//10.0;
+      // K_FINGER = 1.0;//10.0;
+
+    // initialize coefficients
+    K_COL = 0.0;
+    K_SMOOTHNESS = 1.0;
+    K_POS_LIMIT = 1.0;
     
     do
     {
-      std::cout << ">>>> Tracking + Constraints_fixing loop: automatically adjust penalties coefficients." << std::endl;
+      std::cout << ">>>> Tracking loop: automatically adjust penalties coefficients." << std::endl;
       std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
       std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-      std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
+      // std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
       std::cout << "Last updates and costs: wrist_pos_cost = " << last_wrist_pos_cost << ", elbow_pos_cost = " << last_elbow_pos_cost 
                                                                << ", col_cost = " << last_col_cost 
                                                                << ", pos_limit_cost = " << last_pos_limit_cost
@@ -5786,7 +5804,7 @@ int main(int argc, char *argv[])
       smoothness_q_jacobian = smoothness_edges[n]->output_q_jacobian();
       std::cout << smoothness_q_jacobian.norm() << " ";
     }
-    std::cout << std::endl; 
+    std::cout << std::endl << std::endl;  
     // output jacobians of unary edges for q vertices
     std::cout << "Norms of unary_jacobians = ";
     for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
@@ -5846,15 +5864,18 @@ int main(int argc, char *argv[])
 
 
       // Initialize coefficients for collision loop
-      // K_COL = 1.0; //50.0;//10.0;//100.0;//1.0;
-      // K_POS_LIMIT = 1.0;//10.0;//5.0;//10.0;//5.0; 
-      // K_WRIST_ORI = 1.0;
-      // K_WRIST_POS = 1.0;
-      // K_ELBOW_POS = 1.0;
-      // K_FINGER = 1.0;
-      // K_SMOOTHNESS = 1.0;//2.0;//4.0;//2.0; 
+      // keep K_WRIST_POS and K_ELBOW_POS...
+      K_WRIST_ORI = 1.0;
+      K_WRIST_POS = 1.0;
+      K_ELBOW_POS = 1.0;
+      K_FINGER = 1.0; // keeping K_WRIST and K_ELBOW_POS as above doesn't work quite well... try setting low values, for ease of collision avoidance
 
-      /*
+      K_COL = 1.0; //50.0;//10.0;//100.0;//1.0;
+      K_POS_LIMIT = 1.0;//10.0;//5.0;//10.0;//5.0; 
+      K_SMOOTHNESS = 1.0;//2.0;//4.0;//2.0; 
+
+    do{
+    
       std::cout << ">>>> Constraints fixing loop: adjust K_COL, K_POS_LIMIT and K_SMOOTHNESS, with K_WRIST_POS and K_ELBOW_POS fixed." << std::endl;
       std::cout << "Current coefficient: K_COL = " << K_COL << std::endl;
       std::cout << "Current coefficient: K_POS_LIMIT = " << K_POS_LIMIT << std::endl;
@@ -5878,6 +5899,7 @@ int main(int argc, char *argv[])
       std::cout << c << " "; // display
     }
     std::cout << std::endl << std::endl;
+    cur_col_cost = tmp_col_cost;
     col_cost_history.push_back(col_cost);
     // pos_limit
     std::vector<double> pos_limit_cost;
@@ -5891,6 +5913,7 @@ int main(int argc, char *argv[])
       std::cout << p << " "; // display      
     }
     std::cout << std::endl << std::endl;    
+    cur_pos_limit_cost = tmp_pos_limit_cost;
     pos_limit_cost_history.push_back(pos_limit_cost);
     // smoothness
     std::vector<double> smoothness_cost;
@@ -5903,7 +5926,8 @@ int main(int argc, char *argv[])
       tmp_smoothness_cost += s; // check
       std::cout << s << " "; // display
     }
-    std::cout << std::endl << std::endl;        
+    std::cout << std::endl << std::endl;     
+    cur_smoothness_cost = tmp_smoothness_cost;   
     smoothness_cost_history.push_back(smoothness_cost);  
     // tracking   
     std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
@@ -6039,6 +6063,7 @@ int main(int argc, char *argv[])
 
 
     // Checking collision situation
+    /*
     std::cout << ">> Collision condition <<" << std::endl;
     for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
     {
@@ -6047,6 +6072,7 @@ int main(int argc, char *argv[])
       std::cout << "col_jacobians = " << unary_edges[n]->col_jacobians.transpose() << std::endl;
     }
     */
+    
 
     // Conclusion
     std::cout << "Deciding adjustment on K_COL, K_POS_LIMIT and K_SMOOTHNESS..." << std::endl;
