@@ -103,117 +103,6 @@ std::vector<std::vector<double>> read_h5(const std::string file_name, const std:
 }
 
 
-tf::Transform setup_tf_transform(double pos_x, double pos_y, double pos_z, 
-                                 double quat_x, double quat_y, double quat_z, double quat_w)
-{
-  // Prepare transform
-  tf::Transform transform;
-
-  // Set from pose
-  transform.setOrigin(tf::Vector3(pos_x, pos_y, pos_z));
-  tf::Quaternion q(quat_x, quat_y, quat_z, quat_w);
-  transform.setRotation(q);
-
-  // Return the result
-  return transform;
-}
-
-
-/* Set a marker connecting the two points given with a sphere */
-// Note that nothing else but the pos is changed!!!
-void set_segment(Eigen::Vector3d point_1, Eigen::Vector3d point_2, visualization_msgs::Marker& marker)
-{
-  // Set positions
-  marker.pose.position.x = (point_1[0] + point_2[0]) / 2.0;
-  marker.pose.position.y = (point_1[1] + point_2[1]) / 2.0;
-  marker.pose.position.z = (point_1[2] + point_2[2]) / 2.0;
-
-  // Set orientation
-  Eigen::Vector3d base_z = {0.0, 0.0, 1.0};
-  Eigen::Quaterniond quat_shoulders = Eigen::Quaterniond::FromTwoVectors(base_z, point_1 - point_2);
-  marker.pose.orientation.x = quat_shoulders.x();
-  marker.pose.orientation.y = quat_shoulders.y();
-  marker.pose.orientation.z = quat_shoulders.z();
-  marker.pose.orientation.w = quat_shoulders.w();
-  marker.scale.x = 0.04;
-  marker.scale.y = 0.08;
-  marker.scale.z = (point_1 - point_2).norm();
-}
-
-
-/* Setup visualization markers for visualizing position data */
-visualization_msgs::MarkerArray setup_visualization_markers(std::vector<double> l_up_pos_vec, std::vector<double> r_up_pos_vec,
-                                                            std::vector<double> l_fr_pos_vec, std::vector<double> r_fr_pos_vec,
-                                                            std::vector<double> l_hd_pos_vec, std::vector<double> r_hd_pos_vec,
-                                                            bool original_or_adjusted)
-{
-
-  // Prepare Marker message
-  visualization_msgs::MarkerArray marker_array;
-  visualization_msgs::Marker marker;
-  marker.header.frame_id = "world";
-  marker.header.stamp = ros::Time(); // maybe should renew later!!!
-  marker.ns = "sign_language_robot_ns"; // namespace?
-  marker.type = visualization_msgs::Marker::SPHERE;
-  marker.action = visualization_msgs::Marker::ADD;
-  marker.color.a = 1.0; // visable
-  marker.color.b = 0.0;
-  if (original_or_adjusted)
-  {
-    marker.color.r = 0.0;
-    marker.color.g = 1.0; // shown as green
-  }
-  else
-  {
-    marker.color.r = 1.0;    // shown as red
-    marker.color.g = 0.0;
-  }
-
-  // Get temporary parameters
-  Eigen::Vector3d r_up_pos = {r_up_pos_vec[0], r_up_pos_vec[1], r_up_pos_vec[2]};
-  Eigen::Vector3d r_fr_pos = {r_fr_pos_vec[0], r_fr_pos_vec[1], r_fr_pos_vec[3]};
-  Eigen::Vector3d r_hd_pos = {r_hd_pos_vec[0], r_hd_pos_vec[1], r_hd_pos_vec[2]};
-
-  Eigen::Vector3d l_up_pos = {l_up_pos_vec[0], l_up_pos_vec[1], l_up_pos_vec[2]};
-  Eigen::Vector3d l_fr_pos = {l_fr_pos_vec[0], l_fr_pos_vec[1], l_fr_pos_vec[3]};
-  Eigen::Vector3d l_hd_pos = {l_hd_pos_vec[0], l_hd_pos_vec[1], l_hd_pos_vec[2]};
-
-  // Draw shoulders
-  marker.id = 0;
-  set_segment(l_up_pos, r_up_pos, marker);
-  marker_array.markers.push_back(marker);
-
-
-  // Draw neck
-
-
-  // Draw upperarm links
-  marker.id = 1; // left upperarm link
-  set_segment(l_fr_pos, l_up_pos, marker);
-  marker_array.markers.push_back(marker);
-  marker.id = 2; // right upperarm link
-  set_segment(r_fr_pos, r_up_pos, marker);
-  marker_array.markers.push_back(marker);
-
-
-  // Draw forearm links
-  marker.id = 3; // left forearm link
-  set_segment(l_hd_pos, l_fr_pos, marker);
-  marker_array.markers.push_back(marker);
-  marker.id = 4; // right forearm link
-  set_segment(r_hd_pos, r_fr_pos, marker);
-  marker_array.markers.push_back(marker);
-
-  // Draw hands
-  //marker.id = 0;
-
-  // Publish them
-  // vis_pub_.publish(marker_array);
-
-  return marker_array;
-
-}
-
 
 /* Convert human wrist orientation data to quaternions */
 std::vector<Eigen::Quaterniond> rotation_matrix_to_quaternion(std::vector<std::vector<double>> wrist_ori_sequence)
@@ -353,7 +242,8 @@ int main(int argc, char** argv)
         std::cout << "Help: \n" << std::endl;
         std::cout << "    This program reads imitation data from h5 file and performs optimization on the joint angles. The results are stored in a h5 file at last.\n" << std::endl; 
         std::cout << "Arguments:\n" << std::endl;
-        std::cout << "    -i, --in-h5-filename, specify the name of the input h5 file, otherwise a default name specified inside the program will be used. Suffix is required.\n" << std::endl;
+        std::cout << "    -o, --original-in-file-name, specify the name of the h5 file that stores original orientation data, otherwise a default name specified inside the program will be used. Suffix is required.\n" << std::endl;
+        std::cout << "    -a, --adjusted-in-file-name, specify the name of the h5 file that stores adjusted position data, otherwise a default name specified inside the program will be used. Suffix is required.\n" << std::endl;
         std::cout << "    -g, --in-group-name, specify the group name in the h5 file, which is actually the motion's name.\n" << std::endl;
         return 0;
         break;

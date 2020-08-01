@@ -18,7 +18,7 @@
 
 /* Set a marker connecting the two points given with a sphere */
 // Note that nothing else but the pos is changed!!!
-void set_segment(Eigen::Vector3d point_1, Eigen::Vector3d point_2, visualization_msgs::Marker& marker)
+void set_segment(Eigen::Vector3d point_1, Eigen::Vector3d point_2, double scale_x, double scale_y, visualization_msgs::Marker& marker, bool specify_quat, Eigen::Quaterniond quat)
 {
   // Set positions
   marker.pose.position.x = (point_1[0] + point_2[0]) / 2.0;
@@ -26,17 +26,28 @@ void set_segment(Eigen::Vector3d point_1, Eigen::Vector3d point_2, visualization
   marker.pose.position.z = (point_1[2] + point_2[2]) / 2.0;
 
   // Set orientation
-  Eigen::Vector3d base_z = {0.0, 0.0, 1.0};
-  Eigen::Quaterniond quat_shoulders = Eigen::Quaterniond::FromTwoVectors(base_z, point_1 - point_2);
-  marker.pose.orientation.x = quat_shoulders.x();
-  marker.pose.orientation.y = quat_shoulders.y();
-  marker.pose.orientation.z = quat_shoulders.z();
-  marker.pose.orientation.w = quat_shoulders.w();
-  marker.scale.x = 0.08;//0.04;
-  marker.scale.y = 0.04;//0.08; // should be reverted...
+  if (specify_quat)
+  {
+    marker.pose.orientation.x = quat.x();
+    marker.pose.orientation.y = quat.y();
+    marker.pose.orientation.z = quat.z();
+    marker.pose.orientation.w = quat.w();
+  }
+  else // use only two points to set marker orientation (x and y axes are probably arbitrary...)
+  {
+    Eigen::Vector3d base_z = {0.0, 0.0, 1.0};
+    Eigen::Quaterniond quat_shoulders = Eigen::Quaterniond::FromTwoVectors(base_z, point_1 - point_2);
+    marker.pose.orientation.x = quat_shoulders.x();
+    marker.pose.orientation.y = quat_shoulders.y();
+    marker.pose.orientation.z = quat_shoulders.z();
+    marker.pose.orientation.w = quat_shoulders.w();
+  }
+  
+  marker.scale.x = scale_x; //0.08; //0.04;
+  marker.scale.y = scale_y; //0.04; //0.08;  // should be reverted...
   marker.scale.z = (point_1 - point_2).norm();
-}
 
+}
 
 class GetPosAndVisualize
 {
@@ -83,34 +94,45 @@ void GetPosAndVisualize::posCallback(const arm_hand_capture::DualArmDualHandStat
   Eigen::Vector3d l_hd_pos = {msg->left_hand_pose.pose.position.x, msg->left_hand_pose.pose.position.y, msg->left_hand_pose.pose.position.z};
 
 
+  // orientation (Quaterniond constructor, (w,x,y,z))
+  Eigen::Quaterniond r_up_quat(msg->right_upperarm_pose.pose.orientation.w, msg->right_upperarm_pose.pose.orientation.x, msg->right_upperarm_pose.pose.orientation.y, msg->right_upperarm_pose.pose.orientation.z);
+  Eigen::Quaterniond r_fr_quat(msg->right_forearm_pose.pose.orientation.w, msg->right_forearm_pose.pose.orientation.x, msg->right_forearm_pose.pose.orientation.y, msg->right_forearm_pose.pose.orientation.z);
+  Eigen::Quaterniond r_hd_quat(msg->right_hand_pose.pose.orientation.w, msg->right_hand_pose.pose.orientation.x, msg->right_hand_pose.pose.orientation.y, msg->right_hand_pose.pose.orientation.z);
+
+  Eigen::Quaterniond l_up_quat(msg->left_upperarm_pose.pose.orientation.w, msg->left_upperarm_pose.pose.orientation.x, msg->left_upperarm_pose.pose.orientation.y, msg->left_upperarm_pose.pose.orientation.z);
+  Eigen::Quaterniond l_fr_quat(msg->left_forearm_pose.pose.orientation.w, msg->left_forearm_pose.pose.orientation.x, msg->left_forearm_pose.pose.orientation.y, msg->left_forearm_pose.pose.orientation.z);
+  Eigen::Quaterniond l_hd_quat(msg->left_hand_pose.pose.orientation.w, msg->left_hand_pose.pose.orientation.x, msg->left_hand_pose.pose.orientation.y, msg->left_hand_pose.pose.orientation.z);
+
+
+  double link_radius = 0.03;
+
   // Draw shoulders
   marker.id = 0;
-  set_segment(l_up_pos, r_up_pos, marker);
+  set_segment(l_up_pos, r_up_pos, link_radius, link_radius, marker, false, Eigen::Quaterniond());
   marker_array.markers.push_back(marker);
-
-
-  // Draw neck
 
 
   // Draw upperarm links
   marker.id = 1; // left upperarm link
-  set_segment(l_fr_pos, l_up_pos, marker);
+  set_segment(l_fr_pos, l_up_pos, link_radius, link_radius, marker, false, Eigen::Quaterniond());
   marker_array.markers.push_back(marker);
   marker.id = 2; // right upperarm link
-  set_segment(r_fr_pos, r_up_pos, marker);
+  set_segment(r_fr_pos, r_up_pos, link_radius, link_radius, marker, false, Eigen::Quaterniond());
   marker_array.markers.push_back(marker);
 
 
   // Draw forearm links
   marker.id = 3; // left forearm link
-  set_segment(l_hd_pos, l_fr_pos, marker);
+  set_segment(l_hd_pos, l_fr_pos, link_radius, link_radius, marker, false, Eigen::Quaterniond());
   marker_array.markers.push_back(marker);
   marker.id = 4; // right forearm link
-  set_segment(r_hd_pos, r_fr_pos, marker);
+  set_segment(r_hd_pos, r_fr_pos, link_radius, link_radius, marker, false, Eigen::Quaterniond());
   marker_array.markers.push_back(marker);
 
 
   // Draw hands
+  double scale_x = 0.08;
+  double scale_y = 0.03;//0.04;
   double robot_hand_length = 0.2;//0.278; // data for inspire-robot hand
   Eigen::Vector3d hand_axis(0.0, 0.0, 1.0); // along z-axis
 
@@ -121,7 +143,7 @@ void GetPosAndVisualize::posCallback(const arm_hand_capture::DualArmDualHandStat
                                   msg->left_hand_pose.pose.orientation.z);
 
   Eigen::Vector3d l_hand_tip = l_hd_pos + robot_hand_length * l_wrist_quat.toRotationMatrix() * hand_axis;
-  set_segment(l_hd_pos, l_hand_tip, marker);
+  set_segment(l_hd_pos, l_hand_tip, scale_x, scale_y, marker, true, l_wrist_quat);
   marker_array.markers.push_back(marker);  
   
   marker.id = 6;
@@ -130,7 +152,7 @@ void GetPosAndVisualize::posCallback(const arm_hand_capture::DualArmDualHandStat
                                   msg->right_hand_pose.pose.orientation.y,
                                   msg->right_hand_pose.pose.orientation.z);
   Eigen::Vector3d r_hand_tip = r_hd_pos + robot_hand_length * r_wrist_quat.toRotationMatrix() * hand_axis;
-  set_segment(r_hd_pos, r_hand_tip, marker);
+  set_segment(r_hd_pos, r_hand_tip, scale_x, scale_y, marker, true, r_wrist_quat);
   marker_array.markers.push_back(marker);  
 
 

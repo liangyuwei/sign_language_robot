@@ -7,7 +7,6 @@ Panels:
         - /Global Options1
         - /Status1
         - /MarkerArray1
-        - /TF1
         - /TF1/Frames1
       Splitter Ratio: 0.550432265
     Tree Height: 567
@@ -96,7 +95,7 @@ Visualization Manager:
       Marker Scale: 1
       Name: TF
       Show Arrows: true
-      Show Axes: true
+      Show Axes: false
       Show Names: false
       Tree:
         world:
