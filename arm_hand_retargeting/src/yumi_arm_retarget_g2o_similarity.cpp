@@ -1087,9 +1087,6 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     MyUnaryConstraints(KDL::ChainFkSolverPos_recursive &_left_fk_solver, KDL::ChainFkSolverPos_recursive &_right_fk_solver, boost::shared_ptr<DualArmDualHandCollision> &_dual_arm_dual_hand_collision_ptr) : left_fk_solver(_left_fk_solver), right_fk_solver(_right_fk_solver), dual_arm_dual_hand_collision_ptr(_dual_arm_dual_hand_collision_ptr){};
 
     // functions to compute costs
-    double compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
-    double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
-    double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct &fdata);
     double compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     
     double compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
@@ -2154,154 +2151,6 @@ double MyUnaryConstraints::compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q
 }
 
 
-
-/*
-double MyUnaryConstraints::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
-    {
-      // Get joint angles
-      KDL::JntArray q_in(q_cur.size()); 
-      for (unsigned int i = 0; i < q_cur.size(); ++i)
-      {
-        q_in(i) = q_cur(i);
-      }
-
-      // Do FK using KDL, get the current elbow/wrist/shoulder state
-      KDL::Frame elbow_cart_out, wrist_cart_out, shoulder_cart_out; // Output homogeneous transformation
-      int result;
-      result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
-      if (result < 0){
-        ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
-        exit(-1);
-      }
-      else{
-        //ROS_INFO_STREAM("FK solver succeeded for elbow link.");
-      }
-      result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1);
-      if (result < 0){
-        ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
-        exit(-1);
-      }
-      else{
-        //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
-      }
-      result = fk_solver.JntToCart(q_in, shoulder_cart_out, num_shoulder_seg+1);
-      if (result < 0){
-        ROS_INFO_STREAM("FK solver failed when processing shoulder link, something went wrong");
-        exit(-1);
-        }
-      else{
-        //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
-      }
-
-      // Preparations
-      Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
-      Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
-      Matrix3d wrist_ori_cur = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out.M.data, 3, 3); 
-      Vector3d shoulder_pos_cur = Map<Vector3d>(shoulder_cart_out.p.data, 3, 1);
-
-      Vector3d shoulder_pos_human, elbow_pos_human, wrist_pos_human;
-      Matrix3d wrist_ori_human;
-      if (left_or_right) // left arm
-      {
-        shoulder_pos_human = fdata.l_shoulder_pos_goal;
-        elbow_pos_human = fdata.l_elbow_pos_goal;
-        wrist_pos_human = fdata.l_wrist_pos_goal;
-        wrist_ori_human = fdata.l_wrist_ori_goal;
-
-        fdata.l_wrist_cur = wrist_pos_cur;
-      }
-      else // right arm
-      {
-        shoulder_pos_human = fdata.r_shoulder_pos_goal;
-        elbow_pos_human = fdata.r_elbow_pos_goal;
-        wrist_pos_human = fdata.r_wrist_pos_goal;
-        wrist_ori_human = fdata.r_wrist_ori_goal;
-
-        fdata.r_wrist_cur = wrist_pos_cur;
-
-      }
-
-
-  // Compute cost function
-  double scaled_wrist_pos_cost = (wrist_pos_cur - (wrist_pos_human - elbow_pos_human)/(wrist_pos_human - elbow_pos_human).norm() * (wrist_pos_cur - elbow_pos_cur).norm() - elbow_pos_cur).norm(); // coordinate difference, not in the way of vector difference // written as elbow-wrist form
-  double scaled_elbow_pos_cost = (elbow_pos_cur - (elbow_pos_human - shoulder_pos_human)/(elbow_pos_human - shoulder_pos_human).norm() * (elbow_pos_cur - shoulder_pos_cur).norm() - shoulder_pos_cur).norm();
-  double wrist_ori_cost = std::fabs( std::acos (( (wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0));
-  double cost = 1.0 * wrist_ori_cost + 1.0 * scaled_wrist_pos_cost + 1.0 * scaled_elbow_pos_cost;
-
-
-  // Return cost function value
-  return cost;
-
-}
-*/
-
-
-double MyUnaryConstraints::linear_map(double x_, double min_, double max_, double min_hat, double max_hat)
-{
-  return (x_ - min_) / (max_ - min_) * (max_hat - min_hat) + min_hat;
-}
-
-
-/*
-double MyUnaryConstraints::compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct &fdata)
-{
-  // Obtain required data and parameter settings
-  Matrix<double, 14, 1> q_finger_human;
-  Matrix<double, 14, 1> human_finger_start = fdata.glove_start;
-  Matrix<double, 14, 1> human_finger_final = fdata.glove_final;
-  Matrix<double, 12, 1> robot_finger_start, robot_finger_final;
-  if (left_or_right)
-  {
-    // Get the sensor data
-    q_finger_human = fdata.l_finger_pos_goal;
-    // Get bounds
-    robot_finger_start = fdata.l_robot_finger_start;
-    robot_finger_final = fdata.l_robot_finger_final;
-  }
-  else
-  {
-    // Get the sensor data
-    q_finger_human = fdata.r_finger_pos_goal;    
-    // Get bounds
-    robot_finger_start = fdata.r_robot_finger_start;
-    robot_finger_final = fdata.r_robot_finger_final;
-  }
-
-
-  // Direct mapping and linear scaling
-  Matrix<double, 12, 1> q_finger_robot_goal;
-  q_finger_robot_goal[0] = linear_map(q_finger_human[3], human_finger_start[3], human_finger_final[3], robot_finger_start[0], robot_finger_final[0]);
-  q_finger_robot_goal[1] = linear_map(q_finger_human[4], human_finger_start[4], human_finger_final[4], robot_finger_start[1], robot_finger_final[1]);
-  q_finger_robot_goal[2] = linear_map(q_finger_human[6], human_finger_start[6], human_finger_final[6], robot_finger_start[2], robot_finger_final[2]);
-  q_finger_robot_goal[3] = linear_map(q_finger_human[7], human_finger_start[7], human_finger_final[7], robot_finger_start[3], robot_finger_final[3]);
-  q_finger_robot_goal[4] = linear_map(q_finger_human[9], human_finger_start[9], human_finger_final[9], robot_finger_start[4], robot_finger_final[4]);
-  q_finger_robot_goal[5] = linear_map(q_finger_human[10], human_finger_start[10], human_finger_final[10], robot_finger_start[5], robot_finger_final[5]);
-  q_finger_robot_goal[6] = linear_map(q_finger_human[12], human_finger_start[12], human_finger_final[12], robot_finger_start[6], robot_finger_final[6]);
-  q_finger_robot_goal[7] = linear_map(q_finger_human[13], human_finger_start[13], human_finger_final[13], robot_finger_start[7], robot_finger_final[7]);
-  q_finger_robot_goal[8] = (robot_finger_start[8] + robot_finger_final[8]) / 2.0;
-  q_finger_robot_goal[9] = linear_map(q_finger_human[2], human_finger_start[2], human_finger_final[2], robot_finger_start[9], robot_finger_final[9]);
-  q_finger_robot_goal[10] = linear_map(q_finger_human[0], human_finger_start[0], human_finger_final[0], robot_finger_start[10], robot_finger_final[10]);
-  q_finger_robot_goal[11] = linear_map(q_finger_human[1], human_finger_start[1], human_finger_final[1], robot_finger_start[11], robot_finger_final[11]); 
-
-  
-  // Compute cost
-  double finger_cost = (q_finger_robot_goal - q_finger_robot).norm();
-
-
-  if (left_or_right)
-  {
-    fdata.scaled_l_finger_pos_cost = finger_cost;
-  }
-  else
-  {
-    fdata.scaled_r_finger_pos_cost = finger_cost;
-  }
-
-  return finger_cost;
-
-}
-*/
-
 double MyUnaryConstraints::return_col_cost()
 {
   if (K_COL == 0.0)
@@ -2387,47 +2236,15 @@ void MyUnaryConstraints::computeError()
   q_cur_finger_r = x.block<12, 1>(26, 0); 
   
   // Compute unary costs
-  /*
   // 1
-  double arm_cost = compute_arm_cost(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg, _measurement.l_num_elbow_seg, _measurement.l_num_shoulder_seg, true, _measurement); // user data is stored in _measurement now
-  arm_cost += compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
-  //std::cout << "Arm cost=";
-  //std::cout << arm_cost << ", ";
-
-  // 2
-  double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
-  finger_cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
-  //std::cout << "Finger cost=";
-  //std::cout << finger_cost << ", ";
-*/
-  
-  // 3
   double collision_cost = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
-  //std::cout << "Collision cost=";
-  //std::cout << collision_cost << ", ";
   
-  // 4
+  // 2
   double pos_limit_cost = compute_pos_limit_cost(x, _measurement);
-  //std::cout << "Pos limit cost=";
-  //std::cout << pos_limit_cost << "; ";
 
   // total cost
-  //double cost = arm_cost + finger_cost + 2.0*collision_cost + 5.0*pos_limit_cost;
   double cost = K_COL * collision_cost + K_POS_LIMIT * pos_limit_cost;
-  //std::cout << "Total cost=";
-  //std::cout << cost << std::endl;
-
-
-
-
-  // protected attributes
-  // _measurement, set by setMeasurement() method, a deep copy;
-  // _information, set by setInformation() method;
-  // _error, needed to be computed
-
-  // compute the cost (constraint value)
   _error(0, 0) = cost;
-
 
   // Display message
   //std::cout << "Computing unary edge's cost: " << cost << std::endl;
@@ -2657,330 +2474,6 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
 
 
 
-
-// class VecLimitConstraint : public BaseBinaryEdge<>{}; // add in timestamp variables
-
-// class AccLimitConstraint : public BaseMultiEdge<>{}; // add in timestamp variables
-
-// class CoordinationConstraint : public BaseBinaryEdge<>{}; // Coordination constraints to keep
-
-
-/* Define constraint for evaluating trajectory similarity */
-/* Convert to UnaryEdge for use with DMPStartsGoalsVertex */
-class SimilarityConstraint : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGoalsVertex> // <D, E>, dimension and measurement datatype
-{
-  public:
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    
-    SimilarityConstraint(boost::shared_ptr<DMPTrajectoryGenerator> &_trajectory_generator_ptr, boost::shared_ptr<SimilarityNetwork> &_similarity_network_ptr) : trajectory_generator_ptr(_trajectory_generator_ptr), similarity_network_ptr(_similarity_network_ptr) 
-    {
-      // resize the number of vertices this edge connects to
-      //std::cout << "resizing similarity constraint..." << std::endl;
-      //this->num_vertices = num_vertices;
-      //resize(num_vertices);
-    }
-  
-    ~SimilarityConstraint(){};    
-
-    // trajectory generator and similarity network
-    boost::shared_ptr<DMPTrajectoryGenerator> &trajectory_generator_ptr;
-    boost::shared_ptr<SimilarityNetwork> &similarity_network_ptr;
-    
-
-    // function to compute costs
-    void computeError()
-    {
-
-      num_sim++;
-
-      //std::cout << "Similarity edge is called !" << std::endl;
-
-      // statistics
-      count_sim++;  
-
-      //std::cout << "Computing Similarity Constraint..." << std::endl;
-
-      // 1 - Use residuals and pass points to generate new trajectories
-      /*
-      // Get pass_points as stack
-      int num_passpoints = _vertices.size(); // VertexContainer, i.e. std::vector<Vertex*>
-      MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
-      for (int n = 0; n < num_passpoints; n++)
-      { 
-        const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
-        pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1        
-      }
-      //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
-    
-      // Generate new trajectory
-      std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-      MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
-      std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-      std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-      total_traj += t_spent.count();
-      //std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
-      count_traj++;
-      // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
-      MatrixXd y_seq_tmp = y_seq.transpose();
-      VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), PASSPOINT_DOF*NUM_DATAPOINTS, 1);
-      //std::cout << "debug: original y_seq = " << y_seq << std::endl;
-      //std::cout << "debug: reshaped y_seq = " << y_seq_tmp.transpose() << std::endl;
-
-      */
-
-
-      // 2 - Use DMP to generate new trajectories
-      const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
-      Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
-      MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
-      MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
-      MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
-      MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
-      MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
-      MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
-      MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
-      MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
-
-      //std::cout << "debug: original lrw_goal = " << lrw_new_goal.transpose() << std::endl;
-
-      /*
-      std::cout << "debug: \nx = " << x.transpose() << std::endl
-                << "lrw_new_goal = " << lrw_new_goal.transpose() << ", lrw_new_start = " << lrw_new_start.transpose() << std::endl
-                << "lew_new_goal = " << lew_new_goal.transpose() << ", lew_new_start = " << lew_new_start.transpose() << std::endl
-                << "rew_new_goal = " << rew_new_goal.transpose() << ", rew_new_start = " << rew_new_start.transpose() << std::endl
-                << "rw_new_goal = " << rw_new_goal.transpose() << ", rw_new_start = " << rw_new_start.transpose() << std::endl;
-      */
-      std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();  
-      DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
-                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
-                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
-                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
-                                                                      NUM_DATAPOINTS); // results are 3 x N
-      std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
-      std::chrono::duration<double> t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
-      total_traj += t_spent1.count();
-
-      count_traj++;  
-
-      //std::cout << "debug: generated lrw_goal = " << result.y_lrw.block(0, NUM_DATAPOINTS-1, 3, 1).transpose() << std::endl;
-
-      // combine with the resampled orientation and glove angle trajectories to become a whole
-      // order: path point 1 (48 DOF) - path point 2(48 DOF) - ... ... - path point 50 (48 DOF); btw, a column vectory
-      VectorXd new_traj(PASSPOINT_DOF*NUM_DATAPOINTS);
-      for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-      {
-        // left arm:
-        new_traj.block(n*PASSPOINT_DOF, 0, 3, 1) = result.y_lw.block(0, n, 3, 1); // 3 x N
-        new_traj.block(n*PASSPOINT_DOF+3, 0, 4, 1) = trajectory_generator_ptr->l_wrist_quat_traj.block(n, 0, 1, 4).transpose(); // N x 4
-        new_traj.block(n*PASSPOINT_DOF+7, 0, 3, 1) = result.y_le.block(0, n, 3, 1);
-        // right arm:
-        new_traj.block(n*PASSPOINT_DOF+10, 0, 3, 1) = result.y_rw.block(0, n, 3, 1);
-        new_traj.block(n*PASSPOINT_DOF+13, 0, 4, 1) = trajectory_generator_ptr->r_wrist_quat_traj.block(n, 0, 1, 4).transpose();
-        new_traj.block(n*PASSPOINT_DOF+17, 0, 3, 1) = result.y_re.block(0, n, 3, 1);
-        // hands:
-        new_traj.block(n*PASSPOINT_DOF+20, 0, 14, 1) = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // N x 14
-        new_traj.block(n*PASSPOINT_DOF+34, 0, 14, 1) = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0;
-      }
-
-
-      // compute similariity distance(it would do the normalization)
-      double dist = 0;
-      try{
-        std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-        dist = similarity_network_ptr->compute_distance(new_traj);
-        //std::cout << "debug1: dist = " << dist << std::endl;
-        std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-        std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-        total_sim += t_spent.count();
-      }
-      catch (Exception ex)
-      {
-        std::cout << "Error in similarity network" << std::endl;
-        exit(-1);
-      }
-      //std::cout << "debug2: dist = " << dist << std::endl;
-
-      _error(0, 0) = K_SIMILARITY * dist;
-    
-    }
-
-    // function for recording cost history
-    double return_similarity_cost()
-    {
-      // 1 - Use residuals and pass points to generate new trajectories
-      /*
-      // Get pass_points as stack
-      int num_passpoints = _vertices.size(); // VertexContainer, i.e. std::vector<Vertex*>
-      MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
-      for (int n = 0; n < num_passpoints; n++)
-      { 
-        const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
-        pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1        
-      }
-    
-      // Generate new trajectory
-      MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
-
-
-      // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
-      MatrixXd y_seq_tmp = y_seq.transpose();
-      VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), PASSPOINT_DOF*NUM_DATAPOINTS, 1);
-      */
-
-      // 2 - Use DMP to generate new trajectories
-      const DMPStartsGoalsVertex *v = static_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
-      Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
-      MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
-      MatrixXd lrw_new_start(3, 1); lrw_new_start = x.block(3, 0, 3, 1);
-      MatrixXd lew_new_goal(3, 1); lew_new_goal = x.block(6, 0, 3, 1);
-      MatrixXd lew_new_start(3, 1); lew_new_start = x.block(9, 0, 3, 1);
-      MatrixXd rew_new_goal(3, 1); rew_new_goal = x.block(12, 0, 3, 1);
-      MatrixXd rew_new_start(3, 1); rew_new_start = x.block(15, 0, 3, 1);
-      MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
-      MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
-
-      DMP_trajs result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
-                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
-                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
-                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
-                                                                      NUM_DATAPOINTS); // results are 3 x N
-
-      // combine with the resampled orientation and glove angle trajectories to become a whole
-      // order: path point 1 (48 DOF) - path point 2(48 DOF) - ... ... - path point 50 (48 DOF); btw, a column vectory
-      VectorXd new_traj(PASSPOINT_DOF*NUM_DATAPOINTS);
-      for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-      {
-        // left arm:
-        new_traj.block(n*PASSPOINT_DOF, 0, 3, 1) = result.y_lw.block(0, n, 3, 1); // 3 x N
-        new_traj.block(n*PASSPOINT_DOF+3, 0, 4, 1) = trajectory_generator_ptr->l_wrist_quat_traj.block(n, 0, 1, 4).transpose(); // N x 4
-        new_traj.block(n*PASSPOINT_DOF+7, 0, 3, 1) = result.y_le.block(0, n, 3, 1);
-        // right arm:
-        new_traj.block(n*PASSPOINT_DOF+10, 0, 3, 1) = result.y_rw.block(0, n, 3, 1);
-        new_traj.block(n*PASSPOINT_DOF+13, 0, 4, 1) = trajectory_generator_ptr->r_wrist_quat_traj.block(n, 0, 1, 4).transpose();
-        new_traj.block(n*PASSPOINT_DOF+17, 0, 3, 1) = result.y_re.block(0, n, 3, 1);
-        // hands:
-        new_traj.block(n*PASSPOINT_DOF+20, 0, 14, 1) = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // N x 14
-        new_traj.block(n*PASSPOINT_DOF+34, 0, 14, 1) = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0;
-      }
-
-
-      // compute similariity distance(it would do the normalization)
-      double dist = 0;
-      try{
-        dist = similarity_network_ptr->compute_distance(new_traj);
-      }
-      catch (Exception ex)
-      {
-        std::cout << "Error in similarity network" << std::endl;
-        exit(-1);
-      }
-      //std::cout << "debug2: dist = " << dist << std::endl;
-
-      return dist;
-    
-    }
-
-    // Read and write, leave blank
-    virtual bool read( std::istream& in ) {return true;}
-    virtual bool write( std::ostream& out ) const {return true;}
-
-    // Re-implement linearizeOplus() for recording Jacobians of this edge
-    Matrix<double, 1, DMPPOINTS_DOF> jacobians_for_dmp;
-    virtual void linearizeOplus();
-    Matrix<double, 1, DMPPOINTS_DOF> output_jacobian(); 
-    //void set_jacobian(); // set _jacobianOplusXi for debug: see if _jacobianOplusXi and _jacobianOplus share common memory...
-    
-};
-
-
-Matrix<double, 1, DMPPOINTS_DOF> SimilarityConstraint::output_jacobian()
-{
-  // 1 - Use residuals and pass points
-  /*
-  MatrixXd jacobians(this->num_vertices, PASSPOINT_DOF);
-  for (unsigned int n = 0; n < this->num_vertices; n++)
-  {
-    for (unsigned int p = 0; p < PASSPOINT_DOF; p++)
-      jacobians(n, p) = _jacobianOplus[n](0, p);
-  }
-  */
-
-  // 2 - Use DMP 
-  /*
-  MatrixXd jacobians(1, DMPPOINTS_DOF);
-  for (unsigned int d = 0; d < DMPPOINTS_DOF; d++)
-    jacobians(0, d) = _jacobianOplusXi(0, d); // simply do a copy..?
-
-  //std::cout << "debug: " << _jacobianOplus.size() << " x " << _jacobianOplus[0].rows() << " x " << _jacobianOplus[0].cols() << std::endl;
-  */
-  
-  return this->jacobians_for_dmp;
-}
-
-
-
-
-// change _jacobianOplusXi for debug
-/*
-void SimilarityConstraint::set_jacobian()
-{
-  for (unsigned int d = 0; d < DMPPOINTS_DOF; d++)
-    _jacobianOplusXi(0, d) = 0.3; // set to 0.1 for debug
-}
-*/
-
-
-
-// Re-implemented linearizeOplus() for recording Jacobians
-void SimilarityConstraint::linearizeOplus()
-{
-  //std::cout << "similarity numeric differentiation..." << std::endl;
-  DMPStartsGoalsVertex* v = static_cast<DMPStartsGoalsVertex*>(_vertices[0]);
-  Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
-  Matrix<double, DMPPOINTS_DOF, 1> delta_x = Matrix<double, DMPPOINTS_DOF, 1>::Zero();
-  double eps = 0.01;//0.1; // 3; //0.1;//10; // even setting to 10 doesn't yields nonzero number... similarity network is not well or useless ? 
-  double e_plus, e_minus;
-  //std::cout << "debug: similarity error = ";
-  for (unsigned int n = 0; n < DMPPOINTS_DOF; n++)
-  {
-    // foward
-    // set delta
-    delta_x[n] = eps;
-
-    // Assign and compute errors
-    v->setEstimate(x+delta_x);
-    this->computeError();
-    e_plus = _error(0, 0);
-    v->setEstimate(x-delta_x);
-    this->computeError();
-    e_minus = _error(0, 0);
-
-    // Reset the original vertex estimate 
-    delta_x[n] = 0;
-
-    // Compute and set numeric derivative
-    _jacobianOplusXi(0, n) = (e_plus - e_minus) / (2*eps);
-    //std::cout << e_plus - e_minus << " ";
-
-    // Store jacobians for debug
-    this->jacobians_for_dmp(0, n) = _jacobianOplusXi(0, n);
-
-  }
-
-  // Recover the original vertex value 
-  v->setEstimate(x);
-  //std::cout << std::endl;
-
-  // display for debug
-  //std::cout << "debug: similarity jacobians = " << this->jacobians_for_dmp << std::endl;
-
-
-}
-
-
-
-
-
 /* Define constraint for computing tracking error */
 /* addVertex rule: connect pass_points first, then datapoints */
 class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, E>, dimension and measurement datatype
@@ -2991,8 +2484,12 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     TrackingConstraint(boost::shared_ptr<DMPTrajectoryGenerator> &_trajectory_generator_ptr, 
                       KDL::ChainFkSolverPos_recursive &_left_fk_solver, 
                       KDL::ChainFkSolverPos_recursive &_right_fk_solver, 
+                      boost::shared_ptr<DualArmDualHandCollision> &_dual_arm_dual_hand_collision_ptr,
                       //unsigned int num_passpoints,
-                      unsigned int num_datapoints) : trajectory_generator_ptr(_trajectory_generator_ptr), left_fk_solver(_left_fk_solver), right_fk_solver(_right_fk_solver)
+                      unsigned int num_datapoints) : trajectory_generator_ptr(_trajectory_generator_ptr), 
+                                                     left_fk_solver(_left_fk_solver), 
+                                                     right_fk_solver(_right_fk_solver), 
+                                                     dual_arm_dual_hand_collision_ptr(_dual_arm_dual_hand_collision_ptr)
     {
       // record
       this->num_datapoints = num_datapoints;
@@ -3018,6 +2515,14 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     KDL::ChainFkSolverPos_recursive &left_fk_solver;
     KDL::ChainFkSolverPos_recursive &right_fk_solver;
 
+    // Collision Checker, which constains RobotState that can be used to compute jacobians, global link transforms, etc.
+    boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr;
+    const std::string LEFT_SHOULDER_LINK = "yumi_link_1_l";
+    const std::string LEFT_ELBOW_LINK = "yumi_link_4_l";
+    const std::string LEFT_WRIST_LINK = "yumi_link_7_l";
+    const std::string RIGHT_SHOULDER_LINK = "yumi_link_1_r";
+    const std::string RIGHT_ELBOW_LINK = "yumi_link_4_r";
+    const std::string RIGHT_WRIST_LINK = "yumi_link_7_r";
 
     // functions to compute costs
     double compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
@@ -3816,71 +3321,103 @@ double TrackingConstraint::return_elbow_pos_cost(KDL::ChainFkSolverPos_recursive
 
 double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
 {
-      // Get joint angles
-      KDL::JntArray q_in(q_cur.size()); 
-      for (unsigned int i = 0; i < q_cur.size(); ++i)
-      {
-        q_in(i) = q_cur(i);
-      }
+  // Way 1: KDL FK solver
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();  
+  // Get joint angles
+  KDL::JntArray q_in(q_cur.size()); 
+  for (unsigned int i = 0; i < q_cur.size(); ++i)
+  {
+    q_in(i) = q_cur(i);
+  }
 
-      // Do FK using KDL, get the current elbow/wrist/shoulder state
-      KDL::Frame elbow_cart_out, wrist_cart_out;//, shoulder_cart_out; // Output homogeneous transformation
-      int result;
-      result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
-      if (result < 0){
-        ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
-        exit(-1);
-      }
-      else{
-        //ROS_INFO_STREAM("FK solver succeeded for elbow link.");
-      }
-      result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1);
-      if (result < 0){
-        ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
-        exit(-1);
-      }
-      else{
-        //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
-      }
-      /*
-      result = fk_solver.JntToCart(q_in, shoulder_cart_out, num_shoulder_seg+1);
-      if (result < 0){
-        ROS_INFO_STREAM("FK solver failed when processing shoulder link, something went wrong");
-        exit(-1);
-        }
-      else{
-        //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
-      }
-      */
+  // Do FK using KDL, get the current elbow/wrist/shoulder state
+  KDL::Frame elbow_cart_out, wrist_cart_out;//, shoulder_cart_out; // Output homogeneous transformation
+  int result;
+  result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+    exit(-1);
+  }
+  else{
+      //ROS_INFO_STREAM("FK solver succeeded for elbow link.");
+  }
+  result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1);
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+    exit(-1);
+  }
+  else{
+    //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+  }
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();  
+  std::chrono::duration<double> t_spent_10 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  std::cout << "compute_arm_cost: KDL solver spent " << t_spent_10.count() << " s." << std::endl;
 
-      // Preparations
-      Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
-      Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
-      Matrix3d wrist_ori_cur = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out.M.data, 3, 3); 
-      //Vector3d shoulder_pos_cur = Map<Vector3d>(shoulder_cart_out.p.data, 3, 1);
 
-      Vector3d elbow_pos_human, wrist_pos_human; //,shoulder_pos_human
-      Matrix3d wrist_ori_human;
-      if (left_or_right) // left arm
-      {
-        //shoulder_pos_human = fdata.l_shoulder_pos_goal;
-        elbow_pos_human = fdata.l_elbow_pos_goal;
-        wrist_pos_human = fdata.l_wrist_pos_goal;
-        wrist_ori_human = fdata.l_wrist_ori_goal;
+  // Way 2: RobotState
+  /*
+  std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();  
+  // select links
+  std::string elbow_link_name = (left_or_right ? this->LEFT_ELBOW_LINK : this->RIGHT_ELBOW_LINK);
+  std::string wrist_link_name = (left_or_right ? this->LEFT_WRIST_LINK : this->RIGHT_WRIST_LINK);
+  // get joint values
+  std::vector<double> q_current(JOINT_DOF);
+  unsigned int d = (left_or_right ? 0 : q_cur.size()); // offset to cope with left and right arm joints
+  for (unsigned int s = 0; s < q_cur.size(); s++)
+    q_current[s+d] = q_cur[s];
+  std::cout << "q_current = ";
+  for (unsigned int s = 0; s < JOINT_DOF; s++)
+    std::cout << q_current[s] << " ";
+  std::cout << std::endl;  
+  // compute pos and ori for elbow and wrist
+  dual_arm_dual_hand_collision_ptr->set_joint_values_yumi(q_current);
+  Eigen::Vector3d elbow_pos_tmp = this->dual_arm_dual_hand_collision_ptr->get_link_pos(q_current, elbow_link_name);
+  Eigen::Vector3d wrist_pos_tmp = this->dual_arm_dual_hand_collision_ptr->get_link_pos(q_current, wrist_link_name);
+  Eigen::Matrix3d elbow_ori_tmp = this->dual_arm_dual_hand_collision_ptr->get_link_ori(q_current, elbow_link_name);
+  Eigen::Matrix3d wrist_ori_tmp = this->dual_arm_dual_hand_collision_ptr->get_link_ori(q_current, wrist_link_name);
 
-        fdata.l_wrist_cur = wrist_pos_cur;
-      }
-      else // right arm
-      {
-        //shoulder_pos_human = fdata.r_shoulder_pos_goal;
-        elbow_pos_human = fdata.r_elbow_pos_goal;
-        wrist_pos_human = fdata.r_wrist_pos_goal;
-        wrist_ori_human = fdata.r_wrist_ori_goal;
+  std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();  
+  std::chrono::duration<double> t_spent_1100 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+  std::cout << "compute_arm_cost: RobotState spent " << t_spent_1100.count() << " s." << std::endl;
+  */
 
-        fdata.r_wrist_cur = wrist_pos_cur;
+  // Get the results
+  Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
+  Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
+  Matrix3d wrist_ori_cur = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out.M.data, 3, 3); 
+  //Vector3d shoulder_pos_cur = Map<Vector3d>(shoulder_cart_out.p.data, 3, 1);
 
-      }
+  // Results comparison:
+  /*
+  std::cout << "Compare Results: " << std::endl;
+  std::cout << "1 - KDL: wrist_pos = " << wrist_pos_cur.transpose() << ", elbow_pos = " << elbow_pos_cur.transpose()
+            << ", wrist_ori = " << wrist_ori_cur << std::endl;
+  std::cout << "2 - RobotState: wrist_pos = " << wrist_pos_tmp.transpose() << ", elbow_pos = " << elbow_pos_tmp.transpose()
+            << ", wrist_ori = " << wrist_ori_tmp << std::endl;
+  */
 
+  // Specify human data
+  Vector3d elbow_pos_human, wrist_pos_human; //,shoulder_pos_human
+  Matrix3d wrist_ori_human;
+  if (left_or_right) // left arm
+  {
+    //shoulder_pos_human = fdata.l_shoulder_pos_goal;
+    elbow_pos_human = fdata.l_elbow_pos_goal;
+    wrist_pos_human = fdata.l_wrist_pos_goal;
+    wrist_ori_human = fdata.l_wrist_ori_goal;
+
+    fdata.l_wrist_cur = wrist_pos_cur;
+  }
+  else // right arm
+  {
+    //shoulder_pos_human = fdata.r_shoulder_pos_goal;
+    elbow_pos_human = fdata.r_elbow_pos_goal;
+    wrist_pos_human = fdata.r_wrist_pos_goal;
+    wrist_ori_human = fdata.r_wrist_ori_goal;
+
+    fdata.r_wrist_cur = wrist_pos_cur;
+  }
+  
 
   // Compute cost function
   double wrist_pos_cost = (wrist_pos_cur - wrist_pos_human).norm(); // _human is actually the newly generated trajectory
@@ -4644,38 +4181,8 @@ void TrackingConstraint::computeError()
   count_tracking++;  
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
 
-  // 1 - Use residual and pass points to generate new trajectries
-  /*
-  // Get pass_points as stack
-  //unsigned int num_passpoints = _vertices.size() - 1; // first vertex is q, the others are pass_points
-  MatrixXd pass_points(num_passpoints, PASSPOINT_DOF); // num_passpoints is not known at compile time
-  //pass_points.resize(num_passpoints, PASSPOINT_DOF);
-  for (unsigned int n = 0; n < num_passpoints; n++) 
-  { 
-    const PassPointVertex *v = static_cast<const PassPointVertex*>(_vertices[n]);
-    pass_points.block(n, 0, 1, PASSPOINT_DOF) = v->estimate().transpose(); // PassPointVertex size is PASSPOINT_DOF x 1 !!!   
-  }
-  //std::cout << "debug: pass_points = \n" << pass_points << std::endl;
-  //std::cout << "debug: pass_points size is: " << pass_points.rows() << " x " << pass_points.cols() << std::endl;
-  //std::cout << "debug: pass_points' last row = : " << pass_points.row(num_passpoints-1) << std::endl;
-
-  // Generate new trajectory
-  std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
-  MatrixXd y_seq = trajectory_generator_ptr->generate_trajectory_from_passpoints(pass_points);
-  std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
-  std::chrono::duration<double> t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
-  total_traj += t_spent1.count();
-  //std::cout << "y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
-  // rearrange: y_seq is 100*48, reshape to 4800 vectorxd, and feed into similarity network
-  //MatrixXd y_seq_tmp = y_seq.transpose();
-  //VectorXd new_traj = Map<VectorXd>(y_seq_tmp.data(), 4800);
-  //std::cout << "debug: y_seq = \n" << y_seq << std::endl;
-  //std::cout << "debug: y_seq size is: " << y_seq.rows() << " x " << y_seq.cols() << std::endl;
-  // statistics
-  count_traj++;  
-  */
-
-  // 2 - Use DMP to generate new trajectories
+  
+  // Use DMP to generate new trajectories
   const DMPStartsGoalsVertex *v = dynamic_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
   Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
   MatrixXd lrw_new_goal(3, 1); lrw_new_goal = x.block(0, 0, 3, 1);
@@ -4739,33 +4246,8 @@ void TrackingConstraint::computeError()
     q_cur_finger_l = x.block<12, 1>(14, 0);
     q_cur_finger_r = x.block<12, 1>(26, 0); 
     
-    // 1 - Use residuals and pass points to generate new trajectories, including position, orientation and glove angle data.
-    /*
-    // Set new goals(expected trajectory) to _measurement
-    unsigned int point_id = n; //_measurement.point_id;
-    Matrix<double, PASSPOINT_DOF, 1> y_seq_point = y_seq.block(point_id, 0, 1, 48).transpose(); // VectorXd is column vector
-
-    _measurement.l_wrist_pos_goal = y_seq_point.block(0, 0, 3, 1); // Vector3d
-    Quaterniond q_l(y_seq_point(3, 0), y_seq_point(4, 0), y_seq_point(5, 0), y_seq_point(6, 0));
-    //std::cout << "debug: q_l = " << y_seq_point(3, 0) << " " << y_seq_point(4, 0) << " " 
-    //                             << y_seq_point(5, 0) << " " << y_seq_point(6, 0) << std::endl; 
-    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
-    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
-    _measurement.l_elbow_pos_goal = y_seq_point.block(7, 0, 3, 1);
-
-
-    _measurement.r_wrist_pos_goal = y_seq_point.block(10, 0, 3, 1); // Vector3d
-    Quaterniond q_r(y_seq_point[13], y_seq_point[14], y_seq_point[15], y_seq_point[16]);
-    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
-    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
-    _measurement.r_elbow_pos_goal = y_seq_point.block(17, 0, 3, 1); // Vector3d is column vector
-
-    _measurement.l_finger_pos_goal = y_seq_point.block(20, 0, 14, 1); // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = y_seq_point.block(34, 0, 14, 1);
-    */
-
-
-    // 2 - Use DMP to generate new position trajectories, orientation & glove trajs are resampled and loaded in DMPTrajectoryGenerator
+   
+    // Use DMP to generate new position trajectories, orientation & glove trajs are resampled and loaded in DMPTrajectoryGenerator
     // Set new goals(expected trajectory) to _measurement
     // left arm part:
     _measurement.l_wrist_pos_goal = result.y_lw.block(0, n, 3, 1); // Vector3d
@@ -5115,21 +4597,14 @@ int main(int argc, char *argv[])
   DMPStartsGoalsVertex* dmp_vertex;
   std::vector<MyUnaryConstraints*> unary_edges;
   std::vector<SmoothnessConstraint*> smoothness_edges;  
-  //std::vector<TrackingConstraint*> tracking_edges;
   TrackingConstraint* tracking_edge;
-  // SimilarityConstraint* similarity_edge;
   DMPConstraints* dmp_edge;
 
-  // similarity_edge = new SimilarityConstraint(trajectory_generator_ptr, similarity_network_ptr);
-  // similarity_edge->setId(0);
-
-//  tracking_edge = new TrackingConstraint(trajectory_generator_ptr, 
-//                                         left_fk_solver, right_fk_solver, 
-//                                         num_passpoints, NUM_DATAPOINTS);
+ 
   tracking_edge = new TrackingConstraint(trajectory_generator_ptr, 
                                          left_fk_solver, right_fk_solver, 
+                                         dual_arm_dual_hand_collision_ptr,
                                          NUM_DATAPOINTS);
-
   tracking_edge->setId(1);
 
 

@@ -67,6 +67,10 @@ class DualArmDualHandCollision
     Eigen::MatrixXd get_robot_arm_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right);
     Eigen::Vector3d get_global_link_transform(std::string target_link_name); // this is the transform of specified link under the current configuration (this->current_state_)
 
+    Eigen::Vector3d get_link_pos(const std::vector<double> q_in, std::string target_link_name);
+    Eigen::Matrix3d get_link_ori(const std::vector<double> q_in, std::string target_link_name);
+
+
     // Methods setting joint values for different robot configurations
     void set_joint_values_yumi(const std::vector<double> q_in);
     //void set_joint_values_ur5(const std::vector<double> q_in);

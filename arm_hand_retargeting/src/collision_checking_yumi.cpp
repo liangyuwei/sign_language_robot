@@ -194,91 +194,36 @@ Eigen::Vector3d DualArmDualHandCollision::get_global_link_transform(std::string 
   return position;
 }
 
-/* Get robot jacobian with the given link and reference_point_position. 
- * arm_hand_together: whether to compute arm and hand(one finger actually) as a serial link
- * arm_or_hand: only arm or only hand(a finger)
- * finger_id: 0 - thumb, 1 - index, 2 - middle, 3 - ring, 4 - little
- * left_or_right: choose left of right
- */
- /*
-Eigen::MatrixXd DualArmDualHandCollision::get_robot_jacobian(std::string target_link_name, 
-                                                             Eigen::Vector3d ref_point_pos, 
-                                                             bool arm_hand_together,
-                                                             bool arm_or_hand,
-                                                             int finger_id,
-                                                             bool left_or_right)
+
+Eigen::Vector3d DualArmDualHandCollision::get_link_pos(const std::vector<double> q_in, std::string target_link_name)
 {
-  // Prep
-  Eigen::MatrixXd jacobian;
-  bool result;
 
-  // See which groups to compute robot jacobian for
-  if (arm_hand_together)
-  {
-    if (left_or_right) // left arm + left hand
-    {
-      result = this->current_state_.getJacobian(this->left_arm_hand_group_, 
-                                                this->current_state_.getLinkModel(target_link_name),
-                                                ref_point_pos, jacobian);
-    }
-    else               // right arm + right hand
-    {
-      result = this->current_state_.getJacobian(this->right_arm_hand_group_, 
-                                                this->current_state_.getLinkModel(target_link_name),
-                                                ref_point_pos, jacobian);
-    }
-  }
-  else
-  {
-    if(arm_or_hand)
-    {
-      if (left_or_right)  // left arm only
-      {
-        result = this->current_state_.getJacobian(this->left_arm_group_, 
-                                                  this->current_state_.getLinkModel(target_link_name),
-                                                  ref_point_pos, jacobian);
-      }
-      else                // right arm only
-      {
-        result = this->current_state_.getJacobian(this->right_arm_group_, 
-                                                  this->current_state_.getLinkModel(target_link_name),
-                                                  ref_point_pos, jacobian);
-      }
-    }
-    else
-    {
-      if (left_or_right)  // left hand only
-      {
-        result = this->current_state_.getJacobian(this->left_hand_group_, 
-                                                  this->current_state_.getLinkModel(target_link_name),
-                                                  ref_point_pos, jacobian);
-      }
-      else                // right hand only
-      {
-        result = this->current_state_.getJacobian(this->right_hand_group_, 
-                                                  this->current_state_.getLinkModel(target_link_name),
-                                                  ref_point_pos, jacobian);
-      }
-    }
-  }
-  
+  // Set joint values and update current_state_ !
+  this->set_joint_values_yumi(q_in);
 
-  // Check the results
-  if (result)
-  {
-    std::cout << "Jacobian calculated successfully !" << std::endl;
-    std::cout << "Size of robot jacobian: " << jacobian.rows() << " x " << jacobian.cols() << std::endl;
-  }
-  else
-  {
-    std::cout << "Failed to compute robot jacobian for " << target_link_name << " at ref_point_pos = " << ref_point_pos.transpose() << std::endl;
-    exit(-1);
-  }
+  // Get transform data
+  const Eigen::Affine3d target_link_state = this->current_state_.getGlobalLinkTransform(target_link_name);
 
-  return jacobian;
+  Eigen::Vector3d position = target_link_state.translation();
+  // Eigen::Matrix3d rotation = target_link_state.rotation();
 
+  return position;
 }
-*/
+
+Eigen::Matrix3d DualArmDualHandCollision::get_link_ori(const std::vector<double> q_in, std::string target_link_name)
+{
+
+  // Set joint values and update current_state_ !
+  this->set_joint_values_yumi(q_in);
+
+  // Get transform data
+  const Eigen::Affine3d target_link_state = this->current_state_.getGlobalLinkTransform(target_link_name);
+
+  // Eigen::Vector3d position = target_link_state.translation();
+  Eigen::Matrix3d rotation = target_link_state.rotation();
+
+  return rotation;
+}
 
 
 /* Get robot arm jacobian with the given link and reference_point_position. 
