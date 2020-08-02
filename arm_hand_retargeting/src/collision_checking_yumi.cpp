@@ -267,6 +267,59 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_jacobian(std::string tar
 }
 
 
+/* Calculate robot jacobians for left arm or right arm
+ * Note that q_in is just joint angles for left/right arm, no need to set all
+ */
+Eigen::MatrixXd DualArmDualHandCollision::get_arm_jacobian(const std::vector<double> q_in, std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right)
+{
+  // Update current state
+  // this->set_joint_values_yumi(q_in);
+  if (left_or_right)
+  {
+    this->current_state_.setJointGroupPositions(this->left_arm_group_, q_in);
+  }
+  else
+  {
+    this->current_state_.setJointGroupPositions(this->right_arm_group_, q_in);
+  }
+  this->current_state_.update(); // must update RobotState after setting joint positions!!!
+
+
+  // Prep
+  Eigen::MatrixXd jacobian;
+  bool result;
+
+  // See which groups to compute robot jacobian for
+  if (left_or_right) // left arm + left hand
+  {
+    result = this->current_state_.getJacobian(this->left_arm_group_, 
+                                              this->current_state_.getLinkModel(target_link_name),
+                                              ref_point_pos, jacobian);
+  }
+  else
+  {
+    result = this->current_state_.getJacobian(this->right_arm_group_, 
+                                              this->current_state_.getLinkModel(target_link_name),
+                                              ref_point_pos, jacobian);
+  }
+
+
+  // Check the results
+  if (result)
+  {
+    // std::cout << "Jacobian calculated successfully !" << std::endl;
+    // std::cout << "Size of robot jacobian: " << jacobian.rows() << " x " << jacobian.cols() << std::endl;
+  }
+  else
+  {
+    std::cout << "Failed to compute robot jacobian for " << (left_or_right ? "left" : "right") << " arm." << std::endl;
+    exit(-1);
+  }
+
+  return jacobian;
+
+}
+
 /* Get finger jacobian with the given link and reference_point_position. 
  * finger_id: 0 - thumb, 1 - index, 2 - middle, 3 - ring, 4 - little
  * left_or_right: choose left of right

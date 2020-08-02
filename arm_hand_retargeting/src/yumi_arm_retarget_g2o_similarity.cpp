@@ -2515,6 +2515,12 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     KDL::ChainFkSolverPos_recursive &left_fk_solver;
     KDL::ChainFkSolverPos_recursive &right_fk_solver;
 
+
+    // Robot jacobians
+    Eigen::Matrix<double, 7, 1> compute_q_arm_jacobians(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
+
+
+
     // Collision Checker, which constains RobotState that can be used to compute jacobians, global link transforms, etc.
     boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr;
     const std::string LEFT_SHOULDER_LINK = "yumi_link_1_l";
@@ -2575,6 +2581,9 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
     Matrix<double, 14, NUM_DATAPOINTS> wrist_pos_jacobian_for_q_arm;
     Matrix<double, 14, NUM_DATAPOINTS> wrist_ori_jacobian_for_q_arm;
     Matrix<double, 14, NUM_DATAPOINTS> elbow_pos_jacobian_for_q_arm;
+    Matrix<double, 7, 1> cur_wrist_pos_jacobian_for_q_arm;
+    Matrix<double, 7, 1> cur_wrist_ori_jacobian_for_q_arm;
+    Matrix<double, 7, 1> cur_elbow_pos_jacobian_for_q_arm;
 
     Matrix<double, DMPPOINTS_DOF, 1> wrist_pos_jacobian_for_dmp;
     Matrix<double, DMPPOINTS_DOF, 1> wrist_ori_jacobian_for_dmp;
@@ -2936,7 +2945,10 @@ void TrackingConstraint::linearizeOplus()
   std::chrono::duration<double> t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
   total_traj += t_spent1.count();
   count_traj++;  
+
   // Iterate to compute jacobians
+  double t_arm_numeric = 0.0;
+  double t_arm_jacobian = 0.0;
   Matrix<double, 7, 1> delta_q_arm = Matrix<double, 7, 1>::Zero();
   Matrix<double, 12, 1> delta_q_finger = Matrix<double, 12, 1>::Zero();  
   for (unsigned int n = 0; n < num_datapoints; n++)
@@ -2978,7 +2990,9 @@ void TrackingConstraint::linearizeOplus()
     _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // size is 50 x DOF
 
     
-    // (1) - jacobians for arms
+    // (1) - jacobians for arms - way 1: numeric differentiation
+    /*
+    t00 = std::chrono::steady_clock::now();      
     double right_tmp = compute_arm_cost(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg, _measurement.r_num_elbow_seg, _measurement.r_num_shoulder_seg, false, _measurement);
     double wrist_pos_cost_right_tmp = this->cur_wrist_pos_cost; // record after calling compute_arm_cost()
     double wrist_ori_cost_right_tmp = this->cur_wrist_ori_cost;
@@ -3048,11 +3062,38 @@ void TrackingConstraint::linearizeOplus()
     //          << " = " << _jacobianOplus[n+1].block(0, 0, 1, 7) << std::endl;
     //std::cout << "debug: jacobians w.r.t right arm joints of datapoint " << (n+1) << "/" << num_datapoints 
     //          << " = " << _jacobianOplus[n+1].block(0, 7, 1, 7) << std::endl;
+    t11 = std::chrono::steady_clock::now();  
+    t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+    t_arm_numeric += t_spent1.count();
+    */
+
+
+    // (1) - jacobians for arms - way 2: use robot jacobians
+    // std::cout << "debug: way 1 - jacobians = " << _jacobianOplus[n+1] << std::endl;
+    t00 = std::chrono::steady_clock::now();  
+    // compute updates using robot jacobians
+    Eigen::Matrix<double, 7, 1> dq_left = this->compute_q_arm_jacobians(left_fk_solver, q_cur_l, _measurement.l_num_wrist_seg,  _measurement.l_num_elbow_seg,  _measurement.l_num_shoulder_seg, true, _measurement);
+    this->wrist_pos_jacobian_for_q_arm.block(0, n, 7, 1) = this->cur_wrist_pos_jacobian_for_q_arm; // K_WRIST_POS included
+    this->wrist_ori_jacobian_for_q_arm.block(0, n, 7, 1) = this->cur_wrist_ori_jacobian_for_q_arm; // K_WRIST_ORI included
+    this->elbow_pos_jacobian_for_q_arm.block(0, n, 7, 1) = this->cur_elbow_pos_jacobian_for_q_arm; // K_ELBOW_POS included
+
+    Eigen::Matrix<double, 7, 1> dq_right = this->compute_q_arm_jacobians(right_fk_solver, q_cur_r, _measurement.r_num_wrist_seg,  _measurement.r_num_elbow_seg,  _measurement.r_num_shoulder_seg, false, _measurement);
+    this->wrist_pos_jacobian_for_q_arm.block(7, n, 7, 1) = this->cur_wrist_pos_jacobian_for_q_arm; // K_WRIST_POS included
+    this->wrist_ori_jacobian_for_q_arm.block(7, n, 7, 1) = this->cur_wrist_ori_jacobian_for_q_arm; // K_WRIST_ORI included
+    this->elbow_pos_jacobian_for_q_arm.block(7, n, 7, 1) = this->cur_elbow_pos_jacobian_for_q_arm; // K_ELBOW_POS included    
+
+    // assign to optimization jacobians
+    _jacobianOplus[n+1].block(0, 0, 1, 7) = dq_left.transpose(); // K_WRIST_POS and K_ELBOW_POS already 
+    _jacobianOplus[n+1].block(0, 7, 1, 7) = dq_right.transpose(); // K_WRIST_POS and K_ELBOW_POS already 
+    t11 = std::chrono::steady_clock::now();  
+    t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+    t_arm_jacobian += t_spent1.count();
+    // std::cout << "debug: way 2 - jacobians = " << _jacobianOplus[n+1] << std::endl;
 
 
     // (2) - jacobians for fingers
-    left_tmp = compute_finger_cost(q_cur_finger_l, true, _measurement);  
-    right_tmp = compute_finger_cost(q_cur_finger_r, false, _measurement); 
+    double left_tmp = compute_finger_cost(q_cur_finger_l, true, _measurement);  
+    double right_tmp = compute_finger_cost(q_cur_finger_r, false, _measurement); 
     for (unsigned int d = 0; d < 12; d++)
     {
       // set delta
@@ -3077,6 +3118,10 @@ void TrackingConstraint::linearizeOplus()
     //          << " = " << _jacobianOplus[n+1].block(0, 26, 1, 12) << std::endl;
 
   }
+
+  // debug:
+  // std::cout << "debug: Total time spent using numeric differentiation is " << t_arm_numeric << " s." << std::endl;
+  // std::cout << "debug: Total time spent using robot jacobian is " << t_arm_jacobian << " s." << std::endl;
 
 
   // 3 - Save jacobians for q vertices
@@ -3322,7 +3367,7 @@ double TrackingConstraint::return_elbow_pos_cost(KDL::ChainFkSolverPos_recursive
 double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
 {
   // Way 1: KDL FK solver
-  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();  
+  // std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();  
   // Get joint angles
   KDL::JntArray q_in(q_cur.size()); 
   for (unsigned int i = 0; i < q_cur.size(); ++i)
@@ -3349,9 +3394,9 @@ double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_
   else{
     //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
   }
-  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();  
-  std::chrono::duration<double> t_spent_10 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  std::cout << "compute_arm_cost: KDL solver spent " << t_spent_10.count() << " s." << std::endl;
+  // std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();  
+  // std::chrono::duration<double> t_spent_10 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  // std::cout << "compute_arm_cost: KDL solver spent " << t_spent_10.count() << " s." << std::endl;
 
 
   // Way 2: RobotState
@@ -3435,6 +3480,149 @@ double TrackingConstraint::compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_
 
 }
 
+
+/* Compute jacobians for arms, by using robot jacobians 
+ * Use KDL ChainFkSolver to get current state; Use RobotState's getJacobian() to get robot jacobians under current state.
+ */
+Eigen::Matrix<double, 7, 1> TrackingConstraint::compute_q_arm_jacobians(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata)
+{
+
+  // Get joint angles
+  KDL::JntArray q_in(q_cur.size()); 
+  for (unsigned int i = 0; i < q_cur.size(); ++i)
+  {
+    q_in(i) = q_cur(i);
+  }
+
+  // Do FK using KDL, get the current elbow/wrist/shoulder state
+  KDL::Frame elbow_cart_out, wrist_cart_out;//, shoulder_cart_out; // Output homogeneous transformation
+  int result;
+  result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+    exit(-1);
+  }
+  else{
+      //ROS_INFO_STREAM("FK solver succeeded for elbow link.");
+  }
+  result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1);
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+    exit(-1);
+  }
+  else{
+    //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
+  }
+
+
+  // Get the results
+  Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
+  Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
+  Matrix3d wrist_ori_cur = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out.M.data, 3, 3); 
+
+
+  // Specify human data
+  Vector3d elbow_pos_human, wrist_pos_human; //,shoulder_pos_human
+  Matrix3d wrist_ori_human;
+  if (left_or_right) // left arm
+  {
+    //shoulder_pos_human = fdata.l_shoulder_pos_goal;
+    elbow_pos_human = fdata.l_elbow_pos_goal;
+    wrist_pos_human = fdata.l_wrist_pos_goal;
+    wrist_ori_human = fdata.l_wrist_ori_goal;
+
+    fdata.l_wrist_cur = wrist_pos_cur;
+  }
+  else // right arm
+  {
+    //shoulder_pos_human = fdata.r_shoulder_pos_goal;
+    elbow_pos_human = fdata.r_elbow_pos_goal;
+    wrist_pos_human = fdata.r_wrist_pos_goal;
+    wrist_ori_human = fdata.r_wrist_ori_goal;
+
+    fdata.r_wrist_cur = wrist_pos_cur;
+  }
+  
+
+  // Compute cartesian velocities (dx = (dpos, dori)) 
+  Eigen::Vector3d wrist_pos_offset = wrist_pos_cur - wrist_pos_human; // note that order should be this, or set dq to -dq, this might be due to the update rule used by g2o is in consistent with my calculation..
+  Eigen::Vector3d elbow_pos_offset = elbow_pos_cur - elbow_pos_human;
+  Eigen::Vector3d wrist_ori_offset = -(wrist_ori_cur.transpose() * wrist_ori_human).eulerAngles(0, 1, 2);   // X-Y-Z; negation to cope with different update rule of g2o's
+  Eigen::Vector3d wrist_eul_cur = wrist_ori_cur.eulerAngles(0, 1, 2);
+  Eigen::Vector3d wrist_eul_human = wrist_ori_human.eulerAngles(0, 1, 2);
+  // std::cout << "debug: wrist_pos_offset = " << wrist_pos_offset.transpose() << std::endl;
+  // std::cout << "debug: wrist_pos_cur = " << wrist_pos_cur.transpose() << std::endl;
+  // std::cout << "debug: wrist_pos_human = " << wrist_pos_human.transpose() << std::endl;
+  // std::cout << "debug: wrist_ori_offset = " << wrist_ori_offset.transpose() << std::endl;
+  // std::cout << "debug: wrist_eul_cur = " << wrist_eul_cur.transpose() << std::endl;
+  // std::cout << "debug: wrist_eul_human = " << wrist_eul_human.transpose() << std::endl;
+
+
+  // Get jacobians
+  std::vector<double> q_cur_vec(7);
+  for (unsigned s = 0; s < 7; s++)
+    q_cur_vec[s] = q_cur[s];
+  std::string wrist_link_name = (left_or_right ? LEFT_WRIST_LINK : RIGHT_WRIST_LINK);
+  std::string elbow_link_name = (left_or_right ? LEFT_ELBOW_LINK : RIGHT_ELBOW_LINK);
+  Eigen::MatrixXd wrist_jacobian = dual_arm_dual_hand_collision_ptr->get_arm_jacobian(q_cur_vec, wrist_link_name, Eigen::Vector3d::Zero(), left_or_right);
+  Eigen::MatrixXd elbow_jacobian = dual_arm_dual_hand_collision_ptr->get_arm_jacobian(q_cur_vec, elbow_link_name, Eigen::Vector3d::Zero(), left_or_right);
+  // std::cout << "debug: wrist_jacobian size is " << wrist_jacobian.rows() << " x "<< wrist_jacobian.cols() << std::endl;
+  // std::cout << "debug: elbow_jacobian size is " << elbow_jacobian.rows() << " x "<< elbow_jacobian.cols() << std::endl;
+
+
+  // Compute joint velocities (dq) for update
+  // initialization
+  Eigen::Matrix<double, 6, 1> dx_pos_wrist = Eigen::Matrix<double, 6, 1>::Zero();
+  Eigen::Matrix<double, 6, 1> dx_ori_wrist = Eigen::Matrix<double, 6, 1>::Zero();
+  Eigen::Matrix<double, 6, 1> dx_elbow = Eigen::Matrix<double, 6, 1>::Zero();
+  dx_pos_wrist.block(0, 0, 3, 1) = wrist_pos_offset;
+  dx_ori_wrist.block(3, 0, 3, 1) = wrist_ori_offset; // specify position and orientation
+  dx_elbow.block(0, 0, 3, 1) = elbow_pos_offset; // specify only position part
+  Eigen::Matrix<double, 7, 1> dq_pos_wrist = Eigen::Matrix<double, 7, 1>::Zero();
+  Eigen::Matrix<double, 7, 1> dq_ori_wrist = Eigen::Matrix<double, 7, 1>::Zero();
+  Eigen::Matrix<double, 7, 1> dq_elbow = Eigen::Matrix<double, 7, 1>::Zero();
+  Eigen::Matrix<double, 7, 1> dq = Eigen::Matrix<double, 7, 1>::Zero();
+  // check rank of jacobian matrix
+  unsigned int rank_wrist = wrist_jacobian.colPivHouseholderQr().rank(); 
+  unsigned int rank_elbow = elbow_jacobian.colPivHouseholderQr().rank(); 
+  // std::cout << "debug: rank(J_wrist) = " << rank_wrist << ", rank(J_elbow) = " << rank_elbow << std::endl;
+  // solve for dq using SVD
+  JacobiSVD<MatrixXd> wrist_svd(wrist_jacobian, ComputeThinU | ComputeThinV); // svd.singularValues()/.matrixU()/.matrixV()
+  JacobiSVD<MatrixXd> elbow_svd(elbow_jacobian, ComputeThinU | ComputeThinV); // svd.singularValues()/.matrixU()/.matrixV()
+  dq_pos_wrist = wrist_svd.solve(dx_pos_wrist);
+  dq_ori_wrist = wrist_svd.solve(dx_ori_wrist);
+  dq_elbow = elbow_svd.solve(dx_elbow);
+
+
+  // Return updates dq
+  dq = K_WRIST_POS * dq_pos_wrist + K_WRIST_ORI * dq_ori_wrist + K_ELBOW_POS * dq_elbow;
+  
+
+  // Store for debug
+  this->cur_wrist_pos_jacobian_for_q_arm = K_WRIST_POS * dq_pos_wrist;
+  this->cur_wrist_ori_jacobian_for_q_arm = K_WRIST_ORI * dq_ori_wrist;
+  this->cur_elbow_pos_jacobian_for_q_arm = K_ELBOW_POS * dq_elbow;
+
+  bool check = ( isnan(dq.norm()) || isinf(dq.norm()) );
+  if (check)
+  {
+    std::cout << "debug: dq NaN or Inf!!! dq = " << dq.transpose() << std::endl;
+    exit(-1);
+  }
+
+  // debug
+  // std::cout << "debug: ";
+  // std::cout << "J_wrist = \n" << wrist_jacobian << "\nJ_elbow = \n" << elbow_jacobian << std::endl;
+  // std::cout << "dx_wrist = " << dx_wrist.transpose() << ", dx_elbow = " << dx_elbow.transpose() << std::endl;
+  // std::cout << "dq_wrist = " << dq_wrist.transpose() << ", dq_elbow = " << dq_elbow.transpose() << std::endl;
+  // std::cout << "dq = " << dq.transpose() << std::endl;
+  // std::cout << "J_wrist * dq_wrist = " << (wrist_jacobian * dq_wrist).transpose() << std::endl;
+  // std::cout << "J_elbow * dq_elbow = " << (elbow_jacobian * dq_elbow).transpose() << std::endl;
+
+  // Return updates dq
+  return dq;
+
+}
 
 double TrackingConstraint::linear_map(double x_, double min_, double max_, double min_hat, double max_hat)
 {
@@ -4972,7 +5160,7 @@ int main(int argc, char *argv[])
 
   double K_WRIST_POS_MAX = 100.0;//20.0;//10.0;
   double K_ELBOW_POS_MAX = 100.0;//20.0;//10.0;
-
+  double K_WRIST_ORI_MAX = 100.0;
   
   // constraints bounds
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
@@ -4985,11 +5173,11 @@ int main(int argc, char *argv[])
 
   double wrist_pos_cost_bound = std::sqrt( (std::pow(0.02, 2) * 3) ) * NUM_DATAPOINTS; // 2 cm allowable error
   double elbow_pos_cost_bound = std::sqrt( (std::pow(0.03, 2) * 3) ) * NUM_DATAPOINTS; // 3 cm allowable error
-
+  double wrist_ori_cost_bound = 5.0 * M_PI / 180.0 * NUM_DATAPOINTS; // 5.0 degree allowable error, in radius
 
   double scale = 1.5;  // increase coefficients by 20% 
   double outer_scale = 1.5;//2.0;
-  double inner_scale = 1.5;
+  double inner_scale = 1.2;//1.5;
   // double step = 1.0;
   // double level = 0.0;
 
@@ -5030,6 +5218,7 @@ int main(int argc, char *argv[])
     double tmp_smoothness_cost;
     double tmp_wrist_pos_cost;
     double tmp_elbow_pos_cost;
+    double tmp_wrist_ori_cost;
 
     double wrist_pos_cost_before_optim;
     double wrist_pos_cost_after_optim;
@@ -5070,6 +5259,8 @@ int main(int argc, char *argv[])
     double cur_wrist_pos_cost;
     double last_elbow_pos_cost = 1000000; // worst case
     double cur_elbow_pos_cost;
+    double last_wrist_ori_cost = 1000000;
+    double cur_wrist_ori_cost;
 
     // iterate to ensure collision, pos_limit costs
     // do
@@ -5084,6 +5275,10 @@ int main(int argc, char *argv[])
     K_COL = 0.0;
     K_SMOOTHNESS = 1.0;
     K_POS_LIMIT = 1.0;
+
+    K_WRIST_POS = 0.1;
+    K_WRIST_ORI = 0.1;
+    K_ELBOW_POS = 0.1;
     
     do
     {
@@ -5200,8 +5395,12 @@ int main(int argc, char *argv[])
     std::cout << std::endl << std::endl;    
     // 
     std::cout << "debug: wrist_ori_cost = ";
-    for (unsigned s = 0; s < wrist_ori_cost.size(); s++)
+    tmp_wrist_ori_cost = 0.0;
+    for (unsigned int s = 0; s < wrist_ori_cost.size(); s++)
+    {
       std::cout << wrist_ori_cost[s] << " ";
+      tmp_wrist_ori_cost += wrist_ori_cost[s];
+    }
     std::cout << std::endl << std::endl;    
     // 
     std::cout << "debug: elbow_pos_cost = ";
@@ -5297,18 +5496,20 @@ int main(int argc, char *argv[])
     std::cout << std::endl << std::endl;    
 
     // check wrist cost
-    std::cout << "Total wrist_cost = " << tmp_wrist_pos_cost << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
+    std::cout << "Total wrist_pos_cost = " << tmp_wrist_pos_cost << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
     std::cout << "Total elbow_cost = " << tmp_elbow_pos_cost << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
+    std::cout << "Total wrist_ori_cost = " << tmp_wrist_ori_cost << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
     std::cout << "(not concerned now) Total col_cost = " << tmp_col_cost << " (bound: " << col_cost_bound << ")" << std::endl;
     std::cout << "(not concerned now) Total pos_limit_cost = " << tmp_pos_limit_cost << " (bound: " << pos_limit_bound << ")" << std::endl;
     std::cout << "(not concerned now) Total smoothness_cost = " << tmp_smoothness_cost << " (bound: " << smoothness_bound << ")" << std::endl;
-    std::cout << "Current coefficients: K_WRIST_POS = " << K_WRIST_POS << ", K_ELBOW_POS = " << K_ELBOW_POS << std::endl << std::endl;
+    std::cout << "Current coefficients: K_WRIST_POS = " << K_WRIST_POS << ", K_ELBOW_POS = " << K_ELBOW_POS << ", K_WRIST_ORI = " << K_WRIST_ORI << std::endl << std::endl;
 
 
     // evaluate updates under the current setting
-    cur_wrist_pos_cost_update = wrist_pos_cost_before_optim - wrist_pos_cost_after_optim;
-    cur_elbow_pos_cost_update = elbow_pos_cost_before_optim - elbow_pos_cost_after_optim;
+    // cur_wrist_pos_cost_update = wrist_pos_cost_before_optim - wrist_pos_cost_after_optim;
+    // cur_elbow_pos_cost_update = elbow_pos_cost_before_optim - elbow_pos_cost_after_optim;
 
+    
     if (tmp_wrist_pos_cost > wrist_pos_cost_bound && K_WRIST_POS <= K_WRIST_POS_MAX)
     {
       // if (cur_wrist_pos_cost_update <= last_wrist_pos_cost_update) // update slowing down, increase coefficients
@@ -5324,10 +5525,18 @@ int main(int argc, char *argv[])
         K_ELBOW_POS = K_ELBOW_POS * inner_scale;// + step; //inner_scale * (++level); //* inner_scale;
     }
     last_elbow_pos_cost = cur_elbow_pos_cost;
+    
+    if (tmp_wrist_ori_cost > wrist_ori_cost_bound && K_WRIST_ORI <= K_WRIST_ORI_MAX)
+    {
+      // if (cur_elbow_pos_cost_update <= last_elbow_pos_cost_update) // update slowing down, increase coefficients
+      if (cur_wrist_ori_cost >= last_wrist_ori_cost) // if descending, no need to rush
+        K_WRIST_ORI = K_WRIST_ORI * inner_scale;// + step; //inner_scale * (++level); //* inner_scale;
+    }
+    last_wrist_ori_cost = cur_wrist_ori_cost;    
 
     // update update information
-    last_wrist_pos_cost_update = cur_wrist_pos_cost_update;
-    last_elbow_pos_cost_update = cur_elbow_pos_cost_update;
+    // last_wrist_pos_cost_update = cur_wrist_pos_cost_update;
+    // last_elbow_pos_cost_update = cur_elbow_pos_cost_update;
 
     // test: use collision checking just one round, only for fast tracking convergence!!!
     // break;
@@ -5553,6 +5762,7 @@ int main(int argc, char *argv[])
     std::cout << "Deciding adjustment on K_COL, K_POS_LIMIT and K_SMOOTHNESS..." << std::endl;
     std::cout << "(not concerned now) Total wrist_cost = " << tmp_wrist_pos_cost << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
     std::cout << "(not concerned now) Total elbow_cost = " << tmp_elbow_pos_cost << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
+    std::cout << "(not concerned now) Total wrist_ori_cost = " << tmp_wrist_ori_cost << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
     std::cout << "Total col_cost = " << tmp_col_cost << " (bound: " << col_cost_bound << ")" << std::endl;
     std::cout << "Total pos_limit_cost = " << tmp_pos_limit_cost << " (bound: " << pos_limit_bound << ")" << std::endl;
     std::cout << "Total smoothness_cost = " << tmp_smoothness_cost << " (bound: " << smoothness_bound << ")" << std::endl;
