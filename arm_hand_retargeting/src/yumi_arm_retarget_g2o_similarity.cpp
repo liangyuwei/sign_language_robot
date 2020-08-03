@@ -4483,11 +4483,6 @@ int main(int argc, char *argv[])
   ros::init(argc, argv, "yumi_sign_language_robot_retargeting");
 
 
-  // test
-//  std::cout << "Test the torch..." << std::endl;
-//  test_torch();
-
-
   // Optimization settings
   std::string in_file_name = "test_imi_data_YuMi.h5";
   std::string in_group_name = "fengren_1";
@@ -4566,33 +4561,7 @@ int main(int argc, char *argv[])
   my_constraint_struct constraint_data; 
 
 
-  // Input Cartesian trajectories
-  //std::vector<double> x(JOINT_DOF);
-  //std::cout << "========== Reading imitation data from h5 file ==========" << std::endl;
-/*
-  std::cout << "left part: " << std::endl;
-  std::vector<std::vector<double>> read_l_wrist_pos_traj = read_h5(in_file_name, in_group_name, "l_wrist_pos"); 
-  std::vector<std::vector<double>> read_l_wrist_ori_traj = read_h5(in_file_name, in_group_name, "l_wrist_ori"); 
-  std::vector<std::vector<double>> read_l_elbow_pos_traj = read_h5(in_file_name, in_group_name, "l_elbow_pos"); 
-  std::vector<std::vector<double>> read_l_shoulder_pos_traj = read_h5(in_file_name, in_group_name, "l_shoulder_pos"); 
-
-  std::cout << "right part: " << std::endl;
-  std::vector<std::vector<double>> read_r_wrist_pos_traj = read_h5(in_file_name, in_group_name, "r_wrist_pos"); 
-  std::vector<std::vector<double>> read_r_wrist_ori_traj = read_h5(in_file_name, in_group_name, "r_wrist_ori"); 
-  std::vector<std::vector<double>> read_r_elbow_pos_traj = read_h5(in_file_name, in_group_name, "r_elbow_pos"); 
-  std::vector<std::vector<double>> read_r_shoulder_pos_traj = read_h5(in_file_name, in_group_name, "r_shoulder_pos"); 
-
-  std::cout << "finger part: " << std::endl;
-  std::vector<std::vector<double>> read_l_finger_pos_traj = read_h5(in_file_name, in_group_name, "l_glove_angle"); // N * 14 size
-  std::vector<std::vector<double>> read_r_finger_pos_traj = read_h5(in_file_name, in_group_name, "r_glove_angle"); // N * 14 size  
-
-
-  std::vector<std::vector<double>> read_time_stamps = read_h5(in_file_name, in_group_name, "time"); 
-*/
-
-
   std::cout << ">>>> Reading data from h5 file" << std::endl;
-
 
  // Variables' bounds
   const std::vector<double> q_l_arm_lb = {-2.8, -2.49, -1.2, -1.7, -2.0, -1.5, -2.0};
@@ -5097,10 +5066,14 @@ int main(int argc, char *argv[])
     
 
     // Initialize coefficients
-    K_COL = 0.0; // shut it off
-    K_SMOOTHNESS = 1.0;
-    K_POS_LIMIT = 1.0;
-    K_FINGER = 1.0;
+    K_COL = 0.0; 
+    K_SMOOTHNESS = 0.1;
+    K_POS_LIMIT = 0.1;
+    // // Cost function related coefficients
+    K_WRIST_POS = 1.0;
+    K_WRIST_ORI = 0.0;//1.0;
+    K_ELBOW_POS = 0.0;//1.0;
+    K_FINGER = 0.0;//1.0;
 
     // record time usage
     double t_constraints_fix_loop = 0.0;
@@ -5137,8 +5110,8 @@ int main(int argc, char *argv[])
       std::cout << ">> Before optimization: col_cost = " << col_cost_before_optim << ", pos_limit_cost = "
                 << pos_limit_cost_before_optim << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl << std::endl;
 
-      // Reset K_ELBOW_POS for next level
-      K_ELBOW_POS = 0.0;//1.0;//0.1;
+      // Reset K_ELBOW_POS
+      // K_ELBOW_POS = 0.0;//1.0
 
     std::chrono::steady_clock::time_point t0_elbow_pos_loop = std::chrono::steady_clock::now();
     do // ELBOW_POS loop
@@ -5148,8 +5121,8 @@ int main(int argc, char *argv[])
       std::cout << ">>>> Elbow Pos Tracking loop: automatically adjust penalties coefficients." << std::endl;
       std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
       std::cout << "(Main) Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-      std::cout << "Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
-      std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
+      std::cout << "(Main) Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
+      std::cout << "(Main) Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
 
       // Evaluate cost before optimization
       std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();           
@@ -5160,7 +5133,7 @@ int main(int argc, char *argv[])
       std::cout << ">> Before optimization: elbow_pos_cost = " << elbow_pos_cost_before_optim << std::endl << std::endl;
 
       // Reset K_WRIST_POS for next level
-      K_WRIST_ORI = 0.0;//1.0;//0.1;
+      // K_WRIST_ORI = 0.0;//1.0;//0.1;
     
 
       std::chrono::steady_clock::time_point t0_wrist_ori_loop = std::chrono::steady_clock::now();
@@ -5184,7 +5157,7 @@ int main(int argc, char *argv[])
 
 
         // Reset K_WRIST_POS
-        K_WRIST_POS = 1.0;
+        // K_WRIST_POS = 1.0;
 
         std::chrono::steady_clock::time_point t0_wrist_pos_loop = std::chrono::steady_clock::now();
         do // WRIST_POS loop
