@@ -5071,9 +5071,9 @@ int main(int argc, char *argv[])
     K_POS_LIMIT = 0.1;
     // // Cost function related coefficients
     K_WRIST_POS = 1.0;
-    K_WRIST_ORI = 0.0;//1.0;
-    K_ELBOW_POS = 0.0;//1.0;
-    K_FINGER = 0.0;//1.0;
+    K_WRIST_ORI = 1.0;
+    K_ELBOW_POS = 1.0;
+    K_FINGER = 1.0;//1.0;
 
     // record time usage
     double t_constraints_fix_loop = 0.0;
@@ -5523,7 +5523,7 @@ int main(int argc, char *argv[])
 
     // Set collision checking on after first-round tracking
     if (K_COL == 0.0)
-      K_COL = 1.0;
+      K_COL = 0.1;//1.0;
 
 
     // check if constraints met, and automatically adjust weights
@@ -5988,7 +5988,6 @@ int main(int argc, char *argv[])
       std::cout << ">>>>>>>> Terminate condition met. Optimization stopped after " << n+1 << " rounds." << std::endl;
       break;
     }
-
 
   }
 
