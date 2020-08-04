@@ -5015,9 +5015,9 @@ int main(int argc, char *argv[])
   double K_DMPSCALEMARGIN_MAX = 2.0;
   double K_DMPRELCHANGE_MAX = 2.0;
 
-  double K_WRIST_POS_MAX = 20;//50.0;//100.0;//20.0;//10.0;
-  double K_ELBOW_POS_MAX = 20;//50.0;//100.0;//20.0;//10.0;
-  double K_WRIST_ORI_MAX = 20;//50.0;//100.0;
+  double K_WRIST_POS_MAX = 10.0;//20;//50.0;//100.0;//20.0;//10.0;
+  double K_ELBOW_POS_MAX = 10.0;//20;//50.0;//100.0;//20.0;//10.0;
+  double K_WRIST_ORI_MAX = 10.0;//20;//50.0;//100.0;
   
   // constraints bounds
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
@@ -5110,6 +5110,9 @@ int main(int argc, char *argv[])
     double best_elbow_pos_cost = 10000;
     double best_wrist_pos_cost = 10000;
     double best_wrist_ori_cost = 10000;
+    double best_col_cost = NUM_DATAPOINTS;
+    double best_pos_limit_cost = 10000;
+    double best_smoothness_cost = 10000;
     double best_dist = std::max(best_elbow_pos_cost - elbow_pos_cost_bound, 0.0) +
                        std::max(best_wrist_pos_cost - wrist_pos_cost_bound, 0.0) +
                        std::max(best_wrist_ori_cost - wrist_ori_cost_bound, 0.0); // distance from elbow/wrist cost to the corresponding bound, use max()
@@ -5458,6 +5461,9 @@ int main(int argc, char *argv[])
               best_elbow_pos_cost = elbow_pos_cost_after_optim;
               best_wrist_pos_cost = wrist_pos_cost_after_optim;
               best_wrist_ori_cost = wrist_ori_cost_after_optim;
+              best_col_cost = col_cost_after_optim;
+              best_pos_limit_cost = pos_limit_cost_after_optim;
+              best_smoothness_cost = smoothness_cost_after_optim;
               for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
               {
                 DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
@@ -5617,7 +5623,10 @@ int main(int argc, char *argv[])
 
     std::cout << ">>>> End of Constraints-fixing loop" << std::endl << std::endl;
 
-    
+    // load the best result
+    col_cost_after_optim = best_col_cost;
+    pos_limit_cost_after_optim = best_pos_limit_cost;
+    smoothness_cost_after_optim = best_smoothness_cost;
 
     // check if constraints met, and automatically adjust weights
     if (col_cost_after_optim > col_cost_bound && K_COL <= K_COL_MAX) 
