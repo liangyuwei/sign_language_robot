@@ -5234,12 +5234,8 @@ int main(int argc, char *argv[])
 
     // record time usage
     double t_constraints_fix_loop = 0.0;
-    double t_wrist_pos_loop = 0.0;
-    double t_wrist_ori_loop = 0.0;
     double t_elbow_pos_loop = 0.0;
     unsigned count_constraints_fix_loop = 0;
-    unsigned count_wrist_pos_loop = 0;    
-    unsigned count_wrist_ori_loop = 0;    
     unsigned count_elbow_pos_loop = 0;    
 
     std::chrono::steady_clock::time_point t0_constraints_fix = std::chrono::steady_clock::now();
@@ -5250,10 +5246,7 @@ int main(int argc, char *argv[])
       // Report current condition
       std::cout << ">>>> Constraints-fixing loop: automatically adjust penalties coefficients." << std::endl;
       std::cout << "(Main) Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl << std::endl;
-      std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-      std::cout << "Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
-      std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
-
+  
       // Evaluate costs before optimization
       // collision counts
       col_cost_before_optim = 0.0;
@@ -5272,65 +5265,44 @@ int main(int argc, char *argv[])
       //           << pos_limit_cost_before_optim << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl << std::endl;
 
       // Reset K_ELBOW_POS for a new loop 
-      K_ELBOW_POS = 0.0;
+      K_ELBOW_POS = 1.0;//0.0;
+      K_WRIST_POS = 1.0;//0.0;
+      K_WRIST_ORI = 1.0;//0.0;
+
+      // reset best result stored, so as to prepare for next tracking loop
+      best_dist = 10000;
 
     std::chrono::steady_clock::time_point t0_elbow_pos_loop = std::chrono::steady_clock::now();
-    do // ELBOW_POS loop
+    do // Tracking loop
     {
-      count_wrist_pos_loop++;
+      count_elbow_pos_loop++;
       std::chrono::steady_clock::time_point t0_elbow_pos_cur = std::chrono::steady_clock::now();
 
       // Report condition
-      std::cout << ">>>> Elbow Pos Tracking loop: automatically adjust penalties coefficients." << std::endl;
+      std::cout << ">>>> Tracking loop: automatically adjust penalties coefficients." << std::endl;
       std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
       std::cout << "(Main) Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-      std::cout << "Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
-      std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
+      std::cout << "(Main) Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
+      std::cout << "(Main) Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
+
 
       // Evaluate cost before optimization
+      // elbow pos
       std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();           
       elbow_pos_cost_before_optim = 0.0;
       for (unsigned s = 0; s < elbow_pos_cost.size(); s++)
         elbow_pos_cost_before_optim += elbow_pos_cost[s];
-      // display
-      // std::cout << ">> Before optimization: elbow_pos_cost = " << elbow_pos_cost_before_optim << std::endl << std::endl;
-
-      
-      // Reset K_WRIST_POS and K_WRIST_ORI for a new loop 
-      K_WRIST_POS = 1.0;//0.0;
-      K_WRIST_ORI = 1.0;//0.0;
-
-      std::chrono::steady_clock::time_point t0_wrist_pos_loop = std::chrono::steady_clock::now();
-      std::chrono::steady_clock::time_point t0_wrist_ori_loop = std::chrono::steady_clock::now(); // tmp, just for debug
-      do // WRIST_POS + WRIST_ORI loop
-      {
-        count_wrist_pos_loop++;
-        count_wrist_ori_loop++;
-        std::chrono::steady_clock::time_point t0_wrist_pos_cur = std::chrono::steady_clock::now();
-
-        // Report current condition
-        std::cout << ">>>> Wrist Pos + Wrist Ori Tracking loop: automatically adjust penalties coefficients." << std::endl;
-        std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
-        std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-        std::cout << "(Main) Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
-        std::cout << "(Main) Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
-
-        // Evaluate wrist_pos_cost before optimization
-        std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
-        wrist_pos_cost_before_optim = 0.0;
-        for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
-          wrist_pos_cost_before_optim += wrist_pos_cost[s];
-        // display
-        // std::cout << ">> Before optimization: wrist_pos_cost = " << wrist_pos_cost_before_optim << std::endl;
-
-        // Evaluate wrist_ori_cost before optimization
-        std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
-        wrist_ori_cost_before_optim = 0.0;
-        for (unsigned s = 0; s < wrist_ori_cost.size(); s++)
-          wrist_ori_cost_before_optim += wrist_ori_cost[s];        
-        // display
-        // std::cout << ">> Before optimization: wrist_ori_cost = " << wrist_ori_cost_before_optim << std::endl << std::endl;
-
+      // wrist pos
+      std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+      wrist_pos_cost_before_optim = 0.0;
+      for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
+        wrist_pos_cost_before_optim += wrist_pos_cost[s];
+      // wrist ori
+      std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
+      wrist_ori_cost_before_optim = 0.0;
+      for (unsigned s = 0; s < wrist_ori_cost.size(); s++)
+        wrist_ori_cost_before_optim += wrist_ori_cost[s];        
+       
 
         // optimize for a few iterations
         std::cout << "Optimizing q..." << std::endl;
@@ -5529,29 +5501,6 @@ int main(int argc, char *argv[])
             smoothness_cost_after_optim = 0.0;
             for (unsigned int t = 0; t < smoothness_edges.size(); t++)
               smoothness_cost_after_optim += smoothness_edges[t]->return_smoothness_cost();
-
-
-            // debug: time usage for one loop of wrist_pos+wrist_ori
-            std::chrono::steady_clock::time_point t1_wrist_pos_cur = std::chrono::steady_clock::now();
-            std::chrono::duration<double> t_spent_wrist_pos_cur = std::chrono::duration_cast<std::chrono::duration<double>>(t1_wrist_pos_cur - t0_wrist_pos_cur);
-  
-
-            // check wrist_pos + wrist_ori cost
-            // std::cout << ">> After optimization: " << std::endl;
-            // std::cout << "> Coefficients:" << std::endl;
-            // std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl << std::endl;
-            // std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-            // std::cout << "(Main) Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
-
-            // std::cout << "> Costs:" << std::endl;
-            // std::cout << "Total col_cost = " << col_cost_after_optim << " (bound: " << col_cost_bound << ")" << std::endl;
-            // std::cout << "Total pos_limit_cost = " << pos_limit_cost_after_optim << " (bound: " << pos_limit_bound << ")" << std::endl;
-            // std::cout << "Total smoothness_cost = " << smoothness_cost_after_optim << " (bound: " << smoothness_bound << ")" << std::endl;
-
-            // std::cout << "Total elbow_cost = " << elbow_pos_cost_after_optim << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
-            // std::cout << "(Main) Total wrist_ori_cost = " << wrist_ori_cost_after_optim << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
-
-            
         
 
             // Compare the result with the best one
@@ -5573,6 +5522,42 @@ int main(int argc, char *argv[])
                 DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
                 best_q[s] = vertex_tmp->estimate();
               }
+            }
+
+            // Set K_ELBOW_POS on for next loop
+            if (K_ELBOW_POS == 0.0)
+            {
+              std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS << " ----> " << K_ELBOW_POS * inner_scale << std::endl;                        
+              std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_before_optim << " ----> " << elbow_pos_cost_after_optim 
+                                                       << "(" << (elbow_pos_cost_before_optim > elbow_pos_cost_after_optim ? "-" : "+")
+                                                       << std::abs(elbow_pos_cost_before_optim - elbow_pos_cost_after_optim) << ")" 
+                                                       << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
+              K_ELBOW_POS = 1.0;
+              elbow_pos_cost_after_optim = elbow_pos_cost_before_optim; // skip adjustment
+            }
+
+            
+            // Adjust K_ELBOW_POS
+            if (elbow_pos_cost_after_optim > elbow_pos_cost_bound && K_ELBOW_POS <= K_ELBOW_POS_MAX)
+            {
+              if (elbow_pos_cost_before_optim - elbow_pos_cost_after_optim <= ftol) // require the update to be higher than a tolerance
+              {
+                std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS << " ----> " << K_ELBOW_POS * inner_scale << std::endl;            
+                K_ELBOW_POS = K_ELBOW_POS * inner_scale;// + step; //inner_scale * (++level); //* inner_scale;
+              }
+              else
+              {
+                std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
+              }
+              std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_before_optim << " ----> " << elbow_pos_cost_after_optim 
+                                                       << "(" << (elbow_pos_cost_before_optim > elbow_pos_cost_after_optim ? "-" : "+")
+                                                       << std::abs(elbow_pos_cost_before_optim - elbow_pos_cost_after_optim) << ")" 
+                                                       << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
+            }
+            else
+            {
+              std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
+              std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_after_optim << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
             }
 
 
@@ -5600,6 +5585,7 @@ int main(int argc, char *argv[])
               std::cout << "Cost: wrist_pos_cost = " << wrist_pos_cost_after_optim << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
             }
 
+
             // Adjust K_WRIST_ORI
             if (wrist_ori_cost_after_optim > wrist_ori_cost_bound && K_WRIST_ORI <= K_WRIST_ORI_MAX)
             {
@@ -5624,89 +5610,20 @@ int main(int argc, char *argv[])
             }
 
 
-            std::cout << "> Time Usage:" << std::endl;
-            std::cout << "Time used for current wrist pos + wrist ori loop is: " << t_spent_wrist_pos_cur.count() << " s." << std::endl;
 
-            std::cout << ">>>> End of Wrist Pos + Wrist Ori Tracking loop" << std::endl << std::endl;
+            std::chrono::steady_clock::time_point t1_elbow_pos_cur = std::chrono::steady_clock::now();
+            std::chrono::duration<double> t_spent_elbow_pos_cur = std::chrono::duration_cast<std::chrono::duration<double>>(t1_elbow_pos_cur - t0_elbow_pos_cur);
+
+            std::cout << "> Time Usage:" << std::endl;
+            std::cout << "Time used for current tracking loop is: " << t_spent_elbow_pos_cur.count() << " s." << std::endl;
+
+            std::cout << ">>>> End of Tracking loop" << std::endl << std::endl;
 
                 
           }while( (K_WRIST_POS <= K_WRIST_POS_MAX && wrist_pos_cost_after_optim > wrist_pos_cost_bound) ||
-                  (K_WRIST_ORI <= K_WRIST_ORI_MAX && wrist_ori_cost_after_optim > wrist_ori_cost_bound) ); // Wrist Pos Loop
+                  (K_WRIST_ORI <= K_WRIST_ORI_MAX && wrist_ori_cost_after_optim > wrist_ori_cost_bound) || 
+                  (K_ELBOW_POS <= K_ELBOW_POS_MAX && elbow_pos_cost_after_optim > elbow_pos_cost_bound) ); // Wrist Pos Loop
 
-
-          // record time usage for inner-most loop
-          std::chrono::steady_clock::time_point t1_wrist_pos_loop = std::chrono::steady_clock::now();
-          std::chrono::duration<double> t_spent_wrist_pos_loop = std::chrono::duration_cast<std::chrono::duration<double>>(t1_wrist_pos_loop - t0_wrist_pos_loop);
-          t_wrist_pos_loop += t_spent_wrist_pos_loop.count();
-          std::chrono::steady_clock::time_point t1_wrist_ori_loop = std::chrono::steady_clock::now();
-          std::chrono::duration<double> t_spent_wrist_ori_loop = std::chrono::duration_cast<std::chrono::duration<double>>(t1_wrist_ori_loop - t0_wrist_ori_loop);
-          t_wrist_ori_loop += t_spent_wrist_ori_loop.count();
-            
-          // debug: time usage for one loop of wrist_pos+wrist_ori
-          std::chrono::steady_clock::time_point t1_elbow_pos_cur = std::chrono::steady_clock::now();
-          std::chrono::duration<double> t_spent_elbow_pos_cur = std::chrono::duration_cast<std::chrono::duration<double>>(t1_elbow_pos_cur - t0_elbow_pos_cur);
-  
-
-          // Debug information
-          // std::cout << ">> After optimization: " << std::endl;
-          // std::cout << "> Coefficients:" << std::endl;
-          // std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl << std::endl;
-          // std::cout << "(Main) Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-          // std::cout << "Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
-          // std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
-
-          // std::cout << "> Costs:" << std::endl;
-          // std::cout << "Total col_cost = " << col_cost_after_optim << " (bound: " << col_cost_bound << ")" << std::endl;
-          // std::cout << "Total pos_limit_cost = " << pos_limit_cost_after_optim << " (bound: " << pos_limit_bound << ")" << std::endl;
-          // std::cout << "Total smoothness_cost = " << smoothness_cost_after_optim << " (bound: " << smoothness_bound << ")" << std::endl;
-
-          // std::cout << "(Main) Total elbow_cost = " << elbow_pos_cost_after_optim << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
-          // std::cout << "Total wrist_ori_cost = " << wrist_ori_cost_after_optim << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
-          // std::cout << "Total wrist_pos_cost = " << wrist_pos_cost_after_optim << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
-
-          
-          // Set K_ELBOW_POS on after first round
-          if (K_ELBOW_POS == 0.0)
-          {
-            std::cout << "Coefficient: K_ELBOW_POS = 0.0 ----> 1.0" << std::endl;                        
-            std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_before_optim << " ----> " << elbow_pos_cost_after_optim 
-                                                       << "(" << (elbow_pos_cost_before_optim > elbow_pos_cost_after_optim ? "-" : "+")
-                                                       << std::abs(elbow_pos_cost_before_optim - elbow_pos_cost_after_optim) << ")" 
-                                                       << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
-            K_ELBOW_POS = 1.0;
-            continue;
-          }
-            
-
-            // Adjust K_ELBOW_POS
-            if (elbow_pos_cost_after_optim > elbow_pos_cost_bound && K_ELBOW_POS <= K_ELBOW_POS_MAX)
-            {
-              if (elbow_pos_cost_before_optim - elbow_pos_cost_after_optim <= ftol) // require the update to be higher than a tolerance
-              {
-                std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS << " ----> " << K_ELBOW_POS * inner_scale << std::endl;            
-                K_ELBOW_POS = K_ELBOW_POS * inner_scale;// + step; //inner_scale * (++level); //* inner_scale;
-              }
-              else
-              {
-                std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-              }
-              std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_before_optim << " ----> " << elbow_pos_cost_after_optim 
-                                                       << "(" << (elbow_pos_cost_before_optim > elbow_pos_cost_after_optim ? "-" : "+")
-                                                       << std::abs(elbow_pos_cost_before_optim - elbow_pos_cost_after_optim) << ")" 
-                                                       << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
-            }
-            else
-            {
-              std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-              std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_after_optim << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
-            }
-
-            std::cout << "> Time Usage:" << std::endl;
-            std::cout << "Time used for current wrist pos + wrist ori loop is: " << t_spent_elbow_pos_cur.count() << " s." << std::endl;
-
-            std::cout << ">>>> End of Elbow Pos Tracking loop" << std::endl << std::endl;
-
-          }while((K_ELBOW_POS <= K_ELBOW_POS_MAX && elbow_pos_cost_after_optim > elbow_pos_cost_bound) ); // Elbow Pos Loop
 
           std::chrono::steady_clock::time_point t1_elbow_pos_loop = std::chrono::steady_clock::now();
           std::chrono::duration<double> t_spent_elbow_pos_loop = std::chrono::duration_cast<std::chrono::duration<double>>(t1_elbow_pos_loop - t0_elbow_pos_loop);
@@ -5725,31 +5642,11 @@ int main(int argc, char *argv[])
       */
 
 
-    // Debug information
-    // std::cout << ">> After optimization: " << std::endl;
-    // std::cout << "> Coefficients:" << std::endl;
-    // std::cout << "(Main) Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl << std::endl;
-    // std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-    // std::cout << "Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
-    // std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
-
-    // std::cout << "> Costs:" << std::endl;
-    // std::cout << "(Main) Total col_cost = " << col_cost_after_optim << " (bound: " << col_cost_bound << ")" << std::endl;
-    // std::cout << "(Main) Total pos_limit_cost = " << pos_limit_cost_after_optim << " (bound: " << pos_limit_bound << ")" << std::endl;
-    // std::cout << "(Main) Total smoothness_cost = " << smoothness_cost_after_optim << " (bound: " << smoothness_bound << ")" << std::endl;
-
-    // std::cout << "Total elbow_cost = " << elbow_pos_cost_after_optim << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
-    // std::cout << "Total wrist_ori_cost = " << wrist_ori_cost_after_optim << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
-    // std::cout << "Total wrist_pos_cost = " << wrist_pos_cost_after_optim << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
-
-
     // load the costs of best tracking result !!!
     col_cost_after_optim = best_col_cost;
     pos_limit_cost_after_optim = best_pos_limit_cost;
     smoothness_cost_after_optim = best_smoothness_cost;
 
-    // reset best result stored, so as to prepare for next tracking loop
-    best_dist = 10000;
 
     // reset after first round
     if (K_COL == 0.0)
@@ -5876,13 +5773,7 @@ int main(int argc, char *argv[])
     std::cout << "Constraints fixing loop runs " << count_constraints_fix_loop 
               << " times, and spent " << t_constraints_fix_loop 
               << " s, with average time " << t_constraints_fix_loop / count_constraints_fix_loop << " s." << std::endl; 
-    std::cout << "Wrist Pos loop runs " << count_wrist_pos_loop 
-              << " times, and spent " << t_wrist_pos_loop 
-              << " s, with average time " << t_wrist_pos_loop / count_wrist_pos_loop << " s." << std::endl;
-    std::cout << "Wrist Ori loop runs " << count_wrist_ori_loop 
-              << " times, and spent " << t_wrist_ori_loop 
-              << " s, with average time " << t_wrist_ori_loop / count_wrist_ori_loop << " s." << std::endl;
-    std::cout << "Elbow Pos loop runs " << count_elbow_pos_loop 
+    std::cout << "Tracking loop runs " << count_elbow_pos_loop 
               << " times, and spent " << t_elbow_pos_loop 
               << " s, with average time " << t_elbow_pos_loop / count_elbow_pos_loop << " s." << std::endl;                            
       
