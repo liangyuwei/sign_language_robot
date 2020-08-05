@@ -18,8 +18,11 @@
 
   <build_depend>roscpp</build_depend>
   <build_depend>kdl_parser</build_depend>
+  <build_depend>trac_ik_lib</build_depend>
    
   <exec_depend>kdl_parser</exec_depend>
+  <exec_depend>trac_ik_lib</exec_depend>
+
 
   <buildtool_depend>catkin</buildtool_depend>
 

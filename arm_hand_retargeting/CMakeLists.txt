@@ -78,10 +78,22 @@ find_package(catkin REQUIRED COMPONENTS
   moveit_core
   moveit_ros_planning
   geometric_shapes
+  # trac_ik_lib # Use TRAC-IK to compute
 )
 
+set(trac_ik_lib_DIR /home/liangyuwei/trac_ik/trac_ik_lib)
+find_package(trac_ik_lib REQUIRED)
+if(trac_ik_lib_FOUND)
+  include_directories(${trac_ik_lib_INCLUDE_DIRS})
+  link_directories(${trac_ik_lib_LIBRARY_DIRS})
+  link_libraries(${trac_ik_lib_LIBRARIES})
+  message("trac_ik_lib lib is found: " ${trac_ik_lib_LIBRARIES})
+  message("trac_ik_lib dir is found: " ${trac_ik_lib_INCLUDE_DIRS})
+endif(trac_ik_lib_FOUND)
 
-include_directories(${catkin_INCLUDE_DIRS})
+include_directories(
+  ${catkin_INCLUDE_DIRS}
+)
 
 
 ## System dependencies are found with CMake's conventions
@@ -174,6 +186,8 @@ include_directories(${catkin_INCLUDE_DIRS})
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
+  CATKIN_DEPENDS
+    trac_ik_lib
 #  INCLUDE_DIRS include
 #  LIBRARIES arm_hand_retargeting
 #  CATKIN_DEPENDS other_catkin_pkg
@@ -261,7 +275,7 @@ add_executable(yumi_arm_retarget_g2o_similarity src/yumi_arm_retarget_g2o_simila
 target_link_libraries(yumi_arm_retarget_g2o_similarity ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES} ${G2O_LIBRARIES} collision_checking_yumi generate_trajectory_using_DMP) #generate_trajectory_from_viewpoints)
 #target_link_libraries(yumi_arm_retarget_g2o_similarity collision_checking_yumi)
 #target_link_libraries(yumi_arm_retarget_g2o_similarity ${G2O_LIBRARIES} ) # use g2o with pytorch similarity network
-target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorch)
+# target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorch)
 #target_link_libraries(yumi_arm_retarget_g2o_similarity ${TORCH_LIBRARIES}) # libTorch
 #set_property(TARGET yumi_arm_retarget_g2o_similarity PROPERTY CXX_STANDARD 14)#14)
 
