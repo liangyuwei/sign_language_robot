@@ -3,3 +3,5 @@
 *.h5
 *.pth
 *.pt
+*.bag
+*.avi
