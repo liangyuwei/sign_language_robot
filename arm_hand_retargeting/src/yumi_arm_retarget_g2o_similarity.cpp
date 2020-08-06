@@ -5152,6 +5152,24 @@ int main(int argc, char *argv[])
   double K_ELBOW_POS_MAX = 30.0;//20.0;//10.0;//20;//50.0;//100.0;//20.0;//10.0;
   double K_WRIST_ORI_MAX = 30.0;//20.0;//10.0;//20;//50.0;//100.0;
   
+  // Sets of selectable coefficients
+  MatrixXd K_COL_set; K_COL_set << 0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  MatrixXd K_POS_LIMIT_set; K_POS_LIMIT_set << 0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  MatrixXd K_SMOOTHNESS_set; K_SMOOTHNESS_set << 0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  
+  MatrixXd K_WRIST_POS_set; K_WRIST_POS_set << 1.0, 3.0, 5.0, 10.0, 15.0, 20.0;
+  MatrixXd K_WRIST_ORI_set; K_WRIST_ORI_set << 1.0, 3.0, 5.0, 10.0, 15.0, 20.0;
+  MatrixXd K_ELBOW_POS_set; K_ELBOW_POS_set << 1.0, 3.0, 5.0, 10.0, 15.0, 20.0;
+  
+  unsigned int id_k_col = 0;
+  unsigned int id_k_pos_limit = 0;
+  unsigned int id_k_smoothness = 0;
+
+  unsigned int id_k_wrist_pos = 0;
+  unsigned int id_k_wrist_ori = 0;
+  unsigned int id_k_elbow_pos = 0;
+
+
   // constraints bounds
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
   double smoothness_bound = std::sqrt(std::pow(3.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
@@ -5168,6 +5186,7 @@ int main(int argc, char *argv[])
   double scale = 1.5;  // increase coefficients by 20% 
   double outer_scale = 1.5;//2.0;
   double inner_scale = 1.5;//2.0;//1.5;
+
 
   // store initial DMP starts and goals
   // initialization
@@ -5241,24 +5260,17 @@ int main(int argc, char *argv[])
     double ftol = 0.5;//0.1;//0.01;//0.005; //0.001; // update tolerance
 
     // for storing the best tracking result
-    std::vector<Eigen::Matrix<double, JOINT_DOF, 1> > best_q_wrist_loop(NUM_DATAPOINTS);
-    std::vector<Eigen::Matrix<double, JOINT_DOF, 1> > best_q_elbow_loop(NUM_DATAPOINTS);    
-    double best_elbow_pos_cost_wrist_loop = 10000;
-    double best_wrist_pos_cost_wrist_loop = 10000;
-    double best_wrist_ori_cost_wrist_loop = 10000;
-    double best_col_cost_wrist_loop = NUM_DATAPOINTS;
-    double best_pos_limit_cost_wrist_loop = 10000;
-    double best_smoothness_cost_wrist_loop = 10000;
-    double best_dist_wrist_loop = std::max(best_wrist_pos_cost_wrist_loop - wrist_pos_cost_bound, 0.0) +
-                                  std::max(best_wrist_ori_cost_wrist_loop - wrist_ori_cost_bound, 0.0);
-
-    double best_elbow_pos_cost_elbow_loop = 10000;
-    double best_wrist_pos_cost_elbow_loop = 10000;
-    double best_wrist_ori_cost_elbow_loop = 10000;
-    double best_col_cost_elbow_loop = NUM_DATAPOINTS;
-    double best_pos_limit_cost_elbow_loop = 10000;
-    double best_smoothness_cost_elbow_loop = 10000;
-    double best_dist_elbow_loop = std::max(best_elbow_pos_cost_elbow_loop - elbow_pos_cost_bound, 0.0);
+    std::vector<Eigen::Matrix<double, JOINT_DOF, 1> > best_q(NUM_DATAPOINTS);    
+    double best_elbow_pos_cost = 10000;
+    double best_wrist_pos_cost = 10000;
+    double best_wrist_ori_cost = 10000;
+    double best_col_cost = NUM_DATAPOINTS;
+    double best_pos_limit_cost = 10000;
+    double best_smoothness_cost = 10000;
+    double best_dist = std::max(best_wrist_pos_cost - wrist_pos_cost_bound, 0.0) / wrist_pos_cost_bound + 
+                       std::max(best_wrist_ori_cost - wrist_ori_cost_bound, 0.0) / wrist_ori_cost_bound +
+                       std::max(best_elbow_pos_cost - elbow_pos_cost_bound, 0.0) / elbow_pos_cost_bound; // normalize it 
+  
   
     // Initialize coefficients
     K_COL = 0.0; 
@@ -5405,27 +5417,7 @@ int main(int argc, char *argv[])
     // Whether fix K_WRIST_POS nad K_WRIST_ORI or not, i.e. skip the current wrist loop after first time
     bool skip_wrist_loop = true;//false; 
 
-    do // Constraint fixing loop 
-    {
-      count_constraints_fix_loop++;
-
-      // Report current condition
-      std::cout << ">>>> Constraints-fixing loop: automatically adjust penalties coefficients." << std::endl;
-      std::cout << "(Main) Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl << std::endl;
-  
-      // Evaluate costs before optimization
-      // collision counts
-      col_cost_before_optim = 0.0;
-      for (unsigned int t = 0; t < unary_edges.size(); t++)
-        col_cost_before_optim += unary_edges[t]->return_col_cost();
-      // pos_limit
-      pos_limit_cost_before_optim = 0.0;
-      for (unsigned int t = 0; t < unary_edges.size(); t++)
-        pos_limit_cost_before_optim += unary_edges[t]->return_pos_limit_cost();
-      // smoothness
-      smoothness_cost_before_optim = 0.0;
-      for (unsigned int t = 0; t < smoothness_edges.size(); t++)
-        smoothness_cost_before_optim += smoothness_edges[t]->return_smoothness_cost();
+      
       // display
       // std::cout << ">> Before optimization: col_cost = " << col_cost_before_optim << ", pos_limit_cost = "
       //           << pos_limit_cost_before_optim << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl << std::endl;
@@ -5439,13 +5431,13 @@ int main(int argc, char *argv[])
       best_elbow_pos_cost_elbow_loop = 10000;
 
     std::chrono::steady_clock::time_point t0_elbow_pos_loop = std::chrono::steady_clock::now();
-    do // Elbow Pos loop
+    do // Outer loop
     {
       count_elbow_pos_loop++;
       std::chrono::steady_clock::time_point t0_elbow_pos_cur = std::chrono::steady_clock::now();
 
       // Report condition
-      std::cout << ">>>> Elbow Pos Tracking loop: automatically adjust penalties coefficients." << std::endl;
+      std::cout << ">>>> Outer loop: adjust K_WRIST_POS, K_WRIST_ORI and K_ELBOW_POS." << std::endl;
       std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
       std::cout << "(Main) Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
 
@@ -5455,10 +5447,22 @@ int main(int argc, char *argv[])
       elbow_pos_cost_before_optim = 0.0;
       for (unsigned s = 0; s < elbow_pos_cost.size(); s++)
         elbow_pos_cost_before_optim += elbow_pos_cost[s];
+      // wrist pos 
+      std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+      wrist_pos_cost_before_optim = 0.0;
+      for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
+        wrist_pos_cost_before_optim += wrist_pos_cost[s];
+      // wrist ori
+      std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
+      wrist_ori_cost_before_optim = 0.0;
+      for (unsigned s = 0; s < wrist_ori_cost.size(); s++)
+        wrist_ori_cost_before_optim += wrist_ori_cost[s];  
 
-      // Reset Wrist coefficients 
-      K_WRIST_POS = 1.0;//0.0;
-      K_WRIST_ORI = 1.0;//0.0;
+
+      // Reset K_COL, K_POS_LIMIT and K_SMOOTHNESS
+      K_COL = 
+      K_POS_LIMIT = 
+      K_SMOOTHNESS = 
 
 
       // Reset/Use initial trajector computed by TRAC-IK
@@ -5466,247 +5470,379 @@ int main(int argc, char *argv[])
         (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_trac_ik[id]); // assign to the current q vertex
 
 
-      // Wrist Pos + Wrist Ori loop
-      do{
+      do // Inner loop
+      {
+        count_constraints_fix_loop++;
 
-        std::cout << ">>>> Wrist Pos + Wrist Ori Tracking loop: automatically adjust penalties coefficients." << std::endl;
-        std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
-        std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-        std::cout << "(Main) Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
-        std::cout << "(Main) Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
+        // Evaluate costs before optimization
+        // collision counts
+        col_cost_before_optim = 0.0;
+        for (unsigned int t = 0; t < unary_edges.size(); t++)
+          col_cost_before_optim += unary_edges[t]->return_col_cost();
+        // pos_limit
+        pos_limit_cost_before_optim = 0.0;
+        for (unsigned int t = 0; t < unary_edges.size(); t++)
+          pos_limit_cost_before_optim += unary_edges[t]->return_pos_limit_cost();
+        // smoothness
+        smoothness_cost_before_optim = 0.0;
+        for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+          smoothness_cost_before_optim += smoothness_edges[t]->return_smoothness_cost();
 
 
-        // wrist pos
-        std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
-        wrist_pos_cost_before_optim = 0.0;
-        for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
-          wrist_pos_cost_before_optim += wrist_pos_cost[s];
-        // wrist ori
-        std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
-        wrist_ori_cost_before_optim = 0.0;
-        for (unsigned s = 0; s < wrist_ori_cost.size(); s++)
-          wrist_ori_cost_before_optim += wrist_ori_cost[s];        
-       
+        // Report current condition
+        std::cout << ">>>> Inner loop: adjust K_COL, K_POS_LIMIT and K_SMOOTHNESS." << std::endl;
+        std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl << std::endl;
+        std::cout << "Costs before optimization: col_cost = " << col_cost_before_optim << ", pos_limit_cost = " << pos_limit_cost_before_optim << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl;
+
 
         // optimize for a few iterations
         std::cout << "Optimizing q..." << std::endl;
         unsigned int q_iter = optimizer.optimize(q_trk_per_iterations); 
 
 
-            // Store cost results
-            std::cout << ">> Costs <<" << std::endl;
-            // collision 
-            std::vector<double> col_cost;
-            std::cout << "debug: col_cost = ";
-            for (unsigned int t = 0; t < unary_edges.size(); t++)
-            {
-              double c = unary_edges[t]->return_col_cost();
-              col_cost.push_back(c); // store
-              std::cout << c << " "; // display
-            }
-            std::cout << std::endl << std::endl;
-            col_cost_history.push_back(col_cost);
-            // pos_limit
-            std::vector<double> pos_limit_cost;
-            std::cout << "debug: pos_limit_cost = ";
-            for (unsigned int t = 0; t < unary_edges.size(); t++)
-            {
-              double p = unary_edges[t]->return_pos_limit_cost();
-              pos_limit_cost.push_back(p); // store
-              std::cout << p << " "; // display      
-            }
-            std::cout << std::endl << std::endl;    
-            pos_limit_cost_history.push_back(pos_limit_cost);
-            // smoothness
-            std::vector<double> smoothness_cost;
-            std::cout << "debug: smoothness_cost = ";
-            for (unsigned int t = 0; t < smoothness_edges.size(); t++)
-            {
-              double s = smoothness_edges[t]->return_smoothness_cost();
-              smoothness_cost.push_back(s); // store
-              std::cout << s << " "; // display
-            }
-            std::cout << std::endl << std::endl;     
-            smoothness_cost_history.push_back(smoothness_cost);  
-            // tracking   
-            wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
-            std::vector<double> l_wrist_pos_cost = tracking_edge->return_l_wrist_pos_cost_history();
-            std::vector<double> r_wrist_pos_cost = tracking_edge->return_r_wrist_pos_cost_history();
-            wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
-            elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
-            std::vector<double> l_elbow_pos_cost = tracking_edge->return_l_elbow_pos_cost_history();
-            std::vector<double> r_elbow_pos_cost = tracking_edge->return_r_elbow_pos_cost_history();
-            std::vector<double> finger_cost = tracking_edge->return_finger_cost_history(); 
-            wrist_pos_cost_history.push_back(wrist_pos_cost);
-            l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
-            r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
-            wrist_ori_cost_history.push_back(wrist_ori_cost);
-            elbow_pos_cost_history.push_back(elbow_pos_cost);
-            l_elbow_pos_cost_history.push_back(l_elbow_pos_cost);
-            r_elbow_pos_cost_history.push_back(r_elbow_pos_cost);
-            finger_cost_history.push_back(finger_cost); // store
-            // display
-            std::cout << "debug: wrist_pos_cost = ";
-            for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
-              std::cout << wrist_pos_cost[s] << " ";
-            std::cout << std::endl << std::endl;    
-            //
-            std::cout << "debug: l_wrist_pos_cost = ";
-            for (unsigned s = 0; s < l_wrist_pos_cost.size(); s++)
-              std::cout << l_wrist_pos_cost[s] << " ";
-            std::cout << std::endl << std::endl;    
-            // 
-            std::cout << "debug: r_wrist_pos_cost = ";
-            for (unsigned s = 0; s < r_wrist_pos_cost.size(); s++)
-              std::cout << r_wrist_pos_cost[s] << " ";
-            std::cout << std::endl << std::endl;    
-            // 
-            std::cout << "debug: wrist_ori_cost = ";
-            for (unsigned int s = 0; s < wrist_ori_cost.size(); s++)
-            {
-              std::cout << wrist_ori_cost[s] << " ";
-            }
-            std::cout << std::endl << std::endl;    
-            // 
-            std::cout << "debug: elbow_pos_cost = ";
-            for (unsigned s = 0; s < elbow_pos_cost.size(); s++)
-            {
-              std::cout << elbow_pos_cost[s] << " ";
-            }
-            std::cout << std::endl << std::endl;    
-            // 
-            std::cout << "debug: l_elbow_pos_cost = ";
-            for (unsigned s = 0; s < l_elbow_pos_cost.size(); s++)
-              std::cout << l_elbow_pos_cost[s] << " ";
-            std::cout << std::endl << std::endl;    
-            // 
-            std::cout << "debug: r_elbow_pos_cost = ";
-            for (unsigned s = 0; s < r_elbow_pos_cost.size(); s++)
-              std::cout << r_elbow_pos_cost[s] << " ";
-            std::cout << std::endl << std::endl;    
-            // 
-            std::cout << "debug: finger_cost = ";
-            for (unsigned s = 0; s < finger_cost.size(); s++)
-              std::cout << finger_cost[s] << " ";
-            std::cout << std::endl << std::endl;    
+        // Store cost results
+        std::cout << ">> Costs <<" << std::endl;
+        // collision 
+        std::vector<double> col_cost;
+        std::cout << "debug: col_cost = ";
+        for (unsigned int t = 0; t < unary_edges.size(); t++)
+        {
+          double c = unary_edges[t]->return_col_cost();
+          col_cost.push_back(c); // store
+          std::cout << c << " "; // display
+        }
+        std::cout << std::endl << std::endl;
+        col_cost_history.push_back(col_cost);
+        // pos_limit
+        std::vector<double> pos_limit_cost;
+        std::cout << "debug: pos_limit_cost = ";
+        for (unsigned int t = 0; t < unary_edges.size(); t++)
+        {
+          double p = unary_edges[t]->return_pos_limit_cost();
+          pos_limit_cost.push_back(p); // store
+          std::cout << p << " "; // display      
+        }
+        std::cout << std::endl << std::endl;    
+        pos_limit_cost_history.push_back(pos_limit_cost);
+        // smoothness
+        std::vector<double> smoothness_cost;
+        std::cout << "debug: smoothness_cost = ";
+        for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+        {
+          double s = smoothness_edges[t]->return_smoothness_cost();
+          smoothness_cost.push_back(s); // store
+          std::cout << s << " "; // display
+        }
+        std::cout << std::endl << std::endl;     
+        smoothness_cost_history.push_back(smoothness_cost);  
+        // tracking   
+        wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+        std::vector<double> l_wrist_pos_cost = tracking_edge->return_l_wrist_pos_cost_history();
+        std::vector<double> r_wrist_pos_cost = tracking_edge->return_r_wrist_pos_cost_history();
+        wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
+        elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
+        std::vector<double> l_elbow_pos_cost = tracking_edge->return_l_elbow_pos_cost_history();
+        std::vector<double> r_elbow_pos_cost = tracking_edge->return_r_elbow_pos_cost_history();
+        std::vector<double> finger_cost = tracking_edge->return_finger_cost_history(); 
+        wrist_pos_cost_history.push_back(wrist_pos_cost);
+        l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
+        r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
+        wrist_ori_cost_history.push_back(wrist_ori_cost);
+        elbow_pos_cost_history.push_back(elbow_pos_cost);
+        l_elbow_pos_cost_history.push_back(l_elbow_pos_cost);
+        r_elbow_pos_cost_history.push_back(r_elbow_pos_cost);
+        finger_cost_history.push_back(finger_cost); // store
+        // display
+        std::cout << "debug: wrist_pos_cost = ";
+        for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
+          std::cout << wrist_pos_cost[s] << " ";
+        std::cout << std::endl << std::endl;    
+        //
+        std::cout << "debug: l_wrist_pos_cost = ";
+        for (unsigned s = 0; s < l_wrist_pos_cost.size(); s++)
+          std::cout << l_wrist_pos_cost[s] << " ";
+        std::cout << std::endl << std::endl;    
+        // 
+        std::cout << "debug: r_wrist_pos_cost = ";
+        for (unsigned s = 0; s < r_wrist_pos_cost.size(); s++)
+          std::cout << r_wrist_pos_cost[s] << " ";
+        std::cout << std::endl << std::endl;    
+        // 
+        std::cout << "debug: wrist_ori_cost = ";
+        for (unsigned int s = 0; s < wrist_ori_cost.size(); s++)
+        {
+          std::cout << wrist_ori_cost[s] << " ";
+        }
+        std::cout << std::endl << std::endl;    
+        // 
+        std::cout << "debug: elbow_pos_cost = ";
+        for (unsigned s = 0; s < elbow_pos_cost.size(); s++)
+        {
+          std::cout << elbow_pos_cost[s] << " ";
+        }
+        std::cout << std::endl << std::endl;    
+        // 
+        std::cout << "debug: l_elbow_pos_cost = ";
+        for (unsigned s = 0; s < l_elbow_pos_cost.size(); s++)
+          std::cout << l_elbow_pos_cost[s] << " ";
+        std::cout << std::endl << std::endl;    
+        // 
+        std::cout << "debug: r_elbow_pos_cost = ";
+        for (unsigned s = 0; s < r_elbow_pos_cost.size(); s++)
+          std::cout << r_elbow_pos_cost[s] << " ";
+        std::cout << std::endl << std::endl;    
+        // 
+        std::cout << "debug: finger_cost = ";
+        for (unsigned s = 0; s < finger_cost.size(); s++)
+          std::cout << finger_cost[s] << " ";
+        std::cout << std::endl << std::endl;    
 
-            // Store jacobians results
-            std::cout << ">> Jacobians <<" << std::endl;
-            // output jacobians of wrist_pos, wrist_ori and elbow_pos costs for q vertices
-            Matrix<double, 14, NUM_DATAPOINTS> wrist_pos_jacobian_for_q_arm;
-            Matrix<double, 14, NUM_DATAPOINTS> wrist_ori_jacobian_for_q_arm;
-            Matrix<double, 14, NUM_DATAPOINTS> elbow_pos_jacobian_for_q_arm;
-            wrist_pos_jacobian_for_q_arm = tracking_edge->wrist_pos_jacobian_for_q_arm;
-            wrist_ori_jacobian_for_q_arm = tracking_edge->wrist_ori_jacobian_for_q_arm;
-            elbow_pos_jacobian_for_q_arm = tracking_edge->elbow_pos_jacobian_for_q_arm;
-            std::cout << "Norms of wrist_pos_jacobian_for_q_arm = ";
-            for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-            {
-              std::cout << wrist_pos_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
-            }
-            std::cout << std::endl << std::endl;    
-            std::cout << "Norms of wrist_ori_jacobian_for_q_arm = ";
-            for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-            {
-              std::cout << wrist_ori_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
-            }
-            std::cout << std::endl << std::endl;    
-            std::cout << "Norms of elbow_pos_jacobian_for_q_arm = ";
-            for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-            {
-              std::cout << elbow_pos_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
-            }
-            std::cout << std::endl << std::endl;    
-            // output collision jacobians for debug
-            std::cout << "Norms of col_jacobians = ";
-            for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-            {
-              std::cout << unary_edges[n]->col_jacobians.norm() << " ";
-            }
-            std::cout << std::endl << std::endl;    
-            // output position limit jacobians for debug
-            std::cout << "Norms of pos_limit_jacobians = ";
-            for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-            {
-              std::cout << unary_edges[n]->pos_limit_jacobians.norm() << " ";
-            }
-            std::cout << std::endl << std::endl;    
-            // output jacobians of Smoothness edge for q vertices
-            std::cout << "Norms of smoothness_q_jacobian = ";
-            Matrix<double, 2, JOINT_DOF> smoothness_q_jacobian;
-            for (unsigned int n = 0; n < NUM_DATAPOINTS-1; n++)
-            {
-              smoothness_q_jacobian = smoothness_edges[n]->output_q_jacobian();
-              std::cout << smoothness_q_jacobian.norm() << " ";
-            }
-            std::cout << std::endl << std::endl;  
-            // output jacobians of unary edges for q vertices
-            std::cout << "Norms of unary_jacobians = ";
-            for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-            {
-              std::cout << unary_edges[n]->whole_jacobians.norm() << " ";
-            }
-            std::cout << std::endl << std::endl;    
-            // output jacobians of Tracking edge for q vertices
-            std::cout << "Norms of tracking_q_jacobians = ";
-            Matrix<double, NUM_DATAPOINTS, JOINT_DOF> q_jacobian = tracking_edge->output_q_jacobian();
-            for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-            {
-              std::cout << q_jacobian.block(n, 0, 1, JOINT_DOF).norm() << " ";
-            }
-            std::cout << std::endl << std::endl;    
+        // Store jacobians results
+        std::cout << ">> Jacobians <<" << std::endl;
+        // output jacobians of wrist_pos, wrist_ori and elbow_pos costs for q vertices
+        Matrix<double, 14, NUM_DATAPOINTS> wrist_pos_jacobian_for_q_arm;
+        Matrix<double, 14, NUM_DATAPOINTS> wrist_ori_jacobian_for_q_arm;
+        Matrix<double, 14, NUM_DATAPOINTS> elbow_pos_jacobian_for_q_arm;
+        wrist_pos_jacobian_for_q_arm = tracking_edge->wrist_pos_jacobian_for_q_arm;
+        wrist_ori_jacobian_for_q_arm = tracking_edge->wrist_ori_jacobian_for_q_arm;
+        elbow_pos_jacobian_for_q_arm = tracking_edge->elbow_pos_jacobian_for_q_arm;
+        std::cout << "Norms of wrist_pos_jacobian_for_q_arm = ";
+        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        {
+          std::cout << wrist_pos_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
+        }
+        std::cout << std::endl << std::endl;    
+        std::cout << "Norms of wrist_ori_jacobian_for_q_arm = ";
+        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        {
+          std::cout << wrist_ori_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
+        }
+        std::cout << std::endl << std::endl;    
+        std::cout << "Norms of elbow_pos_jacobian_for_q_arm = ";
+        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        {
+          std::cout << elbow_pos_jacobian_for_q_arm.block(0, n, 14, 1).norm() << " ";
+        }
+        std::cout << std::endl << std::endl;    
+        // output collision jacobians for debug
+        std::cout << "Norms of col_jacobians = ";
+        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        {
+          std::cout << unary_edges[n]->col_jacobians.norm() << " ";
+        }
+        std::cout << std::endl << std::endl;    
+        // output position limit jacobians for debug
+        std::cout << "Norms of pos_limit_jacobians = ";
+        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        {
+          std::cout << unary_edges[n]->pos_limit_jacobians.norm() << " ";
+        }
+        std::cout << std::endl << std::endl;    
+        // output jacobians of Smoothness edge for q vertices
+        std::cout << "Norms of smoothness_q_jacobian = ";
+        Matrix<double, 2, JOINT_DOF> smoothness_q_jacobian;
+        for (unsigned int n = 0; n < NUM_DATAPOINTS-1; n++)
+        {
+          smoothness_q_jacobian = smoothness_edges[n]->output_q_jacobian();
+          std::cout << smoothness_q_jacobian.norm() << " ";
+        }
+        std::cout << std::endl << std::endl;  
+        // output jacobians of unary edges for q vertices
+        std::cout << "Norms of unary_jacobians = ";
+        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        {
+          std::cout << unary_edges[n]->whole_jacobians.norm() << " ";
+        }
+        std::cout << std::endl << std::endl;    
+        // output jacobians of Tracking edge for q vertices
+        std::cout << "Norms of tracking_q_jacobians = ";
+        Matrix<double, NUM_DATAPOINTS, JOINT_DOF> q_jacobian = tracking_edge->output_q_jacobian();
+        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        {
+          std::cout << q_jacobian.block(n, 0, 1, JOINT_DOF).norm() << " ";
+        }
+        std::cout << std::endl << std::endl;    
 
 
-            // Evaluate costs after optimization, for loop termination checks
-            // wrist pos
-            wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
-            wrist_pos_cost_after_optim = 0.0;
-            for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
-              wrist_pos_cost_after_optim += wrist_pos_cost[s];
-            // wrist ori
-            wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
-            wrist_ori_cost_after_optim = 0.0;
-            for (unsigned s = 0; s < wrist_ori_cost.size(); s++)
-              wrist_ori_cost_after_optim += wrist_ori_cost[s];
-            // elbow pos
-            elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
-            elbow_pos_cost_after_optim = 0.0;
-            for (unsigned s = 0; s < elbow_pos_cost.size(); s++)
-              elbow_pos_cost_after_optim += elbow_pos_cost[s];
-            // collision counts
-            col_cost_after_optim = 0.0;
-            for (unsigned int t = 0; t < unary_edges.size(); t++)
-              col_cost_after_optim += unary_edges[t]->return_col_cost();
-            // pos_limit
-            pos_limit_cost_after_optim = 0.0;
-            for (unsigned int t = 0; t < unary_edges.size(); t++)
-              pos_limit_cost_after_optim += unary_edges[t]->return_pos_limit_cost();
-            // smoothness
-            smoothness_cost_after_optim = 0.0;
-            for (unsigned int t = 0; t < smoothness_edges.size(); t++)
-              smoothness_cost_after_optim += smoothness_edges[t]->return_smoothness_cost();
+        // Evaluate costs after optimization, for loop termination checks
+        // wrist pos
+        wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history();
+        wrist_pos_cost_after_optim = 0.0;
+        for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
+          wrist_pos_cost_after_optim += wrist_pos_cost[s];
+        // wrist ori
+        wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history();
+        wrist_ori_cost_after_optim = 0.0;
+        for (unsigned s = 0; s < wrist_ori_cost.size(); s++)
+          wrist_ori_cost_after_optim += wrist_ori_cost[s];
+        // elbow pos
+        elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history();
+        elbow_pos_cost_after_optim = 0.0;
+        for (unsigned s = 0; s < elbow_pos_cost.size(); s++)
+          elbow_pos_cost_after_optim += elbow_pos_cost[s];
+        // collision counts
+        col_cost_after_optim = 0.0;
+        for (unsigned int t = 0; t < unary_edges.size(); t++)
+          col_cost_after_optim += unary_edges[t]->return_col_cost();
+        // pos_limit
+        pos_limit_cost_after_optim = 0.0;
+        for (unsigned int t = 0; t < unary_edges.size(); t++)
+          pos_limit_cost_after_optim += unary_edges[t]->return_pos_limit_cost();
+        // smoothness
+        smoothness_cost_after_optim = 0.0;
+        for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+          smoothness_cost_after_optim += smoothness_edges[t]->return_smoothness_cost();
+    
+
+        // Compare the result with the best one
+        /*
+        double cur_wrist_pos_ori_dist = std::max(wrist_pos_cost_after_optim - wrist_pos_cost_bound, 0.0) +
+                                        std::max(wrist_ori_cost_after_optim - wrist_ori_cost_bound, 0.0); // distance from elbow/wrist cost to the corresponding bound, use max()
+        if (cur_wrist_pos_ori_dist < best_dist_wrist_loop || cur_wrist_pos_ori_dist == 0.0) // cur_dist already satisfying all constraints, and should be updated
+        {
+          // store the best (cur)
+          best_dist_wrist_loop = cur_wrist_pos_ori_dist;
+          // others
+          best_elbow_pos_cost_wrist_loop = elbow_pos_cost_after_optim;
+          best_wrist_pos_cost_wrist_loop = wrist_pos_cost_after_optim;
+          best_wrist_ori_cost_wrist_loop = wrist_ori_cost_after_optim;
+          best_col_cost_wrist_loop = col_cost_after_optim;
+          best_pos_limit_cost_wrist_loop = pos_limit_cost_after_optim;
+          best_smoothness_cost_wrist_loop = smoothness_cost_after_optim;
+          for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+          {
+            DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
+            best_q_wrist_loop[s] = vertex_tmp->estimate();
+          }
+        }
+        */
         
+        // Adjust K_COL
+        if (col_cost_after_optim > col_cost_bound && id_k_col < K_COL_set.size() - 1 ) 
+        { 
+          if (col_cost_before_optim - col_cost_after_optim <= 2.0) // if it's not descending or not descending fast enough, increase the coefficient
+          {
+            std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << " ----> " << K_COL_set[id_k_col+1] << std::endl;
+            id_k_col++; // move to next sample point
+          }
+          else
+          {
+            std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << std::endl;
+          }
+          std::cout << "Cost: col_cost = " << col_cost_before_optim << " ----> " << col_cost_after_optim 
+                                          << "(" << (col_cost_before_optim > col_cost_after_optim ? "-" : "+")
+                                          << std::abs(col_cost_before_optim - col_cost_after_optim) << ")" 
+                                          << " (bound: " << col_cost_bound << ")" << std::endl;
+        }
+        else
+        {
+          std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << std::endl;
+          std::cout << "Cost: col_cost = " << col_cost_after_optim << " (bound: " << col_cost_bound << ")" << std::endl;
+        }
 
-            // Compare the result with the best one
-            double cur_wrist_pos_ori_dist = std::max(wrist_pos_cost_after_optim - wrist_pos_cost_bound, 0.0) +
-                                            std::max(wrist_ori_cost_after_optim - wrist_ori_cost_bound, 0.0); // distance from elbow/wrist cost to the corresponding bound, use max()
-            if (cur_wrist_pos_ori_dist < best_dist_wrist_loop || cur_wrist_pos_ori_dist == 0.0) // cur_dist already satisfying all constraints, and should be updated
-            {
-              // store the best (cur)
-              best_dist_wrist_loop = cur_wrist_pos_ori_dist;
-              // others
-              best_elbow_pos_cost_wrist_loop = elbow_pos_cost_after_optim;
-              best_wrist_pos_cost_wrist_loop = wrist_pos_cost_after_optim;
-              best_wrist_ori_cost_wrist_loop = wrist_ori_cost_after_optim;
-              best_col_cost_wrist_loop = col_cost_after_optim;
-              best_pos_limit_cost_wrist_loop = pos_limit_cost_after_optim;
-              best_smoothness_cost_wrist_loop = smoothness_cost_after_optim;
-              for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
-              {
-                DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
-                best_q_wrist_loop[s] = vertex_tmp->estimate();
-              }
-            }
+        // Adjust K_SMOOTHNESS
+        if (smoothness_cost_after_optim > smoothness_bound && id_k_smoothness < K_SMOOTHNESS_set.size() - 1) 
+        {
+          if (smoothness_cost_before_optim - smoothness_cost_after_optim <= ftol) // if not descending or not descending fast enough, increase the K
+          {
+            std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << " ----> " << K_SMOOTHNESS_set[id_k_smoothness+1] << std::endl;
+            id_k_smoothness++;
+          }
+          else
+          {
+            std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << std::endl;
+          }
+          std::cout << "Cost: smoothness_cost = " << smoothness_cost_before_optim << " ----> " << smoothness_cost_after_optim 
+                                          << "(" << (smoothness_cost_before_optim > smoothness_cost_after_optim ? "-" : "+")
+                                          << std::abs(smoothness_cost_before_optim - smoothness_cost_after_optim) << ")" 
+                                          << " (bound: " << smoothness_bound << ")" << std::endl;
+        }
+        else
+        {
+          std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << std::endl;
+          std::cout << "Cost: smoothness_cost = " << smoothness_cost_after_optim << " (bound: " << smoothness_bound << ")" << std::endl;
+        }
+
+        // Adjust K_POS_LIMIT
+        if (pos_limit_cost_after_optim > pos_limit_bound && id_k_pos_limit < K_POS_LIMIT_set.size() - 1) 
+        {
+          if (pos_limit_cost_before_optim - pos_limit_cost_after_optim <= ftol) // if not descending, or not descending fast enough, increase the K
+          {
+            std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT_set[id_k_pos_limit] << " ----> " << K_POS_LIMIT_set[id_k_pos_limit+1] << std::endl;
+            id_k_pos_limit++;
+          }
+          else
+          {
+            std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT_set[id_k_pos_limit] << std::endl;
+          }
+          std::cout << "Cost: pos_limit_cost = " << pos_limit_cost_before_optim << " ----> " << pos_limit_cost_after_optim 
+                                          << "(" << (pos_limit_cost_before_optim > pos_limit_cost_after_optim ? "-" : "+")
+                                          << std::abs(pos_limit_cost_before_optim - pos_limit_cost_after_optim) << ")" 
+                                          << " (bound: " << pos_limit_bound << ")" << std::endl;
+        }
+        else
+        {
+          std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT_set[id_k_pos_limit] << std::endl;
+          std::cout << "Cost: pos_limit_cost = " << pos_limit_cost_after_optim << " (bound: " << pos_limit_bound << ")" << std::endl;
+        }
+
+        // debug: time usage:
+        std::cout << ">> Time usage for tracking:" << std::endl;
+        std::cout << "Trajectory generation " << count_traj 
+                << " times, with total time = " << total_traj 
+                << " s, average time = " << total_traj / count_traj << " s." << std::endl;
+        std::cout << "Trackig constraint " << count_tracking
+                << " times, with total time = " << total_tracking 
+                << " s, average time = " << total_tracking / count_tracking << " s." << std::endl;                                                
+        // reset count and time
+        count_tracking = 0;
+        count_traj = 0;
+        total_tracking = 0.0;
+        total_traj = 0.0; 
+
+        std::cout << ">>>> End of Inner loop" << std::endl << std::endl;
+      
+      }while( (id_k_col < (K_COL_set.size()-1) && col_cost_after_optim > col_cost_bound) || 
+              (id_k_smoothness < (K_SMOOTHNESS_set.size()-1) && smoothness_cost_after_optim > smoothness_bound) || 
+              (id_k_pos_limit < (K_POS_LIMIT_set.size()-1) && pos_limit_cost_after_optim > pos_limit_bound)); // when coefficients still within bounds, and costs still out of bounds
+      
+
+      // Check if better than current best
+      // Check if the best result from wrist pos+ori loop satisfies the bounds
+      std::cout << ">>>> Evaluating feasibility of the processed paths..." << std::endl;
+      if (col_cost_after_optim <= col_cost_bound && 
+          pos_limit_cost_after_optim <= pos_limit_bound && 
+          smoothness_cost_after_optim <= smoothness_bound) // if satisfying constraints (there may be no need for smoothness cost to be bounded..)
+      {
+        std::cout << "Feasible paths !!!" << std::endl;
+        // check if better than the history-best result
+        double tmp_dist = std::max(wrist_pos_cost_after_optim - wrist_pos_cost_bound, 0.0) / wrist_pos_cost_bound +
+                          std::max(wrist_ori_cost_after_optim - wrist_ori_cost_bound, 0.0) / wrist_ori_cost_bound +
+                          std::max(elbow_pos_cost_after_optim - elbow_pos_cost_bound, 0.0) / elbow_pos_cost_bound; // normalize 
+        if (tmp_dist < best_dist)
+        {
+          std::cout << "Found a result better than the best ever! Recording..." << std::endl;
+          // record the costs
+          best_dist = tmp_dist;
+          best_wrist_pos_cost = wrist_pos_cost_after_optim;
+          best_wrist_ori_cost = wrist_ori_cost_after_optim;
+          best_elbow_pos_cost = elbow_pos_cost_after_optim;
+          best_col_cost = col_cost_after_optim;
+          best_pos_limit_cost = pos_limit_cost_after_optim;
+          best_smoothness_cost = smoothness_cost_after_optim;
+          // record the q values
+          for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+          {
+            DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
+            best_q[s] = vertex_tmp->estimate();
+          }
+        }
+      }
+      else
+      {
+        std::cout << "Non-feasible paths, continue to next round, or modify the sets of coefficients !!!" << std::endl;
+      }
+
 
 
             if (!skip_wrist_loop)
@@ -5767,6 +5903,8 @@ int main(int argc, char *argv[])
               break;
             }
 
+
+
             std::chrono::steady_clock::time_point t1_elbow_pos_cur = std::chrono::steady_clock::now();
             std::chrono::duration<double> t_spent_elbow_pos_cur = std::chrono::duration_cast<std::chrono::duration<double>>(t1_elbow_pos_cur - t0_elbow_pos_cur);
 
@@ -5780,23 +5918,7 @@ int main(int argc, char *argv[])
                   (K_WRIST_ORI <= K_WRIST_ORI_MAX && wrist_ori_cost_after_optim > wrist_ori_cost_bound) ); // Wrist Pos Loop
 
 
-          // Check if the best result from wrist pos+ori loop satisfies the bounds
-          if ( (best_wrist_pos_cost_wrist_loop <= wrist_pos_cost_bound) &&
-               (best_wrist_ori_cost_wrist_loop <= wrist_ori_cost_bound) ) // if wrist_pos_cost and wrist_ori_cost satisfy the bounds
-          {
-            if (best_elbow_pos_cost_wrist_loop <= best_elbow_pos_cost_elbow_loop) // got a better result
-            {
-              // store the best (cur)
-              best_elbow_pos_cost_elbow_loop = best_elbow_pos_cost_wrist_loop;
-              best_wrist_pos_cost_elbow_loop = best_wrist_pos_cost_wrist_loop;
-              best_wrist_ori_cost_elbow_loop = best_wrist_ori_cost_wrist_loop;
-              best_col_cost_elbow_loop = best_col_cost_wrist_loop;
-              best_pos_limit_cost_elbow_loop = best_pos_limit_cost_wrist_loop;
-              best_smoothness_cost_elbow_loop = best_smoothness_cost_wrist_loop;
-              best_q_elbow_loop = best_q_wrist_loop;
-            }
-          }
-
+          
           // Set K_ELBOW_POS on for next loop
           if (K_ELBOW_POS == 0.0)
           {
@@ -5876,94 +5998,6 @@ int main(int argc, char *argv[])
     }
 
 
-    // Adjust K_COL
-    if (col_cost_after_optim > col_cost_bound && K_COL <= K_COL_MAX) 
-    { 
-      if (col_cost_after_optim >= col_cost_before_optim) // if it's descending, not need to rush 
-      {
-        std::cout << "Coefficient: K_COL = " << K_COL << " ----> " << K_COL * outer_scale << std::endl;
-        K_COL = K_COL * outer_scale;       
-      }
-      else
-      {
-        std::cout << "Coefficient: K_COL = " << K_COL << std::endl;
-      }
-      std::cout << "Cost: col_cost = " << col_cost_before_optim << " ----> " << col_cost_after_optim 
-                                       << "(" << (col_cost_before_optim > col_cost_after_optim ? "-" : "+")
-                                       << std::abs(col_cost_before_optim - col_cost_after_optim) << ")" 
-                                       << " (bound: " << col_cost_bound << ")" << std::endl;
-    }
-    else
-    {
-      std::cout << "Coefficient: K_COL = " << K_COL << std::endl;
-      std::cout << "Cost: col_cost = " << col_cost_after_optim << " (bound: " << col_cost_bound << ")" << std::endl;
-    }
-
-    // Adjust K_SMOOTHNESS
-    if (smoothness_cost_after_optim > smoothness_bound && K_SMOOTHNESS <= K_SMOOTHNESS_MAX) 
-    {
-      if (smoothness_cost_after_optim >= smoothness_cost_before_optim) // if not descending, or even increase, increase the weight
-      {
-        std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS << " ----> " << K_SMOOTHNESS * outer_scale << std::endl;
-        K_SMOOTHNESS = K_SMOOTHNESS * outer_scale;
-      }
-      else
-      {
-        std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
-      }
-      std::cout << "Cost: smoothness_cost = " << smoothness_cost_before_optim << " ----> " << smoothness_cost_after_optim 
-                                       << "(" << (smoothness_cost_before_optim > smoothness_cost_after_optim ? "-" : "+")
-                                       << std::abs(smoothness_cost_before_optim - smoothness_cost_after_optim) << ")" 
-                                       << " (bound: " << smoothness_bound << ")" << std::endl;
-    }
-    else
-    {
-      std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
-      std::cout << "Cost: smoothness_cost = " << smoothness_cost_after_optim << " (bound: " << smoothness_bound << ")" << std::endl;
-    }
-
-    // Adjust K_POS_LIMIT
-    if (pos_limit_cost_after_optim > pos_limit_bound && K_POS_LIMIT <= K_POS_LIMIT_MAX) 
-    {
-      if (pos_limit_cost_after_optim >= pos_limit_cost_before_optim) // if not descending, or even rise up, increase the weight
-      {
-        std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT << " ----> " << K_POS_LIMIT * outer_scale << std::endl;
-        K_POS_LIMIT = K_POS_LIMIT * outer_scale;
-      }
-      else
-      {
-        std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT << std::endl;
-      }
-      std::cout << "Cost: pos_limit_cost = " << pos_limit_cost_before_optim << " ----> " << pos_limit_cost_after_optim 
-                                       << "(" << (pos_limit_cost_before_optim > pos_limit_cost_after_optim ? "-" : "+")
-                                       << std::abs(pos_limit_cost_before_optim - pos_limit_cost_after_optim) << ")" 
-                                       << " (bound: " << pos_limit_bound << ")" << std::endl;
-    }
-    else
-    {
-      std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT << std::endl;
-      std::cout << "Cost: pos_limit_cost = " << pos_limit_cost_after_optim << " (bound: " << pos_limit_bound << ")" << std::endl;
-    }
-
-      // debug: time usage:
-      std::cout << ">> Time usage for tracking:" << std::endl;
-      std::cout << "Trajectory generation " << count_traj 
-              << " times, with total time = " << total_traj 
-              << " s, average time = " << total_traj / count_traj << " s." << std::endl;
-      std::cout << "Trackig constraint " << count_tracking
-              << " times, with total time = " << total_tracking 
-              << " s, average time = " << total_tracking / count_tracking << " s." << std::endl;                                                
-      // reset count and time
-      count_tracking = 0;
-      count_traj = 0;
-      total_tracking = 0.0;
-      total_traj = 0.0; 
-
-      std::cout << ">>>> End of Constraints-fixing loop" << std::endl << std::endl;
-  
-    }while( (K_COL <= K_COL_MAX && col_cost_after_optim > col_cost_bound) || 
-            (K_SMOOTHNESS <= K_SMOOTHNESS_MAX && smoothness_cost_after_optim > smoothness_bound) || 
-            (K_POS_LIMIT <= K_POS_LIMIT_MAX && pos_limit_cost_after_optim > pos_limit_bound)); // when coefficients still within bounds, and costs still out of bounds
     
 
     std::chrono::steady_clock::time_point t1_constraints_fix = std::chrono::steady_clock::now();
