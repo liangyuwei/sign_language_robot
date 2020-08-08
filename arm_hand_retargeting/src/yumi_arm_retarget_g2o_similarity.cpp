@@ -5251,12 +5251,31 @@ int main(int argc, char *argv[])
   std::cout << "Cost: smoothness_cost = " << tmp_smoothness_cost << std::endl;
   std::cout << "Total time spent: " << t_spent_wrist_trac_ik_loop.count() << " s." << std::endl;
 
+  // store TRAC-IK result as the best for now
+  std::cout << "Storing TRAC-IK result (as the best) for later comparison..." << std::endl;
+  best_dist = std::max(tmp_wrist_pos_cost - wrist_pos_cost_bound, 0.0) / wrist_pos_cost_bound +
+              std::max(tmp_wrist_ori_cost - wrist_ori_cost_bound, 0.0) / wrist_ori_cost_bound +
+              std::max(tmp_elbow_pos_cost - elbow_pos_cost_bound, 0.0) / elbow_pos_cost_bound; 
+  best_wrist_pos_cost = tmp_wrist_pos_cost;
+  best_wrist_ori_cost = tmp_wrist_ori_cost;
+  best_elbow_pos_cost = tmp_elbow_pos_cost;
+  best_col_cost = tmp_col_cost;
+  best_pos_limit_cost = tmp_pos_limit_cost;
+  best_smoothness_cost = tmp_smoothness_cost;
+  // record the q values
+  for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+  {
+    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
+    best_q[s] = vertex_tmp->estimate();
+  }
 
+
+  // Start optimization, using different combinations of coefficients
   double t_spent_inner_loop = 0.0;
   double t_spent_outer_loop = 0.0;
   unsigned int count_inner_loop = 0;
   unsigned int count_outer_loop = 0;
-  do // Outer loop
+  do // Outer loop, resolve collision, pos limit and smoothness first
   {
       count_outer_loop++;
       std::chrono::steady_clock::time_point t0_outer_loop = std::chrono::steady_clock::now();
