@@ -5009,9 +5009,9 @@ int main(int argc, char *argv[])
   double K_WRIST_ORI_MAX = 30.0;//20.0;//10.0;//20;//50.0;//100.0;
   
   // Sets of selectable coefficients
-  Matrix<double, 6, 1> K_COL_set; K_COL_set << 0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  Matrix<double, 6, 1> K_POS_LIMIT_set; K_POS_LIMIT_set << 0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  Matrix<double, 6, 1> K_SMOOTHNESS_set; K_SMOOTHNESS_set << 0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  Matrix<double, 4, 1> K_COL_set; K_COL_set << 0.1, 1.0, 5.0, 10.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  Matrix<double, 4, 1> K_POS_LIMIT_set; K_POS_LIMIT_set << 0.1, 1.0, 5.0, 10.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  Matrix<double, 4, 1> K_SMOOTHNESS_set; K_SMOOTHNESS_set << 0.1, 1.0, 5.0, 10.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
   
   Matrix<double, 3, 1> K_WRIST_POS_set; K_WRIST_POS_set << 0.1, 1.0, 10.0; //1.0, 3.0, 5.0, 10.0, 15.0, 20.0;
   Matrix<double, 3, 1> K_WRIST_ORI_set; K_WRIST_ORI_set << 0.1, 1.0, 10.0; //1.0, 3.0, 5.0, 10.0, 15.0, 20.0;
@@ -5029,7 +5029,7 @@ int main(int argc, char *argv[])
   // constraints bounds
   double eps = 1e-6; // numeric error
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
-  double smoothness_bound = std::sqrt(std::pow(3.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
+  double smoothness_bound = std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
   double pos_limit_bound = std::sqrt(std::pow(eps, 2) * JOINT_DOF); // 0.0, on account of numric error
 
   double dmp_orien_cost_bound = eps; // 0.0, on account of numeric error //0.0; // better be 0, margin is already set in it!!!
