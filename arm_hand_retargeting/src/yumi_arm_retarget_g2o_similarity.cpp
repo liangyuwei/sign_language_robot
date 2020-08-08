@@ -1159,11 +1159,9 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
 
 void MyUnaryConstraints::linearizeOplus()
 {
-  if (K_COL == 0.0)
-  {
-    _jacobianOplusXi = Matrix<double, 1, JOINT_DOF>::Zero();
-    return;
-  }
+  // Initialization
+  _jacobianOplusXi = Matrix<double, 1, JOINT_DOF>::Zero();
+  
 
   // epsilons
   double col_eps = 5.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
@@ -1182,6 +1180,49 @@ void MyUnaryConstraints::linearizeOplus()
   std::vector<double> xx(JOINT_DOF);
   for (unsigned int i = 0; i < JOINT_DOF; ++i)
     xx[i] = x[i];
+
+
+  // iterate to calculate pos_limit jacobians
+  double e_plus, e_minus;
+  for (unsigned int d = 0; d < JOINT_DOF; d++)
+  {
+    // 1 - Collision - obsolete
+    /*
+    delta_x[d] = col_eps;
+    // std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
+  
+    e_plus = compute_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
+    e_minus = compute_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+    
+    // std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
+    // std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+    // std::cout << "spent " << t_0011.count() << " s." << std::endl;
+
+    _jacobianOplusXi(0, d) = K_COL * (e_plus - e_minus) / (2*col_eps);
+
+    // record
+    col_jacobians[d] = _jacobianOplusXi(0, d);
+    */
+
+    // 2 - Position Limit
+    delta_x[d] = pos_limit_eps;
+    e_plus = compute_pos_limit_cost(x+delta_x, _measurement);
+    e_minus = compute_pos_limit_cost(x-delta_x, _measurement);
+    _jacobianOplusXi(0, d) += K_POS_LIMIT * (e_plus - e_minus) / (2*pos_limit_eps);
+    pos_limit_jacobians[d] = K_POS_LIMIT * (e_plus - e_minus) / (2*pos_limit_eps);
+
+    whole_jacobians[d] = _jacobianOplusXi(0, d);
+
+    // Reset
+    delta_x[d] = 0.0;
+  }
+
+
+  // Skip collision 
+  if (K_COL == 0.0)
+  {
+    return;
+  }
 
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double e_cur;
@@ -1869,41 +1910,6 @@ void MyUnaryConstraints::linearizeOplus()
   col_jacobians = _jacobianOplusXi.transpose();
 
   
-  // iterate to calculate pos_limit jacobians
-  double e_plus, e_minus;
-  for (unsigned int d = 0; d < JOINT_DOF; d++)
-  {
-    // 1 - Collision - obsolete
-    /*
-    delta_x[d] = col_eps;
-    // std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
-  
-    e_plus = compute_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-    e_minus = compute_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
-    
-    // std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
-    // std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
-    // std::cout << "spent " << t_0011.count() << " s." << std::endl;
-
-    _jacobianOplusXi(0, d) = K_COL * (e_plus - e_minus) / (2*col_eps);
-
-    // record
-    col_jacobians[d] = _jacobianOplusXi(0, d);
-    */
-
-    // 2 - Position Limit
-    delta_x[d] = pos_limit_eps;
-    e_plus = compute_pos_limit_cost(x+delta_x, _measurement);
-    e_minus = compute_pos_limit_cost(x-delta_x, _measurement);
-    _jacobianOplusXi(0, d) += K_POS_LIMIT * (e_plus - e_minus) / (2*pos_limit_eps);
-    pos_limit_jacobians[d] = K_POS_LIMIT * (e_plus - e_minus) / (2*pos_limit_eps);
-
-    whole_jacobians[d] = _jacobianOplusXi(0, d);
-
-    // Reset
-    delta_x[d] = 0.0;
-  }
-
 
   // debug:
   /*
@@ -4996,26 +5002,34 @@ int main(int argc, char *argv[])
   unsigned int max_round; // record for ease
 
   // coefficients search space
-  double K_COL_MAX = 100.0;//300.0;//100.0;//1000.0;//1000000.0;//200.0;//1000;//20.0;//15.0;//10.0;
-  double K_POS_LIMIT_MAX = 50.0;//30.0;//20;//20.0;//15.0;//10.0;
-  double K_SMOOTHNESS_MAX = 50.0;//30.0;//20.0;//15.0;//10.0;//10.0;
+  // double K_COL_MAX = 100.0;//300.0;//100.0;//1000.0;//1000000.0;//200.0;//1000;//20.0;//15.0;//10.0;
+  // double K_POS_LIMIT_MAX = 50.0;//30.0;//20;//20.0;//15.0;//10.0;
+  // double K_SMOOTHNESS_MAX = 50.0;//30.0;//20.0;//15.0;//10.0;//10.0;
 
   double K_DMPSTARTSGOALS_MAX = 2.0;
   double K_DMPSCALEMARGIN_MAX = 2.0;
   double K_DMPRELCHANGE_MAX = 2.0;
 
-  double K_WRIST_POS_MAX = 30.0;//20.0;//10.0;//20;//50.0;//100.0;//20.0;//10.0;
-  double K_ELBOW_POS_MAX = 30.0;//20.0;//10.0;//20;//50.0;//100.0;//20.0;//10.0;
-  double K_WRIST_ORI_MAX = 30.0;//20.0;//10.0;//20;//50.0;//100.0;
+  // double K_WRIST_POS_MAX = 30.0;//20.0;//10.0;//20;//50.0;//100.0;//20.0;//10.0;
+  // double K_ELBOW_POS_MAX = 30.0;//20.0;//10.0;//20;//50.0;//100.0;//20.0;//10.0;
+  // double K_WRIST_ORI_MAX = 30.0;//20.0;//10.0;//20;//50.0;//100.0;
   
   // Sets of selectable coefficients
-  Matrix<double, 4, 1> K_COL_set; K_COL_set << 0.1, 1.0, 5.0, 10.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  Matrix<double, 4, 1> K_POS_LIMIT_set; K_POS_LIMIT_set << 0.1, 1.0, 5.0, 10.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  Matrix<double, 4, 1> K_SMOOTHNESS_set; K_SMOOTHNESS_set << 0.1, 1.0, 5.0, 10.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  Matrix<double, 11, 1> K_COL_set; K_COL_set << 0.0, 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  Matrix<double, 10, 1> K_POS_LIMIT_set; K_POS_LIMIT_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  Matrix<double, 10, 1> K_SMOOTHNESS_set; K_SMOOTHNESS_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
   
-  Matrix<double, 3, 1> K_WRIST_POS_set; K_WRIST_POS_set << 0.1, 1.0, 10.0; //1.0, 3.0, 5.0, 10.0, 15.0, 20.0;
-  Matrix<double, 3, 1> K_WRIST_ORI_set; K_WRIST_ORI_set << 0.1, 1.0, 10.0; //1.0, 3.0, 5.0, 10.0, 15.0, 20.0;
-  Matrix<double, 3, 1> K_ELBOW_POS_set; K_ELBOW_POS_set << 0.1, 1.0, 10.0; //1.0, 3.0, 5.0, 10.0, 15.0, 20.0;
+  Matrix<double, 10, 1> K_WRIST_POS_set; K_WRIST_POS_set << 0.1, 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0;
+  Matrix<double, 10, 1> K_WRIST_ORI_set; K_WRIST_ORI_set << 0.1, 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0;
+  Matrix<double, 10, 1> K_ELBOW_POS_set; K_ELBOW_POS_set << 0.1, 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0;
+  
+  std::cout << ">>>> Selectable coefficients: ";
+  std::cout << "K_COL = " << K_COL_set.transpose() << std::endl;
+  std::cout << "K_POS_LIMIT = " << K_POS_LIMIT_set.transpose() << std::endl;
+  std::cout << "K_SMOOTHNESS = " << K_SMOOTHNESS_set.transpose() << std::endl;
+  std::cout << "K_WRIST_POS = " << K_WRIST_POS_set.transpose() << std::endl;
+  std::cout << "K_WRIST_ORI = " << K_WRIST_ORI_set.transpose() << std::endl;
+  std::cout << "K_ELBOW_POS = " << K_ELBOW_POS_set.transpose() << std::endl;
   
   unsigned int id_k_col = 0;
   unsigned int id_k_pos_limit = 0;
@@ -5029,7 +5043,7 @@ int main(int argc, char *argv[])
   // constraints bounds
   double eps = 1e-6; // numeric error
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
-  double smoothness_bound = std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
+  double smoothness_bound = std::sqrt(std::pow(3.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
   double pos_limit_bound = std::sqrt(std::pow(eps, 2) * JOINT_DOF); // 0.0, on account of numric error
 
   double dmp_orien_cost_bound = eps; // 0.0, on account of numeric error //0.0; // better be 0, margin is already set in it!!!
@@ -5323,9 +5337,12 @@ int main(int argc, char *argv[])
         count_inner_loop++;
 
         // Set coefficients
-        K_COL = K_COL_set[id_k_col];
-        K_POS_LIMIT = K_POS_LIMIT_set[id_k_pos_limit];
-        K_SMOOTHNESS = K_SMOOTHNESS_set[id_k_smoothness];
+        K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
+        K_POS_LIMIT = K_POS_LIMIT_set[(id_k_pos_limit <= K_POS_LIMIT_set.size()-1 ? id_k_pos_limit : K_POS_LIMIT_set.size()-1)];
+        K_SMOOTHNESS = K_SMOOTHNESS_set[(id_k_smoothness <= K_SMOOTHNESS_set.size()-1 ? id_k_smoothness : K_SMOOTHNESS_set.size()-1)];
+        K_WRIST_POS = K_WRIST_POS_set[(id_k_wrist_pos <= K_WRIST_POS_set.size()-1 ? id_k_wrist_pos : K_WRIST_POS_set.size()-1)];
+        K_WRIST_ORI = K_WRIST_ORI_set[(id_k_wrist_ori <= K_WRIST_ORI_set.size()-1 ? id_k_wrist_ori : K_WRIST_ORI_set.size()-1)];
+        K_ELBOW_POS = K_ELBOW_POS_set[(id_k_elbow_pos <= K_ELBOW_POS_set.size()-1 ? id_k_elbow_pos : K_ELBOW_POS_set.size()-1)];
 
 
         // Evaluate costs before optimization
@@ -5345,11 +5362,11 @@ int main(int argc, char *argv[])
 
         // Report current condition
         std::cout << ">>>> Inner loop: adjust K_COL, K_POS_LIMIT and K_SMOOTHNESS." << std::endl;
-        std::cout << "(Main) Current coefficients: K_COL = " << K_COL_set[id_k_col] << ", K_POS_LIMIT = " << K_POS_LIMIT_set[id_k_pos_limit] << ", K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << std::endl;
+        std::cout << "(Main) Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
         std::cout << "Costs before optimization: col_cost = " << col_cost_before_optim << ", pos_limit_cost = " << pos_limit_cost_before_optim << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl;
-        std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS_set[id_k_elbow_pos] << std::endl;
-        std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS_set[id_k_wrist_pos] << std::endl;
-        std::cout << "Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI_set[id_k_wrist_ori] << std::endl;
+        std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
+        std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
+        std::cout << "Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
 
  
         // optimize for a few iterations
@@ -5552,11 +5569,14 @@ int main(int argc, char *argv[])
 
 
         // Adjust K_COL
-        if (col_cost_after_optim > col_cost_bound && id_k_col < K_COL_set.size() - 1 ) 
+        if (col_cost_after_optim > col_cost_bound && id_k_col <= K_COL_set.size() - 1 ) 
         { 
           if (col_cost_before_optim - col_cost_after_optim <= 2.0) // if it's not descending or not descending fast enough, increase the coefficient
           {
-            std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << " ----> " << K_COL_set[id_k_col+1] << std::endl;
+            if (id_k_col < K_COL_set.size() - 1)
+              std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << " ----> " << K_COL_set[id_k_col+1] << std::endl;
+            else
+              std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << " (Reached the end) " << std::endl;
             id_k_col++; // move to next sample point
           }
           else
@@ -5575,11 +5595,14 @@ int main(int argc, char *argv[])
         }
 
         // Adjust K_SMOOTHNESS
-        if (smoothness_cost_after_optim > smoothness_bound && id_k_smoothness < K_SMOOTHNESS_set.size() - 1) 
+        if (smoothness_cost_after_optim > smoothness_bound && id_k_smoothness <= K_SMOOTHNESS_set.size() - 1) 
         {
           if (smoothness_cost_before_optim - smoothness_cost_after_optim <= ftol) // if not descending or not descending fast enough, increase the K
           {
-            std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << " ----> " << K_SMOOTHNESS_set[id_k_smoothness+1] << std::endl;
+            if (id_k_smoothness < K_SMOOTHNESS_set.size() - 1)
+              std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << " ----> " << K_SMOOTHNESS_set[id_k_smoothness+1] << std::endl;
+            else
+              std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << " (Reached the end) " << std::endl;
             id_k_smoothness++;
           }
           else
@@ -5598,11 +5621,14 @@ int main(int argc, char *argv[])
         }
 
         // Adjust K_POS_LIMIT
-        if (pos_limit_cost_after_optim > pos_limit_bound && id_k_pos_limit < K_POS_LIMIT_set.size() - 1) 
+        if (pos_limit_cost_after_optim > pos_limit_bound && id_k_pos_limit <= K_POS_LIMIT_set.size() - 1) 
         {
           if (pos_limit_cost_before_optim - pos_limit_cost_after_optim <= ftol) // if not descending, or not descending fast enough, increase the K
           {
-            std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT_set[id_k_pos_limit] << " ----> " << K_POS_LIMIT_set[id_k_pos_limit+1] << std::endl;
+            if (id_k_pos_limit < K_POS_LIMIT_set.size() - 1)
+              std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT_set[id_k_pos_limit] << " ----> " << K_POS_LIMIT_set[id_k_pos_limit+1] << std::endl;
+            else
+              std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT_set[id_k_pos_limit] << " (Reached the end) " << std::endl;
             id_k_pos_limit++;
           }
           else
@@ -5641,9 +5667,9 @@ int main(int argc, char *argv[])
       std::cout << "> Time Usage:" << std::endl;
       std::cout << "Time used for current inner loop is: " << t_spent_inner_loop_cur.count() << " s." << std::endl;
       
-      }while( (id_k_col < (K_COL_set.size()-1) && col_cost_after_optim > col_cost_bound) || 
-              (id_k_smoothness < (K_SMOOTHNESS_set.size()-1) && smoothness_cost_after_optim > smoothness_bound) || 
-              (id_k_pos_limit < (K_POS_LIMIT_set.size()-1) && pos_limit_cost_after_optim > pos_limit_bound)); // when coefficients still within bounds, and costs still out of bounds
+      }while( (id_k_col <= (K_COL_set.size()-1) && col_cost_after_optim > col_cost_bound) || 
+              (id_k_smoothness <= (K_SMOOTHNESS_set.size()-1) && smoothness_cost_after_optim > smoothness_bound) || 
+              (id_k_pos_limit <= (K_POS_LIMIT_set.size()-1) && pos_limit_cost_after_optim > pos_limit_bound)); // when coefficients still within bounds, and costs still out of bounds
       
       std::cout << ">>>> End of Inner loop" << std::endl << std::endl;
 
@@ -5686,11 +5712,14 @@ int main(int argc, char *argv[])
 
 
     // Select different combinations of K_WRIST_POS, K_WRIST_ORI and K_ELBOW_POS
-    if (wrist_pos_cost_after_optim > wrist_pos_cost_bound && id_k_wrist_pos < K_WRIST_POS_set.size() - 1)
+    if (wrist_pos_cost_after_optim > wrist_pos_cost_bound && id_k_wrist_pos <= K_WRIST_POS_set.size() - 1)
     {
       if (wrist_pos_cost_before_optim - wrist_pos_cost_after_optim <= ftol) // require the update to be higher than a tolerance
       {
-        std::cout << "Coefficient: K_WRIST_POS = " << K_WRIST_POS_set[id_k_wrist_pos] << " ----> " << K_WRIST_POS_set[id_k_wrist_pos+1] << std::endl;
+        if (id_k_wrist_pos < K_WRIST_POS_set.size() - 1)
+          std::cout << "Coefficient: K_WRIST_POS = " << K_WRIST_POS_set[id_k_wrist_pos] << " ----> " << K_WRIST_POS_set[id_k_wrist_pos+1] << std::endl;
+        else
+          std::cout << "Coefficient: K_WRIST_POS = " << K_WRIST_POS_set[id_k_wrist_pos] << " (Reached the end) " << std::endl;
         id_k_wrist_pos++;
       }
       else
@@ -5709,11 +5738,14 @@ int main(int argc, char *argv[])
     }
 
     // Adjust K_WRIST_ORI
-    if (wrist_ori_cost_after_optim > wrist_ori_cost_bound && id_k_wrist_ori < K_WRIST_ORI_set.size() - 1)
+    if (wrist_ori_cost_after_optim > wrist_ori_cost_bound && id_k_wrist_ori <= K_WRIST_ORI_set.size() - 1)
     {
       if (wrist_ori_cost_before_optim - wrist_ori_cost_after_optim <= ftol) // require the update to be higher than a tolerance
       {
-        std::cout << "Coefficient: K_WRIST_ORI = " << K_WRIST_ORI_set[id_k_wrist_ori] << " ----> " << K_WRIST_ORI_set[id_k_wrist_ori+1] << std::endl;
+        if (id_k_wrist_ori < K_WRIST_ORI_set.size() - 1)
+          std::cout << "Coefficient: K_WRIST_ORI = " << K_WRIST_ORI_set[id_k_wrist_ori] << " ----> " << K_WRIST_ORI_set[id_k_wrist_ori+1] << std::endl;
+        else
+          std::cout << "Coefficient: K_WRIST_ORI = " << K_WRIST_ORI_set[id_k_wrist_ori] << " (Reached the end) " << std::endl;        
         id_k_wrist_ori++;
       }
       else                                                           
@@ -5732,11 +5764,14 @@ int main(int argc, char *argv[])
     }
 
       // Adjust K_ELBOW_POS
-      if (elbow_pos_cost_after_optim > elbow_pos_cost_bound && id_k_elbow_pos < K_ELBOW_POS_set.size() - 1)
+      if (elbow_pos_cost_after_optim > elbow_pos_cost_bound && id_k_elbow_pos <= K_ELBOW_POS_set.size() - 1)
       {
         if (elbow_pos_cost_before_optim - elbow_pos_cost_after_optim <= ftol) // require the update to be higher than a tolerance
         {
-          std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS_set[id_k_elbow_pos] << " ----> " << K_ELBOW_POS_set[id_k_elbow_pos+1] << std::endl;            
+          if (id_k_elbow_pos < K_ELBOW_POS_set.size() - 1)
+            std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS_set[id_k_elbow_pos] << " ----> " << K_ELBOW_POS_set[id_k_elbow_pos+1] << std::endl;            
+          else
+            std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS_set[id_k_elbow_pos] << " (Reached the end) " << std::endl;            
           id_k_elbow_pos++;
         }
         else
