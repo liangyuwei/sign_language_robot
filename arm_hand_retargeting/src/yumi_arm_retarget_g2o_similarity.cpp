@@ -1061,7 +1061,7 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
 /* This function outputs distance computation results, for checking on collision. */
 void MyUnaryConstraints::output_distance_result()
 {
-  std::cout << "Distance result: " << std::endl;
+  // std::cout << "Distance result: " << std::endl;
   std::cout << "Collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] << " and " 
                                     << dual_arm_dual_hand_collision_ptr->link_names[1] << ", with min_dist = "
                                     << dual_arm_dual_hand_collision_ptr->min_distance << "." << std::endl;
@@ -4651,12 +4651,17 @@ int main(int argc, char *argv[])
   const std::vector<double> q_r_arm_ub = {2.8, 0.75, 1.2, 1.4, 1.578, 2.1, 1.578}; // modified on 2020/07/20
   //{0.5, 0.75, 2.9, 1.4, 1.578, 2.1, 1.57};//{2.94, 0.76, 2.94, 1.4, 5.06, 2.41, 4.0};
 
+  // remember to keep inconsistent with _robot_finger_start and _robot_finger_goal
+  const std::vector<double> q_l_finger_lb = {-1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -0.75, 0.0, -0.2, -0.15};
+                                            //{-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
+  const std::vector<double> q_l_finger_ub = {0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3,  0.1,  0.0,  0.0};
+                                            //{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
+  const std::vector<double> q_r_finger_lb = {-1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.0, 0.0, -0.2, -0.15};
+                                            //{-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
+  const std::vector<double> q_r_finger_ub = {0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3, 0.1,  0.0,  0.0}; 
+                                            //{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
 
-  const std::vector<double> q_l_finger_lb = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
-  const std::vector<double> q_l_finger_ub = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
-  const std::vector<double> q_r_finger_lb = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
-  const std::vector<double> q_r_finger_ub = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
-
+  
   std::vector<double> qlb = q_l_arm_lb;
   std::vector<double> qub = q_l_arm_ub;
   qlb.insert(qlb.end(), q_r_arm_lb.cbegin(), q_r_arm_lb.cend());
@@ -4997,7 +5002,7 @@ int main(int argc, char *argv[])
   unsigned int dmp_per_iterations = 10;//5;//10;
   // unsigned int q_per_iterations = 50;//10;//30;//50;//5;//50;
   
-  unsigned int q_trk_per_iterations = 10;//20;//50;//300;//10;//20; //50;
+  unsigned int q_trk_per_iterations = 20;//10;//20;//50;//300;//10;//20; //50;
   
   unsigned int max_round; // record for ease
 
@@ -5646,6 +5651,19 @@ int main(int argc, char *argv[])
           std::cout << "Cost: pos_limit_cost = " << pos_limit_cost_after_optim << " (bound: " << pos_limit_bound << ")" << std::endl;
         }
 
+
+        // Checking collision situation
+        std::cout << ">> Collision condition <<" << std::endl;
+        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        {
+          std::cout << ">> Path point " << (n+1) << "/" << NUM_DATAPOINTS << " <<" << std::endl;
+          unary_edges[n]->output_distance_result();
+          std::cout << "col_jacobians = " << unary_edges[n]->col_jacobians.transpose() << std::endl;
+        }
+        std::cout << "last q = " << (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(NUM_DATAPOINTS)))->estimate().transpose() << std::endl;
+        
+
+
         // debug: time usage:
         std::cout << ">> Time usage for tracking:" << std::endl;
         std::cout << "Trajectory generation " << count_traj 
@@ -5804,18 +5822,6 @@ int main(int argc, char *argv[])
             (id_k_elbow_pos <= (K_ELBOW_POS_set.size() - 1) && elbow_pos_cost_after_optim > elbow_pos_cost_bound) ); // Wrist Pos Loop
 
     std::cout << ">>>> End of Outer loop" << std::endl << std::endl;
-          
-    
-    // Checking collision situation
-    /*
-    std::cout << ">> Collision condition <<" << std::endl;
-    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-    {
-      std::cout << ">> Path point " << (n+1) << "/" << NUM_DATAPOINTS << " <<" << std::endl;
-      unary_edges[n]->output_distance_result();
-      std::cout << "col_jacobians = " << unary_edges[n]->col_jacobians.transpose() << std::endl;
-    }
-    */
 
 
     // Display the best result, and assign to q vertces
