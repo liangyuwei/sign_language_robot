@@ -1636,25 +1636,31 @@ int main(int argc, char **argv)
   std::cout << ">>>> Test on getting robot jacobian" << std::endl;
   bool arm_hand_together, arm_or_hand, left_or_right;
   // 1 - note that if given link is not controlled by any joint, the corresponding jacobian would be zero!!! no need to worry!!!
+  Eigen::Matrix<double, 38, 1> q_initial = Eigen::Matrix<double, 38, 1>::Zero();
+  q_initial.block(0, 0, 14, 1) << -1.5, -1.5, 1.5, 0.0, 0.0, 0.0, 0.0, 1.5, -1.5, -1.5, 0.0, 0.0, 0.0, 0.0; 
+  std::vector<double> q_test(38);
+  for (unsigned int s = 0; s < 38; s++)
+    q_test[s] = q_initial[s];
+  dual_arm_dual_hand_collision_ptr->set_joint_values_yumi(q_test);
   arm_hand_together = false; 
   arm_or_hand = true;
   left_or_right = true;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_1_l", Eigen::Vector3d::Zero(), left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_7_l", Eigen::Vector3d::Zero(), left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  std::cout << ">> Left Arm, yumi_link_1_l" << std::endl << "jacobian = " << robot_jacobian << std::endl;
+  std::cout << ">> Left Arm, yumi_link_7_l" << std::endl << "jacobian = " << robot_jacobian << std::endl;
   std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
   // 2
   arm_hand_together = false; 
   arm_or_hand = true;
   left_or_right = false;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_5_r", Eigen::Vector3d::Zero(), left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_7_r", Eigen::Vector3d::Zero(), left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  std::cout << ">> Right Arm, yumi_link_5_r" << std::endl << "jacobian = " << robot_jacobian << std::endl;
-  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
+  std::cout << ">> Right Arm, yumi_link_7_r" << std::endl << "jacobian = " << robot_jacobian << std::endl;
+  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << " s." << std::endl;
   // 3 
   arm_hand_together = false; 
   arm_or_hand = false;
@@ -1665,7 +1671,7 @@ int main(int argc, char **argv)
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << ">> Left Hand, link11" << std::endl << "jacobian = " << robot_jacobian << std::endl;
-  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
+  std::cout << "Time used for computing robot jacobian: " << t0_1.count() << " s." << std::endl;
   // 4 
   arm_hand_together = false; 
   arm_or_hand = false;
