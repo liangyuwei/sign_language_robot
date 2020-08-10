@@ -1011,7 +1011,7 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     // functions to compute costs
     double compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     
-    double compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
+    double compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, std::string link_name_1, std::string link_name_2, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     
     // double compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     double compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q_whole, my_constraint_struct &fdata);
@@ -1046,7 +1046,7 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     double d_arm_check = 0.003; // 0.02;
     double d_arm_safe = 0.001; //0.0; //0.002; //0.01 is actually too large, for some links are very close to each other, e.g. _5_l and _7_l
     double d_hand_check = 0.002; // threshold, pairs with distance above which would not be checked further, so as to reduce number of queries
-    double d_hand_safe = 0.001;//0.0; //0.001; // margin of safety
+    double d_hand_safe = 1e-6; //0.0005;//0.001;//0.0; //0.001; // margin of safety
   
 
   public:
@@ -1083,7 +1083,7 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
 
   // prep
   Eigen::Matrix<double, 6, 1> d_pos_ori = Eigen::Matrix<double, 6, 1>::Zero();
-  d_pos_ori.block(0, 0, 3, 1) = d_pos;
+  d_pos_ori.block(0, 0, 3, 1) = -d_pos;// //d_pos; // the jacobian computed should be at the direction that cost increases, here d_pos is the direction for cost to decrease.
   unsigned int num_cols = jacobian.cols();
   Eigen::MatrixXd d_q;
 
@@ -1093,8 +1093,8 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
   unsigned int rank = jacobian.colPivHouseholderQr().rank(); 
   Eigen::MatrixXd d_x = d_pos_ori;//d_pos_ori.block(0, 0, rank, 1);
   Eigen::MatrixXd J = jacobian;//jacobian.block(0, 0, rank, num_cols);
-  // std::cout << "debug: rank(J) = " << rank << std::endl;
-  // std::cout << "debug: original J = " << jacobian << std::endl;
+  std::cout << "debug: rank(J) = " << rank << std::endl;
+  std::cout << "debug: original J = " << jacobian << std::endl;
   // std::cout << "debug: processed J = " << J << std::endl;
   // std::cout << "debug: original dx = " << d_pos_ori.transpose() << std::endl;
   // std::cout << "debug: processed dx = " << d_x.transpose() << std::endl;
@@ -1111,12 +1111,18 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
   std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
   // std::cout << "SVD solution took " << t_0011.count() << " s." << std::endl;
   // debug:
-  // std::cout << "debug: d_q = " << d_q.transpose() << std::endl;
-  // std::cout << "debug: original J * dq = " << (jacobian * d_q).transpose() << std::endl;
+  std::cout << "debug: d_q = " << d_q.transpose() << std::endl;
+  std::cout << "debug: original J * dq = " << (jacobian * d_q).transpose() << std::endl;
   // std::cout << "debug: processed J * dq = " << (J * d_q).transpose() << std::endl;
   // std::cout << "debug: d_x = " << d_x.transpose() << std::endl;
-  // std::cout << "debug: d_pos_ori = " << d_pos_ori.transpose() << std::endl;
+  std::cout << "debug: d_pos_ori = " << d_pos_ori.transpose() << std::endl;
   // std::cout << "size of d_q is: " << d_q.rows() << " x " << d_q.cols() << std::endl;
+
+  // compute angle between dx and J*dq
+  Vector3d Jdq_pos = (jacobian * d_q).block(0, 0, 3, 1);
+  double ac = (double)(Jdq_pos.transpose() * d_pos) / (Jdq_pos.norm()*d_pos.norm());
+  double theta = std::acos( std::min(ac, 1.0) ) * 180.0 / M_PI;
+  std::cout << "debug: angle between the position vector of J*dq and dx = " << theta << " deg" << std::endl;
 
 
   // post-processing on dq, to speed up and apply weighting
@@ -1227,7 +1233,7 @@ void MyUnaryConstraints::linearizeOplus()
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double e_cur;
   double speed = 1.0;//1000.0;//10.0;//1.0;//100.0;//1.0;//10.0;//50.0;//100.0;//10.0;//1.0;//0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
-  double hand_speed = 400.0;//200.0;//100.0;// 1.0; // for collision between links belonging to the same hand !!!
+  double hand_speed = 1.0;//400.0;//200.0;//100.0;// 1.0; // for collision between links belonging to the same hand !!!
   double min_distance;
   // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -1267,8 +1273,8 @@ void MyUnaryConstraints::linearizeOplus()
     std::string link_name_1 = dual_arm_dual_hand_collision_ptr->link_names[0];
     std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
 
-    // std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
-    // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+    std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
+    std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
 
     // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
     Eigen::Vector3d link_pos_1 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_1);
@@ -1316,7 +1322,7 @@ void MyUnaryConstraints::linearizeOplus()
       {
         _jacobianOplusXi.block(0, 7, 1, 7) += dq_col_update_1.transpose();
       }
-      // std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
+      std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
       // for debug
       bool debug = isnan(_jacobianOplusXi.norm());
       if (debug)
@@ -1334,7 +1340,7 @@ void MyUnaryConstraints::linearizeOplus()
       {
         _jacobianOplusXi.block(0, 7, 1, 7) += dq_col_update_2.transpose();
       }
-      // std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
+      std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
 
       // for debug
       debug = isnan(_jacobianOplusXi.norm());
@@ -1356,11 +1362,11 @@ void MyUnaryConstraints::linearizeOplus()
       int finger_id_2 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right);
 
       // compute robot jacobians (for fingers), return is 6 x N, N could be 4(thumb) or 2(others); and compute updates
-      /*
       Eigen::MatrixXd jacobian_1;
       Eigen::MatrixXd jacobian_2;
       Eigen::MatrixXd dq_col_update_1;
       Eigen::MatrixXd dq_col_update_2;
+      std::cout << "Current joint values = " << x.transpose() << std::endl;
       if (finger_id_1 != -1) // if not belonging to palm groups!!!
       {
         jacobian_1 = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian(link_name_1, 
@@ -1379,7 +1385,7 @@ void MyUnaryConstraints::linearizeOplus()
         dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, hand_speed*speed);                                                                               
         std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
       }
-      */
+  
 
       // assign jacobians for collision cost
       // init
@@ -1397,8 +1403,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[22+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
             jacobian_way_1(0, 22+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1413,8 +1419,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[14+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
             jacobian_way_1(0, 14+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1429,8 +1435,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[16+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
             jacobian_way_1(0, 16+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1445,8 +1451,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[18+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
             jacobian_way_1(0, 18+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1461,8 +1467,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[20+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
             jacobian_way_1(0, 20+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1479,8 +1485,8 @@ void MyUnaryConstraints::linearizeOplus()
           break;
       }
       // std::cout << "1 - jacobian = " << _jacobianOplusXi << std::endl;
-      // std::cout << "1 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
-      // std::cout << "1 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
+      std::cout << "1 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
+      std::cout << "1 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
 
       // for debug
       bool debug = isnan(_jacobianOplusXi.norm());
@@ -1499,8 +1505,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[22+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
             jacobian_way_1(0, 22+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1515,8 +1521,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[14+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
             jacobian_way_1(0, 14+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1531,8 +1537,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[16+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
             jacobian_way_1(0, 16+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1547,8 +1553,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[18+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); // 
             jacobian_way_1(0, 18+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1563,8 +1569,8 @@ void MyUnaryConstraints::linearizeOplus()
             // set
             delta_x[20+d+s] = col_eps;
             // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
             _jacobianOplusXi(0, 20+d+s) +=  hand_speed * (e_up - e_down) / (2*col_eps); //
             jacobian_way_1(0, 20+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
             jacobian_way_2(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
@@ -1582,8 +1588,8 @@ void MyUnaryConstraints::linearizeOplus()
       }
 
       // std::cout << "2 - jacobian = " << _jacobianOplusXi << std::endl;
-      // std::cout << "2 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
-      // std::cout << "2 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
+      std::cout << "2 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
+      std::cout << "2 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
 
        // for debug
       debug = isnan(_jacobianOplusXi.norm());
@@ -1801,7 +1807,7 @@ void MyUnaryConstraints::linearizeOplus()
           double a;
         }
       }
-      // std::cout << "debug: 1 - jacobian = " << _jacobianOplusXi << std::endl;
+      std::cout << "debug: 1 - jacobian = " << _jacobianOplusXi << std::endl;
       
      
       // process the second link
@@ -1894,7 +1900,7 @@ void MyUnaryConstraints::linearizeOplus()
         }
 
       }
-      // std::cout << "debug: 2 - jacobian = " << _jacobianOplusXi << std::endl;
+      std::cout << "debug: 2 - jacobian = " << _jacobianOplusXi << std::endl;
 
     } // END of calculating collision jacobian for optimization
   }
@@ -1938,7 +1944,8 @@ void MyUnaryConstraints::linearizeOplus()
 
 }
 
-double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
+/* Check the minimum distance between the specified two links */
+double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, std::string link_name_1, std::string link_name_2, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
 {
   // convert from matrix to std::vector
   std::vector<double> x(JOINT_DOF);
@@ -1960,7 +1967,16 @@ double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOIN
   // {
     // check hands 
    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-    min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_hands", d_hand_check); 
+    min_distance = dual_arm_dual_hand_collision_ptr->compute_two_links_distance(x, link_name_1, link_name_2, d_hand_check);
+                                                    //compute_self_distance_test(x, "dual_hands", d_hand_check); 
+    if (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 ||
+        dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_2) 
+        min_distance = d_hand_safe; // if collision pair is changed, then the collision between the original two links is resolved !!!
+
+    std::cout << "debug: Possible collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] 
+              << " and " << dual_arm_dual_hand_collision_ptr->link_names[1] << std::endl;
+    std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+
    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
    std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
     total_col += t_spent.count();
@@ -1971,7 +1987,7 @@ double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOIN
   // {
   //   cost = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
   // }
-    
+   
 
   cost = K_COL * cost; // weighting...
 

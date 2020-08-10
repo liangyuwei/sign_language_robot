@@ -53,6 +53,7 @@ class DualArmDualHandCollision
     double compute_self_distance(const std::vector<double> q_in);
 
     double compute_self_distance_test(const std::vector<double> q_in, std::string group_name, double distance_threshold);
+    double compute_two_links_distance(const std::vector<double> q_in, std::string link_name_1, std::string link_name_2, double distance_threshold);
 
     double compute_world_distance(const std::vector<double> q_in);
     // planning_scene.distanceToCollision??? --> no such API in my knowledge
