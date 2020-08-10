@@ -582,12 +582,12 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
   
     virtual void oplusImpl(const double *update) // update rule
     {
-      for (unsigned int i = 0; i < JOINT_DOF; ++i)
+      for (unsigned int i = 0; i < JOINT_DOF; i++)
       {
         _estimate[i] += update[i];//Map<Matrix<double, JOINT_DOF, 1> >(update, JOINT_DOF, 1);
-        last_update(i, 0) = update[i]; // record updates
+        last_update[i] = update[i]; // record updates
       }
-
+      // std::cout << "Current updates on q = " << last_update.transpose() << std::endl << std::endl;
     }
 
 
@@ -1233,7 +1233,7 @@ void MyUnaryConstraints::linearizeOplus()
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double e_cur;
   double speed = 1.0;//1000.0;//10.0;//1.0;//100.0;//1.0;//10.0;//50.0;//100.0;//10.0;//1.0;//0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
-  double hand_speed = 1.0;//100.0; //500.0;//200.0;//10.0;//1.0;//400.0;//200.0;//100.0;// 1.0; // for collision between links belonging to the same hand !!!
+  double hand_speed = 100.0;//1.0;//100.0; //500.0;//200.0;//10.0;//1.0;//400.0;//200.0;//100.0;// 1.0; // for collision between links belonging to the same hand !!!
   double min_distance;
   // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -1917,7 +1917,7 @@ void MyUnaryConstraints::linearizeOplus()
   // record col jacobians
   col_jacobians = _jacobianOplusXi.transpose();
 
-  
+  // std::cout << "Current Col jacobian = " << _jacobianOplusXi << std::endl;
 
   // debug:
   /*
@@ -5043,9 +5043,9 @@ int main(int argc, char *argv[])
   
   // Sets of selectable coefficients
   // Matrix<double, 20, 1> K_COL_set; K_COL_set << 0.0, 0.1, 0.5, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  Matrix<double, 21, 1> K_COL_set; K_COL_set[0] = 0.0;
+  Matrix<double, 32, 1> K_COL_set; K_COL_set[0] = 0.0;
   double k_col_init = 0.1;
-  for (unsigned int s = 0; s < 20; s++)
+  for (unsigned int s = 0; s < 31; s++)
   {
     K_COL_set[s+1] = k_col_init;
     k_col_init = k_col_init * 1.5;
@@ -5053,9 +5053,22 @@ int main(int argc, char *argv[])
   
   // Matrix<double, 2, 1> K_COL_set; K_COL_set << 0.0, 1.0;
   //K_COL_set = K_COL_set * 10; // set large penalty coefficient for bound (starts from colliding-free state?)
-  Matrix<double, 10, 1> K_POS_LIMIT_set; K_POS_LIMIT_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  Matrix<double, 10, 1> K_SMOOTHNESS_set; K_SMOOTHNESS_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  
+  double k_pos_limit_init = 0.1;
+  Matrix<double, 15, 1> K_POS_LIMIT_set; //K_POS_LIMIT_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  for (unsigned int s = 0; s < 15; s++)
+  {
+    K_POS_LIMIT_set[s] = k_pos_limit_init;
+    k_pos_limit_init = k_pos_limit_init * 1.5;
+  }
+  double k_smoothness_init = 0.1;
+  Matrix<double, 15, 1> K_SMOOTHNESS_set; //K_SMOOTHNESS_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  for (unsigned int s = 0; s < 15; s++)
+  {
+    K_SMOOTHNESS_set[s] = k_smoothness_init;
+    k_smoothness_init = k_smoothness_init * 1.5;
+  }
+
+
   Matrix<double, 10, 1> K_WRIST_POS_set; K_WRIST_POS_set << 0.1, 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0;
   Matrix<double, 10, 1> K_WRIST_ORI_set; K_WRIST_ORI_set << 0.1, 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0;
   Matrix<double, 10, 1> K_ELBOW_POS_set; K_ELBOW_POS_set << 0.1, 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0;
@@ -5355,13 +5368,13 @@ int main(int argc, char *argv[])
         wrist_ori_cost_before_optim += wrist_ori_cost[s];  
 
 
-      // Reset K_COL, K_POS_LIMIT and K_SMOOTHNESS
+      // Reset K_COL, K_POS_LIMIT and K_SMOOTHNESS (maybe it's ok to keep them after the inner loop finishes, so as to reduce time usage)
       id_k_col = 0;
       id_k_pos_limit = 0;
       id_k_smoothness = 0;
 
 
-      // Reset/Use initial trajector computed by TRAC-IK
+      // Reset/Use initial trajector computed by TRAC-IK (maybe keep it for faster tracking)
       for (unsigned int id = 0; id < NUM_DATAPOINTS; id++)
         (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_trac_ik[id]); // assign to the current q vertex
 
@@ -5736,9 +5749,9 @@ int main(int argc, char *argv[])
       // Check if better than current best
       // Check if the best result from wrist pos+ori loop satisfies the bounds
       std::cout << ">>>> Evaluating feasibility of the processed paths..." << std::endl;
-      if (col_cost_after_optim <= col_cost_bound && 
-          pos_limit_cost_after_optim <= pos_limit_bound && 
-          smoothness_cost_after_optim <= smoothness_bound) // if satisfying constraints (there may be no need for smoothness cost to be bounded..)
+      if (col_cost_after_optim <= col_cost_bound)// &&  // relax a few
+          //pos_limit_cost_after_optim <= pos_limit_bound && 
+          //smoothness_cost_after_optim <= smoothness_bound) // if satisfying constraints (there may be no need for smoothness cost to be bounded..)
       {
         std::cout << "Feasible paths !!!" << std::endl;
         // check if better than the history-best result
