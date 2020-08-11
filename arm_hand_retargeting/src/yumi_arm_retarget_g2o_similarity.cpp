@@ -5043,9 +5043,9 @@ int main(int argc, char *argv[])
   
   // Sets of selectable coefficients
   // Matrix<double, 20, 1> K_COL_set; K_COL_set << 0.0, 0.1, 0.5, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  Matrix<double, 32, 1> K_COL_set; K_COL_set[0] = 0.0;
+  Matrix<double, 35, 1> K_COL_set; K_COL_set[0] = 0.0;
   double k_col_init = 0.1;
-  for (unsigned int s = 0; s < 31; s++)
+  for (unsigned int s = 0; s < 34; s++)
   {
     K_COL_set[s+1] = k_col_init;
     k_col_init = k_col_init * 1.5;
@@ -5346,9 +5346,7 @@ int main(int argc, char *argv[])
 
       // Report condition
       std::cout << ">>>> Outer loop: adjust K_WRIST_POS, K_WRIST_ORI and K_ELBOW_POS." << std::endl;
-      std::cout << "(Main) Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS_set[id_k_elbow_pos] << std::endl;
-      std::cout << "(Main) Current coefficient: K_WRIST_POS = " << K_WRIST_POS_set[id_k_wrist_pos] << std::endl;
-      std::cout << "(Main) Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI_set[id_k_wrist_ori] << std::endl;
+
 
       // Evaluate cost before optimization
       // elbow pos
@@ -5369,14 +5367,14 @@ int main(int argc, char *argv[])
 
 
       // Reset K_COL, K_POS_LIMIT and K_SMOOTHNESS (maybe it's ok to keep them after the inner loop finishes, so as to reduce time usage)
-      id_k_col = 0;
-      id_k_pos_limit = 0;
-      id_k_smoothness = 0;
+      // id_k_col = 0;
+      // id_k_pos_limit = 0;
+      // id_k_smoothness = 0;
 
 
       // Reset/Use initial trajector computed by TRAC-IK (maybe keep it for faster tracking)
-      for (unsigned int id = 0; id < NUM_DATAPOINTS; id++)
-        (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_trac_ik[id]); // assign to the current q vertex
+      // for (unsigned int id = 0; id < NUM_DATAPOINTS; id++)
+      //   (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_trac_ik[id]); // assign to the current q vertex
 
 
       do // Inner loop
@@ -5412,7 +5410,7 @@ int main(int argc, char *argv[])
 
         // Report current condition
         std::cout << ">>>> Inner loop: adjust K_COL, K_POS_LIMIT and K_SMOOTHNESS." << std::endl;
-        std::cout << "(Main) Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
+        std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
         std::cout << "Costs before optimization: col_cost = " << col_cost_before_optim << ", pos_limit_cost = " << pos_limit_cost_before_optim << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl;
         std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
         std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
@@ -5749,7 +5747,8 @@ int main(int argc, char *argv[])
       // Check if better than current best
       // Check if the best result from wrist pos+ori loop satisfies the bounds
       std::cout << ">>>> Evaluating feasibility of the processed paths..." << std::endl;
-      if (col_cost_after_optim <= col_cost_bound)// &&  // relax a few
+      if (col_cost_after_optim <= col_cost_bound || 
+          col_cost_after_optim <= best_col_cost)// &&  // relax a few
           //pos_limit_cost_after_optim <= pos_limit_bound && 
           //smoothness_cost_after_optim <= smoothness_bound) // if satisfying constraints (there may be no need for smoothness cost to be bounded..)
       {
