@@ -76,16 +76,16 @@
 #define NUM_DATAPOINTS 50 //100 // pre-defined, fixed
 
 // Declare global variables for coefficients
-double K_COL = 10.0;
-double K_POS_LIMIT = 10.0;
-double K_WRIST_ORI = 3.0;
-double K_WRIST_POS = 3.0;
-double K_ELBOW_POS = 3.0;
-double K_FINGER = 3.0;
-double K_SMOOTHNESS = 1.0;
-double K_DMPSTARTSGOALS = 1.0;
-double K_DMPSCALEMARGIN = 1.0;
-double K_DMPRELCHANGE = 1.0;
+double K_COL;
+double K_POS_LIMIT;
+double K_WRIST_ORI;
+double K_WRIST_POS;
+double K_ELBOW_POS;
+double K_FINGER;
+double K_SMOOTHNESS;
+double K_DMPSTARTSGOALS;
+double K_DMPSCALEMARGIN;
+double K_DMPRELCHANGE;
 
 // bool collision_check_or_distance_compute = true;
 
@@ -576,32 +576,31 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    /*
-    DualArmDualHandVertex(const std::vector<double> _q_l_arm_lb, const std::vector<double> _q_l_arm_ub, 
-                          const std::vector<double> _q_r_arm_lb, const std::vector<double> _q_r_arm_ub, 
-                          const std::vector<double> _q_l_finger_lb, const std::vector<double> _q_l_finger_ub, 
-                          const std::vector<double> _q_r_finger_lb, const std::vector<double> _q_r_finger_ub)
+    void set_bounds(const std::vector<double> _q_l_arm_lb, const std::vector<double> _q_l_arm_ub, 
+                    const std::vector<double> _q_r_arm_lb, const std::vector<double> _q_r_arm_ub, 
+                    const std::vector<double> _q_l_finger_lb, const std::vector<double> _q_l_finger_ub, 
+                    const std::vector<double> _q_r_finger_lb, const std::vector<double> _q_r_finger_ub)
     {
       // DOF Order: Left Arm -> Right Arm -> Left Hand -> Right Hand
       
       // Lower bounds
       q_lb = _q_l_arm_lb;
-      q_lb.inset(q_lb.end(), _q_r_arm_lb.cbegin(), _q_r_arm_lb.cend());
-      q_lb.inset(q_lb.end(), _q_l_finger_lb.cbegin(), _q_l_finger_lb.cend());
-      q_lb.inset(q_lb.end(), _q_r_finger_lb.cbegin(), _q_r_finger_lb.cend());
+      q_lb.insert(q_lb.end(), _q_r_arm_lb.cbegin(), _q_r_arm_lb.cend());
+      q_lb.insert(q_lb.end(), _q_l_finger_lb.cbegin(), _q_l_finger_lb.cend());
+      q_lb.insert(q_lb.end(), _q_r_finger_lb.cbegin(), _q_r_finger_lb.cend());
 
       // Upper bounds
       q_ub = _q_l_arm_ub;
-      q_ub.inset(q_ub.end(), _q_r_arm_ub.cbegin(), _q_r_arm_ub.cend());
-      q_ub.inset(q_ub.end(), _q_l_finger_ub.cbegin(), _q_l_finger_ub.cend());
-      q_ub.inset(q_ub.end(), _q_r_finger_ub.cbegin(), _q_r_finger_ub.cend());
+      q_ub.insert(q_ub.end(), _q_r_arm_ub.cbegin(), _q_r_arm_ub.cend());
+      q_ub.insert(q_ub.end(), _q_l_finger_ub.cbegin(), _q_l_finger_ub.cend());
+      q_ub.insert(q_ub.end(), _q_r_finger_ub.cbegin(), _q_r_finger_ub.cend());
 
     }
 
     // pos limit bounds
     std::vector<double> q_lb, q_ub;
     double amount_out_of_bound;
-    */
+  
 
     virtual void setToOriginImpl() // reset
     {
@@ -611,17 +610,25 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
 
     virtual void oplusImpl(const double *update) // update rule
     {
-      // amount_out_of_bound = 0.0;
-      // double ori;
+      // check
+      if (q_lb.empty() || q_ub.empty())
+      {
+        std::cerr << "Error: Lower or Upper bounds of joint angles are not set. Did you forget to pass in bounds info?" << std::endl;
+        exit(-1);
+      }
+
+      // set updates
+      amount_out_of_bound = 0.0;
+      double ori;
       for (unsigned int i = 0; i < JOINT_DOF; i++)
       {
         // asssign updates
         _estimate[i] += update[i];
         
         // resolve position limits
-        // ori = _estimate[i];
-        // _estimate[i] = std::max(std::min(_estimate[i], q_ub[i]), q_lb[i]);
-        // amount_out_of_bound += std::fabs(_estimate[i] - ori); // amount of out-of-bounds
+        ori = _estimate[i];
+        _estimate[i] = std::max(std::min(_estimate[i], q_ub[i]), q_lb[i]);
+        amount_out_of_bound += std::fabs(_estimate[i] - ori); // amount of out-of-bounds
 
         // store for debug
         last_update[i] = update[i]; // record updates
@@ -1068,6 +1075,10 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     // for computing collision updates
     Eigen::MatrixXd compute_col_q_update(Eigen::MatrixXd jacobian, Eigen::Vector3d dx, double speed);
 
+    // for solving colliding state
+    std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur);
+    Eigen::Matrix<double, JOINT_DOF, 1> resolve_point_collisions(Eigen::Matrix<double, JOINT_DOF, 1> q_cur, double col_eps); // called in resolve_path_collisions() to resolve colliding state for each path point
+  
 
     // Read and write, leave blank
     virtual bool read( std::istream& in ) {return true;}
@@ -1075,6 +1086,7 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
 
     // Re-implement linearizeOplus for jacobians calculation
     virtual void linearizeOplus();
+
 
     Matrix<double, JOINT_DOF, 1> col_jacobians = Matrix<double, JOINT_DOF, 1>::Zero();
     Matrix<double, JOINT_DOF, 1> pos_limit_jacobians;
@@ -1123,7 +1135,7 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
 
   // prep
   Eigen::Matrix<double, 6, 1> d_pos_ori = Eigen::Matrix<double, 6, 1>::Zero();
-  d_pos_ori.block(0, 0, 3, 1) = -speed * d_pos;// //d_pos; // the jacobian computed should be at the direction that cost increases, here d_pos is the direction for cost to decrease.
+  d_pos_ori.block(0, 0, 3, 1) = speed * d_pos;// //d_pos; // the jacobian computed should be at the direction that cost increases, here d_pos is the direction for cost to decrease.
   unsigned int num_cols = jacobian.cols();
   Eigen::MatrixXd d_q;
 
@@ -1985,6 +1997,574 @@ void MyUnaryConstraints::linearizeOplus()
   */
 
 }
+
+
+/* This function takes in the q results of TRAC-IK, and solves collision state via robot jacobians.(based on minimum distance) */
+std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> MyUnaryConstraints::resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur)
+{
+  // Prep
+  double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
+  // double speed = 1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
+  // double hand_speed = 100.0; // for collision between links belonging to the same hand !!!
+  // double min_distance;
+
+  // Iterate to resolve collision
+  for (unsigned int n = 0; n < q_cur.size(); n++)
+  {
+    std::cout << ">> Processing point " << (n+1) << "/" << q_cur.size() << " ..." << std::endl;
+    q_cur[n] = resolve_point_collisions(q_cur[n], col_eps);    
+
+  }
+
+  // iterate to calculate pos_limit jacobians
+  // double e_plus, e_minus;
+  // for (unsigned int d = 0; d < JOINT_DOF; d++)
+  // {
+    
+  //   // 2 - Position Limit
+  //   delta_x[d] = pos_limit_eps;
+  //   e_plus = compute_pos_limit_cost(x+delta_x, _measurement);
+  //   e_minus = compute_pos_limit_cost(x-delta_x, _measurement);
+  //   _jacobianOplusXi(0, d) += K_POS_LIMIT * (e_plus - e_minus) / (2*pos_limit_eps);
+  //   pos_limit_jacobians[d] = K_POS_LIMIT * (e_plus - e_minus) / (2*pos_limit_eps);
+
+  //   whole_jacobians[d] = _jacobianOplusXi(0, d);
+
+  //   // Reset
+  //   delta_x[d] = 0.0;
+  // }
+
+  return q_cur;
+
+}
+
+
+/* Resolve collision state of a path point through iteration with robot jacobians.
+ * col_eps is the step for computing numerical differentiation for finger joints.
+ */
+Eigen::Matrix<double, JOINT_DOF, 1> MyUnaryConstraints::resolve_point_collisions(Eigen::Matrix<double, JOINT_DOF, 1> x, double col_eps)
+{
+  // Prep
+  double e_cur;
+  Eigen::Matrix<double, JOINT_DOF, 1> delta_x = Eigen::Matrix<double, JOINT_DOF, 1>::Zero();
+
+  // Convert data type
+  std::vector<double> xx(JOINT_DOF);
+  for (unsigned int i = 0; i < JOINT_DOF; ++i)
+    xx[i] = x[i];
+
+  // Check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  double min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(xx, "dual_arms", d_arm_check); 
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_col += t_spent.count();
+  count_col++;
+  // if *dual_arms* group does not satisfy safety requirement, the lastest distance result would be used directly
+  // if not, *dual_hands* group would be checked and overwriting the last distance result
+  if (min_distance > d_arm_safe) // arm safe
+  {
+    // check hands 
+    t0 = std::chrono::steady_clock::now();
+    min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(xx, "dual_hands", d_hand_check); 
+    t1 = std::chrono::steady_clock::now();
+    t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+    total_col += t_spent.count();
+    count_col++;
+    e_cur = std::max(d_hand_safe - min_distance, 0.0);
+  }
+  else
+  {
+    e_cur = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
+  }
+    
+
+  // Compute updates
+  unsigned int cur_iter = 0;
+  unsigned int max_iter = 500;
+  double scale = 0.001; //1.0; // scale for [dx,dy,dz,dp,dq,dw] Cartesian updates; shouldn't be too large
+  double hand_scale = 1.0; // should be set appropriately
+  while(e_cur > 0.0 && cur_iter < max_iter) // in collision state or within safety of margin; and within the maximum number of iterations
+  {
+    // Initialize updates
+    Matrix<double, 1, JOINT_DOF> dx = Matrix<double, 1, JOINT_DOF>::Zero();
+
+    // Get collision information
+    int group_id_1 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[0]);
+    int group_id_2 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[1]);
+    std::string link_name_1 = dual_arm_dual_hand_collision_ptr->link_names[0];
+    std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
+
+    // Info
+    std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
+    std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+
+    // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
+    Eigen::Vector3d link_pos_1 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_1);
+    Eigen::Vector3d link_pos_2 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_2);
+    Eigen::Vector3d ref_point_pos_1 = dual_arm_dual_hand_collision_ptr->nearest_points[0] - link_pos_1;
+    Eigen::Vector3d ref_point_pos_2 = dual_arm_dual_hand_collision_ptr->nearest_points[1] - link_pos_2;    
+
+    // Compute updates under different situation
+    if ((group_id_1 == 0 && group_id_2 == 0) || (group_id_1 == 0 && group_id_2 == 1) || (group_id_1 == 1 && group_id_2 == 0) || (group_id_1 == 1 && group_id_2 == 1) ) // collision between arm and arm (could be the same), update only q_arm
+    {
+      // determine left or right
+      bool left_or_right_1 = (group_id_1 == 0); 
+      bool left_or_right_2 = (group_id_2 == 0);
+
+      // compute jacobians (for arms) - return is 6 x 7, 6 for instantaneous pos/ori ([dx, dy, dz, dp, dq, dw])
+      Eigen::MatrixXd jacobian_1 = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_1, ref_point_pos_1, left_or_right_1);
+      Eigen::MatrixXd jacobian_2 = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_2, ref_point_pos_2, left_or_right_2);  
+      
+      // note that .normal is the normalized vector pointing from link_names[0] to link_names[1]; output is column vector with size N x 1
+      Eigen::MatrixXd dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, scale);
+      Eigen::MatrixXd dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, scale);
+
+      // assign jacobians for collision cost
+      // first link
+      if (left_or_right_1)
+        dx.block(0, 0, 1, 7) += dq_col_update_1.transpose();
+      else
+        dx.block(0, 7, 1, 7) += dq_col_update_1.transpose();
+      std::cout << "1 - jacobian = " << dx << std::endl;
+
+      // second link
+      if (left_or_right_2)
+        dx.block(0, 0, 1, 7) += dq_col_update_2.transpose();
+      else
+        dx.block(0, 7, 1, 7) += dq_col_update_2.transpose();
+      std::cout << "2 - jacobian = " << dx << std::endl;
+
+    }
+    else if ((group_id_1 == 2 && group_id_2 == 2) || (group_id_1 == 3 && group_id_2 == 3) ) // collision between hand and hand (the same one), update only q_finger
+    {
+      // prep
+      bool left_or_right = (group_id_1 == 2);
+      int finger_id_1 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_1, left_or_right);
+      int finger_id_2 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right);
+
+      // assign jacobians for collision cost
+      unsigned int d = left_or_right ? 0 : 12;
+      double e_up, e_down;
+      // first link
+      switch (finger_id_1)
+      {
+        case 0: // thumb
+          for (unsigned int s = 0; s < 4; s++)
+          {
+            // set
+            delta_x[22+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 22+d+s) += hand_scale * (e_up - e_down) / (2*col_eps); //
+            // reset
+            delta_x[22+d+s] = 0.0;
+          }
+          break;
+        case 1: //index
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[14+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 14+d+s) += hand_scale * (e_up - e_down) / (2*col_eps); //
+            // reset
+            delta_x[14+d+s] = 0.0;
+          }
+          break;
+        case 2: //middle
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[16+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 16+d+s) += hand_scale * (e_up - e_down) / (2*col_eps); //
+            // reset
+            delta_x[16+d+s] = 0.0;
+          }
+          break;
+        case 3: // ring
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[18+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 18+d+s) += hand_scale * (e_up - e_down) / (2*col_eps); //
+            // reset
+            delta_x[18+d+s] = 0.0;
+          }
+          break;
+        case 4: // little
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[20+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 20+d+s) += hand_scale * (e_up - e_down) / (2*col_eps); //
+            // reset
+            delta_x[20+d+s] = 0.0;
+          }
+          break;
+        case -1: // palm, do nothing
+          break;
+        default:
+          std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
+          exit(-1);
+          break;
+      }
+
+      // second link
+      switch (finger_id_2)
+      {
+        case 0: // thumb
+          for (unsigned int s = 0; s < 4; s++)
+          {
+            // set
+            delta_x[22+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 22+d+s) += hand_scale * (e_up - e_down) / (2*col_eps); //
+            // reset
+            delta_x[22+d+s] = 0.0;
+          }
+          break;
+        case 1: //index
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[14+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 14+d+s) += hand_scale * (e_up - e_down) / (2*col_eps); //
+            // reset
+            delta_x[14+d+s] = 0.0;
+          }
+          break;
+        case 2: //middle
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[16+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 16+d+s) += hand_scale * (e_up - e_down) / (2*col_eps); //
+            // reset
+            delta_x[16+d+s] = 0.0;
+          }
+          break;
+        case 3: // ring
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[18+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 18+d+s) += hand_scale * (e_up - e_down) / (2*col_eps); // 
+            // reset
+            delta_x[18+d+s] = 0.0;
+          }
+          break;
+        case 4: // little
+          for (unsigned int s = 0; s < 2; s++)
+          {
+            // set
+            delta_x[20+d+s] = col_eps;
+            // compute
+            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+            dx(0, 20+d+s) +=  hand_scale * (e_up - e_down) / (2*col_eps); //
+            // reset
+            delta_x[20+d+s] = 0.0;
+          }
+          break;
+        case -1: // palm, do nothing
+          break;
+        default:
+          std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
+          exit(-1);
+          break;
+      }
+
+      // update in the direction opposite to gradient !!!
+      dx = -dx;
+
+    }
+    else if (group_id_1 == -1 || group_id_2 == -1) // one of the object doesn't belong to arms or hands, update only one arm+hand
+    {
+      // just in case
+      if (group_id_1 == -1 && group_id_2 == -1)
+      {
+        std::cerr << "Error: Something might be wrong, both links in collision do not belong to arms or hands, which should never happen.." << std::endl;
+        exit(-1);
+      }
+
+      // prep
+      int group_id = (group_id_1 == -1) ? group_id_2 : group_id_1;
+      std::string link_name = (group_id_1 == -1) ? link_name_2 : link_name_1;
+      Eigen::Vector3d ref_point_pos = (group_id_1 == -1) ? ref_point_pos_2 : ref_point_pos_1;
+      Eigen::MatrixXd jacobian;
+      Eigen::MatrixXd dq_col_update;
+
+      // decide if the link is arm or finger
+      if (group_id == 2 || group_id == 3) // hand (should update for arm+hand group)
+      {
+        // compute robot jacobians
+        bool left_or_right = (group_id == 2);
+        int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name, left_or_right);
+        if (finger_id != -1) // if not palm group !!!
+        {
+          jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name, ref_point_pos, finger_id, left_or_right);
+          double direction = (group_id_1 == -1) ? 1.0 : -1.0;
+          dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, scale);
+        }
+
+        // arm part updates
+        unsigned int d_arm = left_or_right ? 0 : 7;
+        dx.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
+        
+        // hand part updates
+        unsigned int d_hand = left_or_right ? 0 : 12;
+        switch (finger_id)
+        {
+          case 0: // thummb
+            dx.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
+            break;
+          case 1: //index
+            dx.block(0, 14 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case 2: //middle
+            dx.block(0, 16 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case 3: // ring
+            dx.block(0, 18 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case 4: // little
+            dx.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case -1: // palm, do nothing
+            break;
+          default:
+            std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
+            exit(-1);
+            break;
+        }
+      }
+      else // arm (update only for arm group)
+      {
+        // compute robot jacobians
+        bool left_or_right = (group_id == 0);
+        jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name, ref_point_pos, left_or_right);
+        
+        // compute updates
+        double direction = (group_id_1 == -1) ? 1.0 : -1.0;
+        dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, scale);
+
+        // arm part updates
+        unsigned int d_arm = left_or_right ? 0 : 7;
+        dx.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
+      }  
+
+    }
+    else // all the other conditions, update both q_arm and q_finger ()
+    {
+      // prep
+      bool left_or_right_1 = ( (group_id_1 == 0) || (group_id_1 == 2) );
+      bool left_or_right_2 = ( (group_id_2 == 0) || (group_id_2 == 2) );
+ 
+      // process the first link
+      if (group_id_1 == 2 || group_id_1 == 3) // hand, should calculate robot jacobian for arm+hand group
+      {
+        // prep
+        int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_1, left_or_right_1);
+
+        // compute robot jacobian for arm+hand group and compute updates
+        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_1, ref_point_pos_1, finger_id, left_or_right_1);
+        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, scale);                                                                                  
+
+        // arm part updates
+        unsigned int d_arm = left_or_right_1 ? 0 : 7;
+        dx.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
+        
+        // hand part updates
+        unsigned int d_hand = left_or_right_1 ? 0 : 12;
+        switch (finger_id)
+        {
+          case 0: // thummb
+            dx.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
+            break;
+          case 1: //index
+            dx.block(0, 14 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case 2: //middle
+            dx.block(0, 16 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case 3: // ring
+            dx.block(0, 18 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case 4: // little
+            dx.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case -1: // palm, zero updates would be provided for finger joints, but the size is in consistent with little finger_group since it's used in get_robot_arm_hand_jacobian()
+            dx.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          default:
+            std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
+            exit(-1);
+            break;
+        }
+      }
+      else // 0 or 1, arm, should calculate robot jacobian for arm group
+      {
+        // compute robot jacobian for arm group
+        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_1, ref_point_pos_1, left_or_right_1);
+        
+        // compute updates
+        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, scale);
+
+        // arm part updates
+        unsigned int d_arm = left_or_right_1 ? 0 : 7;
+        dx.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
+      }
+    
+      // process the second link
+      if (group_id_2 == 2 || group_id_2 == 3) // hand, should calculate robot jacobian for arm+hand group
+      {
+        // prep
+        int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right_2);
+
+        // compute robot jacobian for arm+hand group
+        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_2, ref_point_pos_2, finger_id, left_or_right_2);
+
+        // compute updates
+        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, scale);
+      
+        // arm part updates
+        unsigned int d_arm = left_or_right_2 ? 0 : 7;
+        dx.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
+
+        // hand part updates
+        unsigned int d_hand = left_or_right_2 ? 0 : 12;
+        switch (finger_id)
+        {
+          case 0: // thummb
+            dx.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
+            break;
+          case 1: //index
+            dx.block(0, 14 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case 2: //middle
+            dx.block(0, 16 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case 3: // ring
+            dx.block(0, 18 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case 4: // little
+            dx.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          case -1: // palm, zero updates would be provided for finger joints, but the size is in consistent with little finger_group since it's used in get_robot_arm_hand_jacobian()
+            dx.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+            break;
+          default:
+            std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
+            exit(-1);
+            break;
+        }
+      }
+      else // 0 or 1, arm, should calculate robot jacobian for arm group
+      {
+        // compute robot jacobian for arm group
+        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_2, ref_point_pos_2, left_or_right_2);
+        
+        // compute updates
+        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, scale);
+
+        // arm part updates
+        unsigned int d_arm = left_or_right_2 ? 0 : 7;
+        dx.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
+      }
+      
+    } // END of calculating collision jacobian for optimization
+
+
+    // Update the q joint values
+    x = x + dx.transpose();
+    std::cout << "dx = " << dx << std::endl;
+
+    // cope with position limit bounds
+    double amount_out_of_bound = 0.0;
+    for (unsigned int i = 0; i < JOINT_DOF; i++)
+    {
+      double tmp = std::min(std::max(x[i], _measurement.q_pos_lb[i]), _measurement.q_pos_ub[i]);
+      amount_out_of_bound += std::fabs(x[i] - tmp);
+      x[i] = tmp;//std::min(std::max(x[i], _measurement.q_pos_lb[i]), _measurement.q_pos_ub[i]);
+    }
+    std::cout << "amount of out-of-bounds = " << amount_out_of_bound << std::endl;
+
+    // convert to std::vector<double> 
+    for (unsigned int i = 0; i < JOINT_DOF; i++)
+      xx[i] = x[i];
+
+    // Check again, see if collision-free and within safety of margin
+    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+    double min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(xx, "dual_arms", d_arm_check); 
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+    total_col += t_spent.count();
+    count_col++;
+    if (min_distance > d_arm_safe) // arm safe
+    {
+      // check hands 
+      t0 = std::chrono::steady_clock::now();
+      min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(xx, "dual_hands", d_hand_check); 
+      t1 = std::chrono::steady_clock::now();
+      t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+      total_col += t_spent.count();
+      count_col++;
+      e_cur = std::max(d_hand_safe - min_distance, 0.0);
+    }
+    else
+    {
+      e_cur = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
+    }
+
+    std::cout << "debug: current e_cur = " << e_cur << std::endl << std::endl;
+
+
+    // counter
+    cur_iter++;
+
+    // Check terminate condition
+    if (e_cur <= 0.0)
+      break;
+
+  } // END of while
+
+  std::cout << "Collision fix took " << cur_iter << "/" << max_iter << " rounds." << std::endl;
+
+  // Check the results
+  if (e_cur <= 0.0)
+    std::cout << "Successfully resolve this collision!!!" << std::endl;
+  else
+    std::cerr << "Failed to resolve collision state of this path point... " << std::endl;
+
+  
+  return x;
+
+}
+
 
 /* Check the minimum distance between the specified two links */
 double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, std::string link_name_1, std::string link_name_2, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
@@ -4917,6 +5497,9 @@ int main(int argc, char *argv[])
     // add vertices
     //DualArmDualHandVertex *v = new DualArmDualHandVertex();
     v_list[it] = new DualArmDualHandVertex();
+    v_list[it]->set_bounds(q_l_arm_lb, q_l_arm_ub, q_r_arm_lb, q_r_arm_ub, 
+                           q_l_finger_lb, q_l_finger_ub, q_r_finger_lb, q_r_finger_ub); // set bounds for restraining updates
+                                           
     
 
     v_list[it]->setEstimate(q_initial);
@@ -5217,6 +5800,8 @@ int main(int argc, char *argv[])
     double elbow_pos_cost_after_optim;
     double wrist_ori_cost_before_optim;
     double wrist_ori_cost_after_optim;
+    double finger_cost_before_optim;
+    double finger_cost_after_optim;
 
     double ftol = 0.5;//0.1;//0.01;//0.005; //0.001; // update tolerance
 
@@ -5372,6 +5957,184 @@ int main(int argc, char *argv[])
     DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
     best_q[s] = vertex_tmp->estimate();
   }
+
+
+  // Solve collision 
+  std::chrono::steady_clock::time_point t0_col_fix = std::chrono::steady_clock::now();  
+  std::vector<double> finger_cost_tmp = tracking_edge->return_finger_cost_history(); 
+  finger_cost_before_optim = 0.0;
+  for (unsigned s = 0; s < finger_cost_tmp.size(); s++)
+    finger_cost_before_optim += finger_cost_tmp[s];
+  // way 1 - use original LM to optimize for collision
+  /*
+  // set coefficients
+  id_k_col = 1; //0; // should start with the nonzero coefficient (all the coefficients can't be zero)
+  K_SMOOTHNESS = 0.0;
+  K_POS_LIMIT = 0.0;
+  K_WRIST_POS = 0.0;
+  K_WRIST_ORI = 0.0;
+  K_ELBOW_POS = 0.0;
+  K_FINGER = 0.0;
+  // iterate to optimize for collision
+  do 
+  {
+    K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
+    
+    // Evaluate costs before optimization
+    // collision counts
+    col_cost_before_optim = 0.0;
+    for (unsigned int t = 0; t < unary_edges.size(); t++)
+      col_cost_before_optim += unary_edges[t]->return_col_cost();
+    // pos_limit
+    pos_limit_cost_before_optim = 0.0;
+    for (unsigned int t = 0; t < unary_edges.size(); t++)
+      pos_limit_cost_before_optim += unary_edges[t]->return_pos_limit_cost();
+    // smoothness
+    smoothness_cost_before_optim = 0.0;
+    for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+      smoothness_cost_before_optim += smoothness_edges[t]->return_smoothness_cost();
+
+    // Report current condition
+    std::cout << ">>>> Collision Fix: adjust K_COL to resolve collision path points in TRAC-IK results " << std::endl;
+    std::cout << "Current coefficients: K_COL = " << K_COL << std::endl;
+    std::cout << "Costs before optimization: col_cost = " << col_cost_before_optim << ", pos_limit_cost = " << pos_limit_cost_before_optim << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl;
+
+    // optimize
+    std::cout << "Optimizing q..." << std::endl;
+    optimizer.optimize(20); 
+    
+    // Evaluate costs after optimization
+    col_cost_after_optim = 0.0;
+    for (unsigned int t = 0; t < unary_edges.size(); t++)
+      col_cost_after_optim += unary_edges[t]->return_col_cost();
+    // pos_limit
+    pos_limit_cost_after_optim = 0.0;
+    for (unsigned int t = 0; t < unary_edges.size(); t++)
+      pos_limit_cost_after_optim += unary_edges[t]->return_pos_limit_cost();
+    // smoothness
+    smoothness_cost_after_optim = 0.0;
+    for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+      smoothness_cost_after_optim += smoothness_edges[t]->return_smoothness_cost();
+
+    // Adjust K_COL
+    if (col_cost_after_optim > col_cost_bound && id_k_col <= K_COL_set.size() - 1 ) 
+    { 
+      if (col_cost_before_optim - col_cost_after_optim <= 2.0) // if it's not descending or not descending fast enough, increase the coefficient
+      {
+        if (id_k_col < K_COL_set.size() - 1)
+          std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << " ----> " << K_COL_set[id_k_col+1] << std::endl;
+        else
+          std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << " (Reached the end) " << std::endl;
+        id_k_col++; // move to next sample point
+      }
+      else
+      {
+        std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << std::endl;
+      }
+      std::cout << "Cost: col_cost = " << col_cost_before_optim << " ----> " << col_cost_after_optim 
+                                      << "(" << (col_cost_before_optim > col_cost_after_optim ? "-" : "+")
+                                      << std::abs(col_cost_before_optim - col_cost_after_optim) << ")" 
+                                      << " (bound: " << col_cost_bound << ")" << std::endl;
+    }
+    else
+    {
+      std::cout << "Coefficient: K_COL = " << K_COL << std::endl;
+      std::cout << "Cost: col_cost = " << col_cost_after_optim << " (bound: " << col_cost_bound << ")" << std::endl;
+    }
+
+  }while(id_k_col <= (K_COL_set.size()-1) && col_cost_after_optim > col_cost_bound);
+  // reset coefficient
+  id_k_col = 0;
+  K_FINGER = 1.0;
+  // statistics
+  std::vector<double> elbow_pos_cost_tmp = tracking_edge->return_elbow_pos_cost_history();           
+  elbow_pos_cost_after_optim = 0.0;
+  for (unsigned s = 0; s < elbow_pos_cost_tmp.size(); s++)
+    elbow_pos_cost_after_optim += elbow_pos_cost_tmp[s];
+  // wrist pos 
+  std::vector<double> wrist_pos_cost_tmp = tracking_edge->return_wrist_pos_cost_history();
+  wrist_pos_cost_after_optim = 0.0;
+  for (unsigned s = 0; s < wrist_pos_cost_tmp.size(); s++)
+    wrist_pos_cost_after_optim += wrist_pos_cost_tmp[s];
+  // wrist ori
+  std::vector<double> wrist_ori_cost_tmp = tracking_edge->return_wrist_ori_cost_history();
+  wrist_ori_cost_after_optim = 0.0;
+  for (unsigned s = 0; s < wrist_ori_cost_tmp.size(); s++)
+    wrist_ori_cost_after_optim += wrist_ori_cost_tmp[s];  
+  */
+
+  // way 2 - perform collision fix directly on q vertices
+  // process TRAC-IK results
+  K_COL = 1.0; // set collision checker on!!!
+  best_q = unary_edges[0]->resolve_path_collisions(best_q);
+  // assign to q vertices
+  for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+  {
+    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
+    vertex_tmp->setEstimate(best_q[s]);
+  }
+  // Evaluate costs
+  col_cost_after_optim = 0.0;
+  for (unsigned int t = 0; t < unary_edges.size(); t++)
+    col_cost_after_optim += unary_edges[t]->return_col_cost();
+  // pos_limit
+  pos_limit_cost_after_optim = 0.0;
+  for (unsigned int t = 0; t < unary_edges.size(); t++)
+    pos_limit_cost_after_optim += unary_edges[t]->return_pos_limit_cost();
+  // smoothness
+  smoothness_cost_after_optim = 0.0;
+  for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+    smoothness_cost_after_optim += smoothness_edges[t]->return_smoothness_cost();
+  // elbow pos
+  std::vector<double> elbow_pos_cost_tmp = tracking_edge->return_elbow_pos_cost_history();           
+  elbow_pos_cost_after_optim = 0.0;
+  for (unsigned s = 0; s < elbow_pos_cost_tmp.size(); s++)
+    elbow_pos_cost_after_optim += elbow_pos_cost_tmp[s];
+  // wrist pos 
+  std::vector<double> wrist_pos_cost_tmp = tracking_edge->return_wrist_pos_cost_history();
+  wrist_pos_cost_after_optim = 0.0;
+  for (unsigned s = 0; s < wrist_pos_cost_tmp.size(); s++)
+    wrist_pos_cost_after_optim += wrist_pos_cost_tmp[s];
+  // wrist ori
+  std::vector<double> wrist_ori_cost_tmp = tracking_edge->return_wrist_ori_cost_history();
+  wrist_ori_cost_after_optim = 0.0;
+  for (unsigned s = 0; s < wrist_ori_cost_tmp.size(); s++)
+    wrist_ori_cost_after_optim += wrist_ori_cost_tmp[s]; 
+  // finger pos
+  finger_cost_tmp = tracking_edge->return_finger_cost_history(); 
+  finger_cost_after_optim = 0.0;
+  for (unsigned s = 0; s < finger_cost_tmp.size(); s++)
+    finger_cost_after_optim += finger_cost_tmp[s];
+
+  std::chrono::steady_clock::time_point t1_col_fix = std::chrono::steady_clock::now();  
+  std::chrono::duration<double> t_spent_col_fix = std::chrono::duration_cast<std::chrono::duration<double>>(t1_col_fix - t0_col_fix);
+  
+  std::cout << ">>>> Collision fix done!" << std::endl;
+  std::cout << "Costs: col_cost = " << col_cost_after_optim << ", pos_limit_cost = " << pos_limit_cost_after_optim << ", smoothness_cost = " << smoothness_cost_after_optim << std::endl;
+  std::cout << "Costs: wrist_pos_cost = " << wrist_pos_cost_after_optim << std::endl;
+  std::cout << "Costs: wrist_ori_cost = " << wrist_ori_cost_after_optim << std::endl;
+  std::cout << "Costs: elbow_pos_cost = " << elbow_pos_cost_after_optim << std::endl;
+  std::cout << "Costs: finger_cost = " << finger_cost_after_optim << std::endl;  
+  std::cout << "Time spent for collision fix is " << t_spent_col_fix.count() << " s." << std::endl;
+
+  // store TRAC-IK result as the best for now
+  std::cout << "Storing Collision-fix results (as the best) for later comparison..." << std::endl;
+  best_dist = std::max(wrist_pos_cost_after_optim - wrist_pos_cost_bound, 0.0) / wrist_pos_cost_bound +
+              std::max(wrist_ori_cost_after_optim - wrist_ori_cost_bound, 0.0) / wrist_ori_cost_bound +
+              std::max(elbow_pos_cost_after_optim - elbow_pos_cost_bound, 0.0) / elbow_pos_cost_bound; 
+  best_wrist_pos_cost = wrist_pos_cost_after_optim;
+  best_wrist_ori_cost = wrist_ori_cost_after_optim;
+  best_elbow_pos_cost = elbow_pos_cost_after_optim;
+  best_col_cost = col_cost_after_optim;
+  best_pos_limit_cost = pos_limit_cost_after_optim;
+  best_smoothness_cost = smoothness_cost_after_optim;
+  // record the q values
+  for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+  {
+    DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
+    best_q[s] = vertex_tmp->estimate();
+  }
+
 
 
   // Start optimization, using different combinations of coefficients
