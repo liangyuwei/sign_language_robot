@@ -597,11 +597,22 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
 
     }
 
+
     // pos limit bounds
     std::vector<double> q_lb, q_ub;
     double amount_out_of_bound;
   
 
+    // Get collision checker 
+    // note that here we cannot initialize reference member in places other than initialization list (used in constructor)
+    // and thus this collision checker is not the same as those used in other edges, since it's passed by value instead of by reference
+    boost::shared_ptr<DualArmDualHandCollision> dual_arm_dual_hand_collision_ptr;
+    void set_collision_checker(boost::shared_ptr<DualArmDualHandCollision> _dual_arm_dual_hand_collision_ptr)
+    {
+      dual_arm_dual_hand_collision_ptr = _dual_arm_dual_hand_collision_ptr;
+    }
+    
+    // Other routine functions
     virtual void setToOriginImpl() // reset
     {
       _estimate << Matrix<double, JOINT_DOF, 1>::Zero();
@@ -610,31 +621,65 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
 
     virtual void oplusImpl(const double *update) // update rule
     {
-      // check
+      // Check if bounds are specified
       if (q_lb.empty() || q_ub.empty())
       {
         std::cerr << "Error: Lower or Upper bounds of joint angles are not set. Did you forget to pass in bounds info?" << std::endl;
         exit(-1);
       }
 
-      // set updates
-      amount_out_of_bound = 0.0;
+      // For collision checking
+      int num_intervals = 100; // number of intervals from current estimate to new estimate 
+
+      // Set updates and clamp by bounds
+      Matrix<double, JOINT_DOF, 1> cur_estimate = _estimate;
+      Matrix<double, JOINT_DOF, 1> new_estimate;
+      amount_out_of_bound = 0.0; // record amount of out-of-bound parts(which are clamped below)
       double ori;
       for (unsigned int i = 0; i < JOINT_DOF; i++)
       {
         // asssign updates
-        _estimate[i] += update[i];
-        
+        // _estimate[i] += update[i];
+        new_estimate[i] = cur_estimate[i] + update[i];
+
         // resolve position limits
-        ori = _estimate[i];
-        _estimate[i] = std::max(std::min(_estimate[i], q_ub[i]), q_lb[i]);
-        amount_out_of_bound += std::fabs(_estimate[i] - ori); // amount of out-of-bounds
+        // ori = _estimate[i];
+        // _estimate[i] = std::max(std::min(_estimate[i], q_ub[i]), q_lb[i]);
+        new_estimate[i] = std::max(std::min(new_estimate[i], q_ub[i]), q_lb[i]);
+        // amount_out_of_bound += std::fabs(_estimate[i] - ori); // amount of out-of-bounds
+        amount_out_of_bound += std::fabs(new_estimate[i] - cur_estimate[i]);
 
         // store for debug
         last_update[i] = update[i]; // record updates
       }
       // std::cout << "Current updates on q = " << last_update.transpose() << std::endl << std::endl;
       // std::cout << "Amount of out-of-bounds = " << amount_out_of_bound << std::endl;
+
+      // Collision avoidance
+      Matrix<double, JOINT_DOF, 1> tmp_estimate;
+      std::vector<double> tmp_estimate_vec(JOINT_DOF);
+      for(int n = 0; n < num_intervals; n++)
+      {
+        // Do collision checking from the end to the beginning
+        tmp_estimate = new_estimate - (double)n * (new_estimate - cur_estimate) / (double)num_intervals; 
+        
+        // convert to std::vector
+        for (unsigned int j = 0; j < JOINT_DOF; j++)
+          tmp_estimate_vec[j] = tmp_estimate[j];
+        
+        double result = dual_arm_dual_hand_collision_ptr->check_self_collision(tmp_estimate_vec);
+        std::cout << "debug: check interpolated point " << (n+1) << "/" << num_intervals << " : " << (result < 0.0 ? "collision-free" : "in-collision") << std::endl;
+  
+        // decide if it's ok
+        if (result < 0.0) // if collision free, use the current one (the first visited collision free state)
+          break;
+        else // if all in collision, just reject the updates and use the current state still
+          tmp_estimate = cur_estimate; 
+      }
+
+      // Assign processed estimates to _estimate for g2o
+      _estimate = tmp_estimate;
+
     }
 
 
@@ -5499,7 +5544,7 @@ int main(int argc, char *argv[])
     v_list[it] = new DualArmDualHandVertex();
     v_list[it]->set_bounds(q_l_arm_lb, q_l_arm_ub, q_r_arm_lb, q_r_arm_ub, 
                            q_l_finger_lb, q_l_finger_ub, q_r_finger_lb, q_r_finger_ub); // set bounds for restraining updates
-                                           
+    v_list[it]->set_collision_checker(dual_arm_dual_hand_collision_ptr); // set collision checker for use in OplusImpl()                                           
     
 
     v_list[it]->setEstimate(q_initial);
@@ -6116,6 +6161,9 @@ int main(int argc, char *argv[])
   std::cout << "Costs: elbow_pos_cost = " << elbow_pos_cost_after_optim << std::endl;
   std::cout << "Costs: finger_cost = " << finger_cost_after_optim << std::endl;  
   std::cout << "Time spent for collision fix is " << t_spent_col_fix.count() << " s." << std::endl;
+  if (col_cost_after_optim >= col_cost_bound)
+    std::cerr << "Collision path points are not all resolved, re-adjust the process!!!" << std::endl;
+
 
   // store TRAC-IK result as the best for now
   std::cout << "Storing Collision-fix results (as the best) for later comparison..." << std::endl;
@@ -6136,6 +6184,8 @@ int main(int argc, char *argv[])
   }
 
 
+  // set collision checker on, so as to count the number of colliding path points
+  id_k_col = 1;
 
   // Start optimization, using different combinations of coefficients
   double t_spent_inner_loop = 0.0;
