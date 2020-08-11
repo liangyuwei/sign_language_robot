@@ -575,19 +575,59 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
 {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+    /*
+    DualArmDualHandVertex(const std::vector<double> _q_l_arm_lb, const std::vector<double> _q_l_arm_ub, 
+                          const std::vector<double> _q_r_arm_lb, const std::vector<double> _q_r_arm_ub, 
+                          const std::vector<double> _q_l_finger_lb, const std::vector<double> _q_l_finger_ub, 
+                          const std::vector<double> _q_r_finger_lb, const std::vector<double> _q_r_finger_ub)
+    {
+      // DOF Order: Left Arm -> Right Arm -> Left Hand -> Right Hand
+      
+      // Lower bounds
+      q_lb = _q_l_arm_lb;
+      q_lb.inset(q_lb.end(), _q_r_arm_lb.cbegin(), _q_r_arm_lb.cend());
+      q_lb.inset(q_lb.end(), _q_l_finger_lb.cbegin(), _q_l_finger_lb.cend());
+      q_lb.inset(q_lb.end(), _q_r_finger_lb.cbegin(), _q_r_finger_lb.cend());
+
+      // Upper bounds
+      q_ub = _q_l_arm_ub;
+      q_ub.inset(q_ub.end(), _q_r_arm_ub.cbegin(), _q_r_arm_ub.cend());
+      q_ub.inset(q_ub.end(), _q_l_finger_ub.cbegin(), _q_l_finger_ub.cend());
+      q_ub.inset(q_ub.end(), _q_r_finger_ub.cbegin(), _q_r_finger_ub.cend());
+
+    }
+
+    // pos limit bounds
+    std::vector<double> q_lb, q_ub;
+    double amount_out_of_bound;
+    */
+
     virtual void setToOriginImpl() // reset
     {
       _estimate << Matrix<double, JOINT_DOF, 1>::Zero();
     }
-  
+
+
     virtual void oplusImpl(const double *update) // update rule
     {
+      // amount_out_of_bound = 0.0;
+      // double ori;
       for (unsigned int i = 0; i < JOINT_DOF; i++)
       {
-        _estimate[i] += update[i];//Map<Matrix<double, JOINT_DOF, 1> >(update, JOINT_DOF, 1);
+        // asssign updates
+        _estimate[i] += update[i];
+        
+        // resolve position limits
+        // ori = _estimate[i];
+        // _estimate[i] = std::max(std::min(_estimate[i], q_ub[i]), q_lb[i]);
+        // amount_out_of_bound += std::fabs(_estimate[i] - ori); // amount of out-of-bounds
+
+        // store for debug
         last_update[i] = update[i]; // record updates
       }
       // std::cout << "Current updates on q = " << last_update.transpose() << std::endl << std::endl;
+      // std::cout << "Amount of out-of-bounds = " << amount_out_of_bound << std::endl;
     }
 
 
@@ -5747,8 +5787,7 @@ int main(int argc, char *argv[])
       // Check if better than current best
       // Check if the best result from wrist pos+ori loop satisfies the bounds
       std::cout << ">>>> Evaluating feasibility of the processed paths..." << std::endl;
-      if (col_cost_after_optim <= col_cost_bound || 
-          col_cost_after_optim <= best_col_cost)// &&  // relax a few
+      if (col_cost_after_optim <= col_cost_bound)// &&  // relax a few
           //pos_limit_cost_after_optim <= pos_limit_bound && 
           //smoothness_cost_after_optim <= smoothness_bound) // if satisfying constraints (there may be no need for smoothness cost to be bounded..)
       {
