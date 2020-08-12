@@ -668,7 +668,7 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
           tmp_estimate_vec[j] = tmp_estimate[j];
         
         double result = dual_arm_dual_hand_collision_ptr->check_self_collision(tmp_estimate_vec);
-        std::cout << "debug: check interpolated point " << (n+1) << "/" << num_intervals << " : " << (result < 0.0 ? "collision-free" : "in-collision") << std::endl;
+        // std::cout << "debug: check interpolated point " << (n+1) << "/" << num_intervals << " : " << (result < 0.0 ? "collision-free" : "in-collision") << std::endl;
   
         // decide if it's ok
         if (result < 0.0) // if collision free, use the current one (the first visited collision free state)
@@ -5867,6 +5867,7 @@ int main(int argc, char *argv[])
   std::chrono::steady_clock::time_point t0_wrist_trac_ik_loop = std::chrono::steady_clock::now();
   // the results are set as initial state for later use
   std::vector<Eigen::Matrix<double, JOINT_DOF, 1> > q_initial_trac_ik(NUM_DATAPOINTS);
+  std::vector<Eigen::Matrix<double, JOINT_DOF, 1> > q_initial_collision_fix(NUM_DATAPOINTS);
   Matrix<double, 7, 1> q_l_arm_lb_mat, q_l_arm_ub_mat;
   Matrix<double, 7, 1> q_r_arm_lb_mat, q_r_arm_ub_mat;
   for (unsigned int t = 0; t < q_l_arm_lb.size(); t++)
@@ -5955,11 +5956,8 @@ int main(int argc, char *argv[])
     tmp_finger_pos_cost += finger_cost[s];
   // collision 
   double tmp_col_cost = 0.0;
-  double k_col_tmp = K_COL; // push in
-  K_COL = 1.0; // set it on for computing collision cost(counts)
   for (unsigned int t = 0; t < unary_edges.size(); t++)
-    tmp_col_cost += unary_edges[t]->return_col_cost();
-  K_COL = k_col_tmp; // pop out
+    tmp_col_cost += unary_edges[t]->return_col_cost(); // return_col_cost() is not affected by K_COL, just the count of collision path points
   // pos_limit
   double tmp_pos_limit_cost = 0.0;
   for (unsigned int t = 0; t < unary_edges.size(); t++)
@@ -6165,7 +6163,7 @@ int main(int argc, char *argv[])
     std::cerr << "Collision path points are not all resolved, re-adjust the process!!!" << std::endl;
 
 
-  // store TRAC-IK result as the best for now
+  // store Collision-fix result as the best for now
   std::cout << "Storing Collision-fix results (as the best) for later comparison..." << std::endl;
   best_dist = std::max(wrist_pos_cost_after_optim - wrist_pos_cost_bound, 0.0) / wrist_pos_cost_bound +
               std::max(wrist_ori_cost_after_optim - wrist_ori_cost_bound, 0.0) / wrist_ori_cost_bound +
@@ -6181,11 +6179,12 @@ int main(int argc, char *argv[])
   {
     DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
     best_q[s] = vertex_tmp->estimate();
+    q_initial_collision_fix[s] = vertex_tmp->estimate();
   }
 
 
   // set collision checker on, so as to count the number of colliding path points
-  id_k_col = 1;
+  // id_k_col = 1;
 
   // Start optimization, using different combinations of coefficients
   double t_spent_inner_loop = 0.0;
@@ -6225,10 +6224,10 @@ int main(int argc, char *argv[])
       // id_k_smoothness = 0;
 
 
-      // Reset/Use initial trajector computed by TRAC-IK (maybe keep it for faster tracking)
-      // for (unsigned int id = 0; id < NUM_DATAPOINTS; id++)
-      //   (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_trac_ik[id]); // assign to the current q vertex
-
+      // Reset/Use initial trajector computed by collision fix 
+      for (unsigned int id = 0; id < NUM_DATAPOINTS; id++)
+        // (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_trac_ik[id]); // assign to the current q vertex
+        (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_collision_fix[id]); // assign to the current q vertices
 
       do // Inner loop
       {
@@ -6238,7 +6237,8 @@ int main(int argc, char *argv[])
         count_inner_loop++;
 
         // Set coefficients
-        K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
+        // K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
+        K_COL = 0.0; // set collision checker off
         K_POS_LIMIT = K_POS_LIMIT_set[(id_k_pos_limit <= K_POS_LIMIT_set.size()-1 ? id_k_pos_limit : K_POS_LIMIT_set.size()-1)];
         K_SMOOTHNESS = K_SMOOTHNESS_set[(id_k_smoothness <= K_SMOOTHNESS_set.size()-1 ? id_k_smoothness : K_SMOOTHNESS_set.size()-1)];
         K_WRIST_POS = K_WRIST_POS_set[(id_k_wrist_pos <= K_WRIST_POS_set.size()-1 ? id_k_wrist_pos : K_WRIST_POS_set.size()-1)];
@@ -6250,7 +6250,7 @@ int main(int argc, char *argv[])
         // collision counts
         col_cost_before_optim = 0.0;
         for (unsigned int t = 0; t < unary_edges.size(); t++)
-          col_cost_before_optim += unary_edges[t]->return_col_cost();
+          col_cost_before_optim += unary_edges[t]->return_col_cost(); // not affected by K_COL, no need to worry
         // pos_limit
         pos_limit_cost_before_optim = 0.0;
         for (unsigned int t = 0; t < unary_edges.size(); t++)
@@ -6609,7 +6609,10 @@ int main(int argc, char *argv[])
         double tmp_dist = std::max(wrist_pos_cost_after_optim - wrist_pos_cost_bound, 0.0) / wrist_pos_cost_bound +
                           std::max(wrist_ori_cost_after_optim - wrist_ori_cost_bound, 0.0) / wrist_ori_cost_bound +
                           std::max(elbow_pos_cost_after_optim - elbow_pos_cost_bound, 0.0) / elbow_pos_cost_bound; // normalize 
-        if (tmp_dist < best_dist)
+        // if (tmp_dist < best_dist)
+        if (wrist_pos_cost_after_optim <= wrist_pos_cost_bound && 
+            wrist_ori_cost_after_optim <= wrist_ori_cost_bound &&
+            elbow_pos_cost_after_optim < best_elbow_pos_cost) // wrist costs mush be within bounds, and choose the one with the smallest elbow pos cost
         {
           std::cout << "Found a result better than the best ever! Recording..." << std::endl;
           // record the costs
@@ -6792,6 +6795,63 @@ int main(int argc, char *argv[])
                         r_elbow_pos_traj.size(), r_elbow_pos_traj[0].size(), r_elbow_pos_traj);
     std::cout << "actual_r_elbow_pos_traj stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
     
+    // store statistics of the best result
+    std::vector<std::vector<double>> best_dist_store_store; 
+    std::vector<double> best_dist_store;
+    best_dist_store.push_back(best_dist);
+    best_dist_store_store.push_back(best_dist_store);
+    tmp_flag = write_h5(out_file_name, in_group_name, "best_dist_"+std::to_string(n), \
+                        best_dist_store_store.size(), best_dist_store_store[0].size(), best_dist_store_store);
+    std::cout << "best_dist stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+    std::vector<std::vector<double>> best_col_cost_store_store; 
+    std::vector<double> best_col_cost_store;
+    best_col_cost_store.push_back(best_col_cost);
+    best_col_cost_store_store.push_back(best_col_cost_store);
+    tmp_flag = write_h5(out_file_name, in_group_name, "best_col_cost_"+std::to_string(n), \
+                        best_col_cost_store_store.size(), best_col_cost_store_store[0].size(), best_col_cost_store_store);
+    std::cout << "best_col_cost stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+    std::vector<std::vector<double>> best_pos_limit_cost_store_store; 
+    std::vector<double> best_pos_limit_cost_store;
+    best_pos_limit_cost_store.push_back(best_pos_limit_cost);
+    best_pos_limit_cost_store_store.push_back(best_pos_limit_cost_store);
+    tmp_flag = write_h5(out_file_name, in_group_name, "best_pos_limit_cost_"+std::to_string(n), \
+                        best_pos_limit_cost_store_store.size(), best_pos_limit_cost_store_store[0].size(), best_pos_limit_cost_store_store);
+    std::cout << "best_pos_limit_cost stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+    std::vector<std::vector<double>> best_smoothness_cost_store_store; 
+    std::vector<double> best_smoothness_cost_store;
+    best_smoothness_cost_store.push_back(best_smoothness_cost);
+    best_smoothness_cost_store_store.push_back(best_smoothness_cost_store);
+    tmp_flag = write_h5(out_file_name, in_group_name, "best_smoothness_cost_"+std::to_string(n), \
+                        best_smoothness_cost_store_store.size(), best_smoothness_cost_store_store[0].size(), best_smoothness_cost_store_store);
+    std::cout << "best_smoothness_cost stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+    std::vector<std::vector<double>> best_wrist_pos_cost_store_store; 
+    std::vector<double> best_wrist_pos_cost_store;
+    best_wrist_pos_cost_store.push_back(best_wrist_pos_cost);
+    best_wrist_pos_cost_store_store.push_back(best_wrist_pos_cost_store);
+    tmp_flag = write_h5(out_file_name, in_group_name, "best_wrist_pos_cost_"+std::to_string(n), \
+                        best_wrist_pos_cost_store_store.size(), best_wrist_pos_cost_store_store[0].size(), best_wrist_pos_cost_store_store);
+    std::cout << "best_wrist_pos_cost stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+    std::vector<std::vector<double>> best_wrist_ori_cost_store_store; 
+    std::vector<double> best_wrist_ori_cost_store;
+    best_wrist_ori_cost_store.push_back(best_wrist_ori_cost);
+    best_wrist_ori_cost_store_store.push_back(best_wrist_ori_cost_store);
+    tmp_flag = write_h5(out_file_name, in_group_name, "best_wrist_ori_cost_"+std::to_string(n), \
+                        best_wrist_ori_cost_store_store.size(), best_wrist_ori_cost_store_store[0].size(), best_wrist_ori_cost_store_store);
+    std::cout << "best_wrist_ori_cost stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+    std::vector<std::vector<double>> best_elbow_pos_cost_store_store; 
+    std::vector<double> best_elbow_pos_cost_store;
+    best_elbow_pos_cost_store.push_back(best_elbow_pos_cost);
+    best_elbow_pos_cost_store_store.push_back(best_elbow_pos_cost_store);
+    tmp_flag = write_h5(out_file_name, in_group_name, "best_elbow_pos_cost_"+std::to_string(n), \
+                        best_elbow_pos_cost_store_store.size(), best_elbow_pos_cost_store_store[0].size(), best_elbow_pos_cost_store_store);
+    std::cout << "best_elbow_pos_cost stored " << (tmp_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
 
     // Check stopping criteria (q and DMP!!!)
     if (col_cost_after_optim <= col_cost_bound && 
