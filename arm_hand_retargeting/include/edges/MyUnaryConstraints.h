@@ -32,67 +32,61 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     /// Constructor with initialization of KDL FK solvers and collision checker.
-    MyUnaryConstraints(KDL::ChainFkSolverPos_recursive &_left_fk_solver, 
-                       KDL::ChainFkSolverPos_recursive &_right_fk_solver, 
-                       boost::shared_ptr<DualArmDualHandCollision> &_dual_arm_dual_hand_collision_ptr) : left_fk_solver(_left_fk_solver), 
-                                                                                                         right_fk_solver(_right_fk_solver), 
-                                                                                                         dual_arm_dual_hand_collision_ptr(_dual_arm_dual_hand_collision_ptr);
+    MyUnaryConstraints(boost::shared_ptr<DualArmDualHandCollision> &_dual_arm_dual_hand_collision_ptr) : dual_arm_dual_hand_collision_ptr(_dual_arm_dual_hand_collision_ptr);
 
     /// Used by g2o internal calculation
     void computeError();
 
     // functions for recording costs
-    double return_pos_limit_cost();
-    double return_col_cost();
+    double return_pos_limit_cost();   ///< Return current position limit cost value.
+    double return_col_cost();         ///< Return number of colliding path points.
 
     // display for debug
-    void output_distance_result();
+    void output_distance_result();    ///< Print collision condition of the current state
 
-    // for computing collision updates
+    /// Compute q updates using robot jacobian
     Eigen::MatrixXd compute_col_q_update(Eigen::MatrixXd jacobian, Eigen::Vector3d dx, double speed);
 
-    // for solving colliding state
+    /// Resolve colliding state by directly operating on joint values
     std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur);
     Eigen::Matrix<double, JOINT_DOF, 1> resolve_point_collisions(Eigen::Matrix<double, JOINT_DOF, 1> q_cur, double col_eps); // called in resolve_path_collisions() to resolve colliding state for each path point
   
-
-    // Read and write, leave blank
+    /// Read from disk, leave blank
     virtual bool read( std::istream& in ) {return true;}
+    
+    /// Write to disk, leave blank
     virtual bool write( std::ostream& out ) const {return true;}
 
     /// Re-implement linearizeOplus for jacobians calculation
     virtual void linearizeOplus();
 
+    // variables to store jacobians of each and both constraints
     Matrix<double, JOINT_DOF, 1> col_jacobians = Matrix<double, JOINT_DOF, 1>::Zero();
     Matrix<double, JOINT_DOF, 1> pos_limit_jacobians;
     Matrix<double, JOINT_DOF, 1> whole_jacobians;
 
 
   private:
-    // FK solvers
-    KDL::ChainFkSolverPos_recursive &left_fk_solver;
-    KDL::ChainFkSolverPos_recursive &right_fk_solver;
-
-    // Collision checker
+    /// Collision checker (with distance computation functionality)
     boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr;
 
-    // Helper functions to compute costs
+    /// Compute collision cost, using the minimum distance 
     double compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     
+    /// Compute collision cost with only the hands part
     double compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, std::string link_name_1, std::string link_name_2, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     
-    // double compute_distance_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
+    /// Compute position limit cost
     double compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q_whole, my_constraint_struct &fdata);
 
     // Safety setting related to collision avoidance, note that d_check must be stricly greater than d_safe !!!
     // use different margins of safety for arms and hands
-    // here the safety margin should be set according to actual condition: set a collision-free state and check minimum distance for dual_arms and dual_hands using collision_checking_yumi.cpp
-    double d_arm_check = 0.003; // 0.02;
-    double d_arm_safe = 0.001; //0.0; //0.002; //0.01 is actually too large, for some links are very close to each other, e.g. _5_l and _7_l
-    double d_hand_check = 0.002; // threshold, pairs with distance above which would not be checked further, so as to reduce number of queries
-    double d_hand_safe = 1e-6; //0.0005;//0.001;//0.0; //0.001; // margin of safety
+    // here the safety margin should be set according to actual condition: set a collision-free state and check minimum distance for dual_arms and dual_hands using collision_checking_yumi.cpp to have a sense of it
+    double d_arm_check = 0.003;  ///< Distance threshold under which to check collision, note that d_check must be strictly greater than d_safe.
+    double d_arm_safe = 0.001;   ///< Safety margin for arm part. In the current condition, 0.01 would actually be too large, for some links are very close to each other, e.g. _5_l and _7_l.
+    double d_hand_check = 0.002; ///< Distance threshold under which to check collision, note that d_check must be strictly greater than d_safe. 
+    double d_hand_safe = 1e-6;   ///< Safety margin for hand part. A small value close to 0 is fine since link51 and link111 are really close to each other under initial collision-free state.
   
-
 };
 
 
@@ -1553,3 +1547,231 @@ Eigen::Matrix<double, JOINT_DOF, 1> MyUnaryConstraints::resolve_point_collisions
   return x;
 
 }
+
+
+
+/* Check the minimum distance between the specified two links */
+double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, std::string link_name_1, std::string link_name_2, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
+{
+  // convert from matrix to std::vector
+  std::vector<double> x(JOINT_DOF);
+  for (unsigned int i = 0; i < JOINT_DOF; ++i)
+    x[i] = q_whole[i];
+  // Collision checking (or distance computation), check out the DualArmDualHandCollision class
+  double cost;
+  double min_distance;
+  // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
+  // std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  // min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_arms", d_arm_check); 
+  // std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  // std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  // total_col += t_spent.count();
+  // count_col++;
+  // std::cout << "debug: time spent on computing minimum distance = " << t_spent.count() << std::endl;
+  // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
+  // if (min_distance > d_arm_safe) // arm safe
+  // {
+    // check hands 
+    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+    min_distance = dual_arm_dual_hand_collision_ptr->compute_two_links_distance(x, link_name_1, link_name_2, d_hand_check);
+                                                    //compute_self_distance_test(x, "dual_hands", d_hand_check); 
+    if (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 ||
+        dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_2) 
+        min_distance = d_hand_safe; // if collision pair is changed, then the collision between the original two links is resolved !!!
+
+    // std::cout << "debug: Possible collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] 
+    //           << " and " << dual_arm_dual_hand_collision_ptr->link_names[1] << std::endl;
+    // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+    total_col += t_spent.count();
+    count_col++;
+    cost = std::max(d_hand_safe - min_distance, 0.0);
+  // }
+  // else
+  // {
+  //   cost = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
+  // }
+   
+
+  cost = K_COL * cost; // weighting...
+
+  return cost;
+
+}
+
+
+double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
+{
+  // bypass
+  if (K_COL == 0.0)
+    return 0.0;
+
+  // convert from matrix to std::vector
+  std::vector<double> x(JOINT_DOF);
+  for (unsigned int i = 0; i < JOINT_DOF; ++i)
+    x[i] = q_whole[i];
+  // Collision checking (or distance computation), check out the DualArmDualHandCollision class
+  double cost;
+  double min_distance;
+  // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_arms", d_arm_check); 
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_col += t_spent.count();
+  count_col++;
+  // std::cout << "debug: time spent on computing minimum distance = " << t_spent.count() << std::endl;
+  // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
+  if (min_distance > d_arm_safe) // arm safe
+  {
+    // check hands 
+    t0 = std::chrono::steady_clock::now();
+    min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_hands", d_hand_check); 
+    t1 = std::chrono::steady_clock::now();
+    t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+    total_col += t_spent.count();
+    count_col++;
+    cost = std::max(d_hand_safe - min_distance, 0.0);
+  }
+  else
+  {
+    cost = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
+  }
+    
+
+  cost = K_COL * cost; // weighting...
+
+  return cost;
+
+}
+
+
+double MyUnaryConstraints::compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q_whole, my_constraint_struct &fdata)
+{
+  // add safety margin for ease of limiting
+  double safety_margin = 0.0;//0.01;
+
+  // compute out-of-bound cost
+  double cost = 0;
+  for (unsigned int i = 0; i < JOINT_DOF; ++i)
+  {
+    // within [lb+margin, ub-margin], sub-set of [lb, ub]
+    if (fdata.q_pos_ub[i] - safety_margin < q_whole[i])
+      cost += std::max(q_whole[i] - (fdata.q_pos_ub[i] - safety_margin), 0.0); //(q_whole[i] - fdata.q_pos_ub[i] + safety_margin) * (q_whole[i] - fdata.q_pos_ub[i] + safety_margin);
+    if (fdata.q_pos_lb[i] + safety_margin > q_whole[i])
+      cost += std::max((fdata.q_pos_lb[i] + safety_margin) - q_whole[i], 0.0);//(fdata.q_pos_lb[i] + safety_margin - q_whole[i]) * (fdata.q_pos_lb[i] + safety_margin - q_whole[i]);
+  }
+
+  return cost;
+
+}
+
+
+double MyUnaryConstraints::return_col_cost()
+{
+
+  // get the current joint value
+  // _vertices is a VertexContainer type, a std::vector<Vertex*>
+  const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
+  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+  // Get joint angles
+  Matrix<double, 7, 1> q_cur_l, q_cur_r;
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = x.block<7, 1>(0, 0);
+  q_cur_r = x.block<7, 1>(7, 0);
+  q_cur_finger_l = x.block<12, 1>(14, 0);
+  q_cur_finger_r = x.block<12, 1>(26, 0); 
+  
+  // 3 (for ease of distinction, won't use distance_computation here)
+  std::vector<double> xx(JOINT_DOF);
+  for (unsigned int d = 0; d < JOINT_DOF; d++)
+    xx[d] = x[d];
+ 
+  double col_result = dual_arm_dual_hand_collision_ptr->check_self_collision(xx);
+  double collision_cost = (col_result > 0.0)? 1.0 : 0.0; // col_result 1 for colliding, -1 for collision-free
+    //(col_result > 0.0)? 1.0 : 0.0; // col_result 1 for colliding, -1 for collision-free
+    //compute_collision_cost(xx, dual_arm_dual_hand_collision_ptr);
+  
+  //std::cout << "Collision cost=";
+  //std::cout << collision_cost << ", ";
+
+
+  return collision_cost;
+}
+
+double MyUnaryConstraints::return_pos_limit_cost()
+{
+
+  // get the current joint value
+  // _vertices is a VertexContainer type, a std::vector<Vertex*>
+  const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
+  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+  // Get joint angles
+  Matrix<double, 7, 1> q_cur_l, q_cur_r;
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = x.block<7, 1>(0, 0);
+  q_cur_r = x.block<7, 1>(7, 0);
+  q_cur_finger_l = x.block<12, 1>(14, 0);
+  q_cur_finger_r = x.block<12, 1>(26, 0); 
+  
+
+  // 4
+  double pos_limit_cost = compute_pos_limit_cost(x, _measurement);
+  //std::cout << "Pos limit cost=";
+  //std::cout << pos_limit_cost << "; ";
+
+
+  return pos_limit_cost;
+}
+
+void MyUnaryConstraints::computeError()
+{
+
+
+  // statistics
+  count_unary++;  
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+
+  //std::cout << "Computing Unary Constraint..." << std::endl;
+
+  // get the current joint value
+  // _vertices is a VertexContainer type, a std::vector<Vertex*>
+  const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
+  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+  // Get joint angles
+  Matrix<double, 7, 1> q_cur_l, q_cur_r;
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = x.block<7, 1>(0, 0);
+  q_cur_r = x.block<7, 1>(7, 0);
+  q_cur_finger_l = x.block<12, 1>(14, 0);
+  q_cur_finger_r = x.block<12, 1>(26, 0); 
+  
+  // Compute unary costs
+  // 1
+  double collision_cost = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
+  
+  // 2
+  double pos_limit_cost = compute_pos_limit_cost(x, _measurement);
+
+  // total cost
+  double cost = K_COL * collision_cost + K_POS_LIMIT * pos_limit_cost;
+  _error(0, 0) = cost;
+
+  // Display message
+  //std::cout << "Computing unary edge's cost: " << cost << std::endl;
+  
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_01 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_unary += t_01.count();
+
+}
+
+
+
+
+
