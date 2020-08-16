@@ -3142,6 +3142,8 @@ class TrackingConstraint : public BaseMultiEdge<1, my_constraint_struct> // <D, 
 
     // functions for recording cost history
     std::vector<double> return_finger_cost_history();
+    std::vector<double> return_l_finger_cost_history();
+    std::vector<double> return_r_finger_cost_history();
     double return_wrist_pos_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct &fdata);
     std::vector<double> return_wrist_pos_cost_history();
     std::vector<double> return_l_wrist_pos_cost_history();
@@ -4328,6 +4330,80 @@ std::vector<double> TrackingConstraint::return_finger_cost_history()
   return finger_cost_history;
 
 }
+
+
+std::vector<double> TrackingConstraint::return_l_finger_cost_history()
+{
+  
+  // iterate to compute costs
+  std::vector<double> finger_cost_history;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    // _vertices is a VertexContainer type, a std::vector<Vertex*>
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // size is 50 x DOF
+
+    // Compute unary costs
+    double finger_cost = compute_finger_cost(q_cur_finger_l, true, _measurement);  
+    // finger_cost += compute_finger_cost(q_cur_finger_r, false, _measurement);  
+  
+    finger_cost_history.push_back(finger_cost);
+
+  }
+
+  return finger_cost_history;
+
+}
+
+
+std::vector<double> TrackingConstraint::return_r_finger_cost_history()
+{
+  
+  // iterate to compute costs
+  std::vector<double> finger_cost_history;
+  for (unsigned int n = 0; n < num_datapoints; n++)
+  {
+    // get the current joint value
+    // _vertices is a VertexContainer type, a std::vector<Vertex*>
+    const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
+    const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
+
+    // Get joint angles
+    Matrix<double, 7, 1> q_cur_l, q_cur_r;
+    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+    q_cur_l = x.block<7, 1>(0, 0);
+    q_cur_r = x.block<7, 1>(7, 0);
+    q_cur_finger_l = x.block<12, 1>(14, 0);
+    q_cur_finger_r = x.block<12, 1>(26, 0); 
+    
+    // Set new goals(expected trajectory) to _measurement
+    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // y_seq's glove data is already in radius
+    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // size is 50 x DOF
+
+    // Compute unary costs
+    double finger_cost = compute_finger_cost(q_cur_finger_r, false, _measurement);  
+  
+    finger_cost_history.push_back(finger_cost);
+
+  }
+
+  return finger_cost_history;
+
+}
+
 
 
 std::vector<double> TrackingConstraint::return_wrist_pos_cost_history()
@@ -5670,6 +5746,8 @@ int main(int argc, char *argv[])
   std::vector<std::vector<double> > r_elbow_pos_cost_history;
   
   std::vector<std::vector<double> > finger_cost_history;
+  std::vector<std::vector<double> > l_finger_cost_history;
+  std::vector<std::vector<double> > r_finger_cost_history;
   std::vector<std::vector<double> > smoothness_cost_history;
   std::vector<std::vector<double> > dmp_orien_cost_history;
   std::vector<std::vector<double> > dmp_scale_cost_history;
@@ -6319,6 +6397,8 @@ int main(int argc, char *argv[])
         std::vector<double> l_elbow_pos_cost = tracking_edge->return_l_elbow_pos_cost_history();
         std::vector<double> r_elbow_pos_cost = tracking_edge->return_r_elbow_pos_cost_history();
         std::vector<double> finger_cost = tracking_edge->return_finger_cost_history(); 
+        std::vector<double> l_finger_cost = tracking_edge->return_l_finger_cost_history(); 
+        std::vector<double> r_finger_cost = tracking_edge->return_r_finger_cost_history(); 
         wrist_pos_cost_history.push_back(wrist_pos_cost);
         l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
         r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
@@ -6327,6 +6407,8 @@ int main(int argc, char *argv[])
         l_elbow_pos_cost_history.push_back(l_elbow_pos_cost);
         r_elbow_pos_cost_history.push_back(r_elbow_pos_cost);
         finger_cost_history.push_back(finger_cost); // store
+        l_finger_cost_history.push_back(l_finger_cost);
+        r_finger_cost_history.push_back(r_finger_cost);        
         // display
         std::cout << "debug: wrist_pos_cost = ";
         for (unsigned s = 0; s < wrist_pos_cost.size(); s++)
@@ -6997,6 +7079,8 @@ int main(int argc, char *argv[])
     std::vector<double> l_elbow_pos_cost = tracking_edge->return_l_elbow_pos_cost_history();
     std::vector<double> r_elbow_pos_cost = tracking_edge->return_r_elbow_pos_cost_history();
     std::vector<double> finger_cost = tracking_edge->return_finger_cost_history();      
+    std::vector<double> l_finger_cost = tracking_edge->return_l_finger_cost_history();      
+    std::vector<double> r_finger_cost = tracking_edge->return_r_finger_cost_history();      
     wrist_pos_cost_history.push_back(wrist_pos_cost);
     l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
     r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
@@ -7005,6 +7089,8 @@ int main(int argc, char *argv[])
     l_elbow_pos_cost_history.push_back(l_elbow_pos_cost);
     r_elbow_pos_cost_history.push_back(r_elbow_pos_cost);
     finger_cost_history.push_back(finger_cost); // store
+    l_finger_cost_history.push_back(l_finger_cost); // store
+    r_finger_cost_history.push_back(r_finger_cost); // store
     // display for debug:
     // 
     std::cout << "debug: wrist_pos_cost = ";
@@ -7324,6 +7410,14 @@ int main(int argc, char *argv[])
   result_flag = write_h5(out_file_name, in_group_name, "finger_cost_history", \
                          finger_cost_history.size(), finger_cost_history[0].size(), finger_cost_history);
   std::cout << "finger_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "l_finger_cost_history", \
+                         l_finger_cost_history.size(), l_finger_cost_history[0].size(), l_finger_cost_history);
+  std::cout << "l_finger_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
+
+  result_flag = write_h5(out_file_name, in_group_name, "r_finger_cost_history", \
+                         r_finger_cost_history.size(), r_finger_cost_history[0].size(), r_finger_cost_history);
+  std::cout << "r_finger_cost_history stored " << (result_flag ? "successfully" : "unsuccessfully") << "!" << std::endl;
 
   result_flag = write_h5(out_file_name, in_group_name, "smoothness_cost_history", \
                          smoothness_cost_history.size(), smoothness_cost_history[0].size(), smoothness_cost_history);
