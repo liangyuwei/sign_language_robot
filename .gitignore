@@ -6,3 +6,4 @@
 *.bag
 *.avi
 /doxy_docs/
+/.vscode/
