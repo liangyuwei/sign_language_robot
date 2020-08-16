@@ -304,4 +304,3 @@ target_link_libraries(TEST_collision_checking_yumi ${catkin_LIBRARIES} collision
 
 # add_executable(TEST_KDL_FK_Solver src/KDL_FK_Solver.cpp)
 # target_link_libraries(TEST_KDL_FK_Solver ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
-
