@@ -16,6 +16,9 @@
 #include <Eigen/Geometry> 
 #include <Eigen/QR>
 
+// Helper variables
+#include "config.h"
+
 using namespace g2o;
 using namespace Eigen;
 
@@ -49,7 +52,7 @@ class DMPStartsGoalsVertex : public BaseVertex<DMPPOINTS_DOF, Matrix<double, DMP
 /**
  * Reset vertex state to zeros.
  */
-virtual void DMPStartsGoalsVertex::setToOriginImpl() 
+void DMPStartsGoalsVertex::setToOriginImpl() 
 {
   _estimate << Matrix<double, DMPPOINTS_DOF, 1>::Zero();
 }
@@ -58,7 +61,7 @@ virtual void DMPStartsGoalsVertex::setToOriginImpl()
 /**
  * Apply updates to vertex state, and record the update values for debug.
  */
-virtual void DMPStartsGoalsVertex::oplusImpl(const double *update) 
+void DMPStartsGoalsVertex::oplusImpl(const double *update) 
 {
   //std::cout << "debug: update DMP starts and goals " << std::endl;
   num_update++;

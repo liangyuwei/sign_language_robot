@@ -1,10 +1,20 @@
 #ifndef CONFIG_H_
 #define CONFIG_H_
 
+#include <string>
+
+// For Eigen
+#include <Eigen/Core>
+#include <Eigen/Dense>
+#include <Eigen/Geometry> 
+#include <Eigen/QR>
+
+using namespace Eigen;
+
 // Macros
-#define JOINT_DOF 38 ///< DOF of sign language robot. Now we use YuMi dual-arm manipulators (2 x 7 DOF) and Inspire-robotics robotic hands (2 x 12 DOF), i.e. 2 x 7 + 2 x 12 = 38 DOF in total.
-#define DMPPOINTS_DOF 24 ///< 4 (DMPs) x 2 (start+goal) x 3 (3d pos) = 24 variables.
-#define NUM_DATAPOINTS 50 ///< Pre-defined and fixed number of path points. The optimized result can be interpolated or path parametrized.
+#define JOINT_DOF 38        ///< DOF of sign language robot. Now we use YuMi dual-arm manipulators (2 x 7 DOF) and Inspire-robotics robotic hands (2 x 12 DOF), i.e. 2 x 7 + 2 x 12 = 38 DOF in total.
+#define DMPPOINTS_DOF 24    ///< 4 (DMPs) x 2 (start+goal) x 3 (3d pos) = 24 variables.
+#define NUM_DATAPOINTS 50   ///< Pre-defined and fixed number of path points. The optimized result can be interpolated or path parametrized.
 
 // Global Variables
 double K_COL;                   ///< Coefficient for collision cost.

@@ -1,6 +1,9 @@
 #ifndef DUAL_ARM_DUAL_HAND_VERTEX_H_
 #define DUAL_ARM_DUAL_HAND_VERTEX_H_
 
+// Common
+#include <boost>
+
 // G2O: infrastructure
 #include <g2o/core/base_vertex.h>
 #include <g2o/core/base_unary_edge.h>
@@ -12,6 +15,9 @@
 #include <Eigen/Dense>
 #include <Eigen/Geometry> 
 #include <Eigen/QR>
+
+// For collision checker
+#include "tools/collision_checking_yumi.h"
 
 // Config
 #include "config.h"
@@ -53,10 +59,10 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
     /// Store the update values used during last call to oplusImpl()
     Matrix<double, JOINT_DOF, 1> last_update;
 
-    // Read from disk, leave blank
+    /// Read from disk, leave blank
     virtual bool read( std::istream& in ) {return true;}
 
-    // Write to disk, leave blank
+    /// Write to disk, leave blank
     virtual bool write( std::ostream& out ) const {return true;}
 
 

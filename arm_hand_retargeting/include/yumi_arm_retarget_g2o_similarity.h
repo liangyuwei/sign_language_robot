@@ -53,18 +53,26 @@
 #include <trac_ik/trac_ik.hpp>
 
 // For file write and read
-#include <string>
-#include "H5Cpp.h"
-//#include "H5Location.h"
+#include "tools/h5_io.h"
 
 // Process the terminal arguments
 #include <getopt.h>
 
 // For collision checking
-#include "collision_checking_yumi.h"
+#include "tools/collision_checking_yumi.h"
 
 // For DMP trajectory generator
-#include "generate_trajectory_using_DMP.h" 
+#include "tools/generate_trajectory_using_DMP.h" 
+
+// For vertices
+#include "vertices/DMPStartsGoalsVertex.h"
+#include "vertices/DualArmDualHandVertex.h"
+
+// For edges
+#include "edges/DMPConstraints.h"
+#include "edges/MyUnaryConstraints.h"
+#include "edges/SmoothnessConstraint.h"
+#include "edges/TrackingConstraint.h"
 
 // Some global and static variables defined for convenience.
 #include "config.h"
@@ -75,7 +83,7 @@ using namespace H5;
 
 
 // Program arguments, free of re-compilation
-std::string in_file_name = "test_imi_data_YuMi.h5";
+std::string in_file_name = "test_imi_data_YuMi.h5";           
 std::string in_group_name = "fengren_1";
 std::string out_file_name = "mocap_ik_results_YuMi_g2o.h5";
 
@@ -139,6 +147,9 @@ KDL::ChainFkSolverPos_recursive setup_kdl(my_constraint_struct &constraint_data,
   return fk_solver;
 
 }
+
+
+
 
 
 
