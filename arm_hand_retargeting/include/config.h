@@ -42,7 +42,6 @@ double total_smoothness = 0;  ///< Total time used for calculating smoothness co
 double total_tracking = 0;    ///< Total time used for computing the cost value of tracking edge.
 
 unsigned int num_update = 0;  ///< Number of times DMP starts and goals vertex is updated.
-unsigned int num_track = 0;   ///< Number of times tracking edge is called.
 
 /// URDF file path of the sign language robot model
 const static std::string URDF_FILE = "/home/liangyuwei/sign_language_robot_ws/src/yumi_description/urdf/yumi_with_hands.urdf";
@@ -98,7 +97,6 @@ typedef struct {
   Matrix<double, 3, NUM_DATAPOINTS> DMP_le; // used when optimizing q independently
   
 } my_constraint_struct;
-
 
 
 #endif

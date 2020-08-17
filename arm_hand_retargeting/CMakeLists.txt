@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.0 FATAL_ERROR)
 project(arm_hand_retargeting)
 
+#SET(CMAKE_BUILD_TYPE "Debug")
 SET(CMAKE_BUILD_TYPE "Debug")
 
 ## Compile as C++11, supported in ROS Kinetic and newer
@@ -13,12 +14,10 @@ add_compile_options(-std=c++14)#(-std=c++11)#
 
 
 # For LibTorch (PyTorch)
-set(CMAKE_PREFIX_PATH "/home/liangyuwei/libtorch")
-find_package(Torch REQUIRED)
-#set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} ${TORCH_CXX_FLAGS})
-include_directories(
-  include ${catkin_INCLUDE_DIRS}${TORCH_INCLUDE_DIRS})#(include/)#
-#set(CUDNN_INCLUDE_DIR "")
+# set(CMAKE_PREFIX_PATH "/home/liangyuwei/libtorch")
+# find_package(Torch REQUIRED)
+# include_directories(
+#   include ${catkin_INCLUDE_DIRS}${TORCH_INCLUDE_DIRS})#(include/)#
 
 
 # Eigen 3
@@ -30,10 +29,10 @@ find_package(HDF5 REQUIRED COMPONENTS C CXX HL) # this works...
 include_directories(${HDF5_INCLUDE_DIRS})
 
 # For NLopt
-find_package(NLopt REQUIRED)
-if(NLopt_FOUND)
-  message("NLopt lib is found: " ${NLOPT_LIBRARIES})
-endif(NLopt_FOUND)
+# find_package(NLopt REQUIRED)
+# if(NLopt_FOUND)
+#   message("NLopt lib is found: " ${NLOPT_LIBRARIES})
+# endif(NLopt_FOUND)
 
 
 # Find G2O
@@ -50,6 +49,7 @@ endif(G2O_FOUND)
 
 # G2O-related (cholmod, csparse)
 include_directories(/usr/include/suitesparse)
+include_directories(include())
 
 list(APPEND G2O_LIBRARIES
   cholmod
@@ -57,7 +57,6 @@ list(APPEND G2O_LIBRARIES
   g2o_core g2o_stuff g2o_csparse_extension g2o_incremental
   g2o_solver_csparse g2o_solver_pcg g2o_solver_cholmod
 )
-
 
 #link_directories(${G2O_LIBRARY_DIRS})
 #message(">>>> G2O-libraries: " ${G2O_LIBRARIES})
@@ -205,50 +204,19 @@ include_directories(
 # ${catkin_INCLUDE_DIRS}
 )
 
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/arm_hand_retargeting.cpp
-# )
-
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/arm_hand_retargeting_node.cpp)
-
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
 
 ### tool libraries
-#add_library(distance_computation src/distance_computation.cpp)
-
-#add_library(collision_checking src/collision_checking.cpp)
-
 add_library(collision_checking_yumi src/collision_checking_yumi.cpp)
 target_link_libraries(collision_checking_yumi ${catkin_LIBRARIES} ${Boost_LIBRARIES})
 
-
-add_library(generate_trajectory_from_viewpoints src/generate_trajectory_from_viewpoints.cpp)
-target_link_libraries(generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+# add_library(generate_trajectory_from_viewpoints src/tools/generate_trajectory_from_viewpoints.cpp)
+# target_link_libraries(generate_trajectory_from_viewpoints ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
 add_library(generate_trajectory_using_DMP src/generate_trajectory_using_DMP.cpp)
 target_link_libraries(generate_trajectory_using_DMP ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 
-
-add_library(similarity_network_pytorch STATIC src/similarity_network_pytorch.cpp)
-target_link_libraries(similarity_network_pytorch PRIVATE ${TORCH_LIBRARIES} ${HDF5_CXX_LIBRARIES}) # link HDF5 together with TORCH fixes the linking error... i.e. undefined reference to symbol 'GOMP_parallel@@GOMP_4.0
-#set_target_properties(tmp_torch PROPERTIES
-#  CXX_STANDARD 14
-#  LINK_FLAGS "-fopenmp")
-
+# add_library(similarity_network_pytorch STATIC src/tools/similarity_network_pytorch.cpp)
+# target_link_libraries(similarity_network_pytorch PRIVATE ${TORCH_LIBRARIES} ${HDF5_CXX_LIBRARIES}) # link HDF5 together with TORCH fixes the linking error... i.e. undefined reference to symbol 'GOMP_parallel@@GOMP_4.0
 
 
 ### retargeting code for UR5 configuration
@@ -278,8 +246,6 @@ target_link_libraries(yumi_arm_retarget_g2o_similarity ${catkin_LIBRARIES} ${EIG
 # target_link_libraries(yumi_arm_retarget_g2o_similarity similarity_network_pytorch)
 #target_link_libraries(yumi_arm_retarget_g2o_similarity ${TORCH_LIBRARIES}) # libTorch
 #set_property(TARGET yumi_arm_retarget_g2o_similarity PROPERTY CXX_STANDARD 14)#14)
-
-
 
 
 

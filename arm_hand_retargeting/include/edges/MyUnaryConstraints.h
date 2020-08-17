@@ -1,11 +1,16 @@
+#ifndef MY_UNARY_CONSTRAINTS_H
+#define MY_UNARY_CONSTRAINTS_H
+
 // Common
 #include <iostream>
+#include <boost/shared_ptr.hpp>
+#include <chrono>
+#include <vector>
+#include <string>
 
 // G2O: infrastructure
 #include <g2o/core/base_vertex.h>
 #include <g2o/core/base_unary_edge.h>
-#include <g2o/core/base_binary_edge.h>
-#include <g2o/core/base_multi_edge.h>
 
 // For Eigen
 #include <Eigen/Core>
@@ -32,9 +37,9 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
     /// Constructor with initialization of KDL FK solvers and collision checker.
-    MyUnaryConstraints(boost::shared_ptr<DualArmDualHandCollision> &_dual_arm_dual_hand_collision_ptr) : dual_arm_dual_hand_collision_ptr(_dual_arm_dual_hand_collision_ptr);
+    MyUnaryConstraints(boost::shared_ptr<DualArmDualHandCollision> &_dual_arm_dual_hand_collision_ptr) : dual_arm_dual_hand_collision_ptr(_dual_arm_dual_hand_collision_ptr){};
 
-    /// Used by g2o internal calculation
+    /// Compute edge value. Used by g2o internal calculation
     void computeError();
 
     // functions for recording costs
@@ -42,12 +47,12 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     double return_col_cost();         ///< Return number of colliding path points.
 
     // display for debug
-    void output_distance_result();    ///< Print collision condition of the current state
+    void output_distance_result();    ///< Print collision condition of the current state.
 
     /// Compute q updates using robot jacobian
     Eigen::MatrixXd compute_col_q_update(Eigen::MatrixXd jacobian, Eigen::Vector3d dx, double speed);
 
-    /// Resolve colliding state by directly operating on joint values
+    // Resolve colliding state by directly operating on joint values
     std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur);
     Eigen::Matrix<double, JOINT_DOF, 1> resolve_point_collisions(Eigen::Matrix<double, JOINT_DOF, 1> q_cur, double col_eps); // called in resolve_path_collisions() to resolve colliding state for each path point
   
@@ -86,124 +91,63 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
     double d_arm_safe = 0.001;   ///< Safety margin for arm part. In the current condition, 0.01 would actually be too large, for some links are very close to each other, e.g. _5_l and _7_l.
     double d_hand_check = 0.002; ///< Distance threshold under which to check collision, note that d_check must be strictly greater than d_safe. 
     double d_hand_safe = 1e-6;   ///< Safety margin for hand part. A small value close to 0 is fine since link51 and link111 are really close to each other under initial collision-free state.
-  
 };
 
 
-
-
-
-/* This function outputs distance computation results, for checking on collision. */
-void MyUnaryConstraints::output_distance_result()
-{
-  // std::cout << "Distance result: " << std::endl;
-  std::cout << "Collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] << " and " 
-                                    << dual_arm_dual_hand_collision_ptr->link_names[1] << ", with min_dist = "
-                                    << dual_arm_dual_hand_collision_ptr->min_distance << "." << std::endl;
-
-}
-
-
-/* This function computes q velocity from Cartesian velocity, through the use of robot jacobian. 
- * From robotics, we have [dx, dy, dz, dp, dq, dw] = J * dq, i.e. [d_pos, d_ori] = J * dq.
- * Here we computes dq from the given d_pos = [dx, dy, dz] and J, the jacobian matrix.
- * Note that jacobian is of the size 6 x N, with N the number of joints.
- * Output d_q has the size of N x 1.
+/**
+ * Compute collision cost and position limit cost, and store them for debug.
  */
-Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobian, Eigen::Vector3d d_pos, double speed)
+void MyUnaryConstraints::computeError()
 {
-  // dx = J * dq, given dx and J, solve for dq ==> J'*(J*J')^-1 * dx = dq. This is solvable only when rank(J) = rank(J, dx).
-  // So when rank(J) != 6, there is rank(J,dx) > rank(J), and the result would either be incorrect or NaN.
-  // Constrain the rows of J to 3, i.e. processing only position data, this way when row rank of J is >= 3, there is rank(J, dx) >= 3, and therefore rank(J, dx) = 3 = rank(J).
+  // statistics
+  count_unary++;  
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
 
-  // prep
-  Eigen::Matrix<double, 6, 1> d_pos_ori = Eigen::Matrix<double, 6, 1>::Zero();
-  d_pos_ori.block(0, 0, 3, 1) = speed * d_pos;// //d_pos; // the jacobian computed should be at the direction that cost increases, here d_pos is the direction for cost to decrease.
-  unsigned int num_cols = jacobian.cols();
-  Eigen::MatrixXd d_q;
+  // get the current joint value
+  // _vertices is a VertexContainer type, a std::vector<Vertex*>
+  const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
+  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
 
-
-  // pre-processing J and dx to cope with rank issue. If rank is smaller than 6, J rows will be reduced to the same number, and so does d_pos_ori.
-  // *** Pros and Cons: Although dpos calculated by J*dq would be consistent with d_pos_ori, J*dq might produce huge deviation in dori part !!!
-  unsigned int rank = jacobian.colPivHouseholderQr().rank(); 
-  Eigen::MatrixXd d_x = d_pos_ori;//d_pos_ori.block(0, 0, rank, 1);
-  Eigen::MatrixXd J = jacobian;//jacobian.block(0, 0, rank, num_cols);
-  // std::cout << "debug: rank(J) = " << rank << std::endl;
-  // std::cout << "debug: original J = " << jacobian << std::endl;
-  // std::cout << "debug: processed J = " << J << std::endl;
-  // std::cout << "debug: original dx = " << d_pos_ori.transpose() << std::endl;
-  // std::cout << "debug: processed dx = " << d_x.transpose() << std::endl;
-
-
-  // solve for dq
-  std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
-  // 1 - direct calculation
-  // d_q = J.transpose() * (J * J.transpose()).inverse() * d_x;
-  // 2 - use SVD
-  JacobiSVD<MatrixXd> svd(J, ComputeThinU | ComputeThinV); // svd.singularValues()/.matrixU()/.matrixV()
-  d_q = svd.solve(d_x);
-  std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
-  std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
-  // std::cout << "SVD solution took " << t_0011.count() << " s." << std::endl;
-  // debug:
-  // std::cout << "debug: d_q = " << d_q.transpose() << std::endl;
-  // std::cout << "debug: original J * dq = " << (jacobian * d_q).transpose() << std::endl;
-  // std::cout << "debug: processed J * dq = " << (J * d_q).transpose() << std::endl;
-  // std::cout << "debug: d_x = " << d_x.transpose() << std::endl;
-  // std::cout << "debug: d_pos_ori = " << d_pos_ori.transpose() << std::endl;
-  // std::cout << "size of d_q is: " << d_q.rows() << " x " << d_q.cols() << std::endl;
-
-  // compute angle between dx and J*dq
-  // Vector3d Jdq_pos = (jacobian * d_q).block(0, 0, 3, 1);
-  // double ac = (double)(Jdq_pos.transpose() * d_pos) / (Jdq_pos.norm()*d_pos.norm());
-  // double theta = std::acos( std::min(ac, 1.0) ) * 180.0 / M_PI;
-  // std::cout << "debug: angle between the position vector of J*dq and dx = " << theta << " deg" << std::endl;
-
-
-  // post-processing on dq, to speed up and apply weighting
-  d_q = K_COL * d_q;
-
+  // Get joint angles
+  Matrix<double, 7, 1> q_cur_l, q_cur_r;
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = x.block<7, 1>(0, 0);
+  q_cur_r = x.block<7, 1>(7, 0);
+  q_cur_finger_l = x.block<12, 1>(14, 0);
+  q_cur_finger_r = x.block<12, 1>(26, 0); 
   
-  // debug on NaN issue
-  /*
-  bool debug = isnan(d_q.norm());
-  if (debug)
-  {
-    std::cout << "NaN error: d_q = " << d_q.transpose() << std::endl;
-    std::cout << "J = \n" << jacobian << std::endl << std::endl;
-    std::cout << "J*JT = \n" << (jacobian * jacobian.transpose()) << std::endl << std::endl;
-    std::cout << "(J*JT)^-1 = \n" << (jacobian * jacobian.transpose()).inverse() << std::endl << std::endl;
-    std::cout << "d_pos_ori = " << d_pos_ori.transpose() << std::endl;
-    std::cout << "End" << std::endl;
+  // Compute unary costs
+  // 1
+  double collision_cost = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
+  
+  // 2
+  double pos_limit_cost = compute_pos_limit_cost(x, _measurement);
 
-    // Qr can't solve ...
-    std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
-    // MatrixXd dq = jacobian.householderQr().solve(d_pos_ori);
-    Eigen::MatrixXd dq = jacobian.colPivHouseholderQr().solve(d_pos_ori); 
-    std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
-    std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
-    std::cout << "QR decomposition spent " << t_0011.count() << " s." << std::endl;
-    // assert(d_pos_ori.isApprox(jacobian * d_q));
-    std::cout << "Results of QR decomposition: dq = " << dq.transpose() << std::endl;
-    std::cout << "J * dq = " << (jacobian * dq).transpose() << std::endl;
-    std::cout << "d_pos_ori = " << d_pos_ori.transpose() << std::endl;
-    std::cout << "End" << std::endl;
-  }
-  */
+  // total cost
+  double cost = K_COL * collision_cost + K_POS_LIMIT * pos_limit_cost;
+  _error(0, 0) = cost;
 
-
-  return d_q;
-
+  // Display message
+  //std::cout << "Computing unary edge's cost: " << cost << std::endl;
+  
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_01 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_unary += t_01.count();
 }
 
 
-
+/**
+ * For g2o internal call. \n
+ * Calculate jacobians for collision cost and position limit cost. \n
+ * For collision part, we adopt gradient normal + robot jacobian method for any arm-arm, arm-hand, hand-hand(different) collision, 
+ * and compute numerical derivatives for same-hand finger collision because of the limited DOF for robot fingers which would yeild incorrect dq, 
+ * e.g. only 2 DOF for index finger while the given dx is 3-dim data.
+ */
 void MyUnaryConstraints::linearizeOplus()
 {
   // Initialization
   _jacobianOplusXi = Matrix<double, 1, JOINT_DOF>::Zero();
   
-
   // epsilons
   double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
   double simple_update = 0.2;//0.1;//0.1; // update step for (4,0) or (0,4), i.e. only one end is in colliding state, close to boundary
@@ -214,7 +158,6 @@ void MyUnaryConstraints::linearizeOplus()
   Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
   Matrix<double, JOINT_DOF, 1> delta_x = Matrix<double, JOINT_DOF, 1>::Zero();
 
-
   // Real-time collision checking strategy using robot jacobian and normal
   // double e_cur = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
   // convert from matrix to std::vector
@@ -222,30 +165,11 @@ void MyUnaryConstraints::linearizeOplus()
   for (unsigned int i = 0; i < JOINT_DOF; ++i)
     xx[i] = x[i];
 
-
   // iterate to calculate pos_limit jacobians
   double e_plus, e_minus;
   for (unsigned int d = 0; d < JOINT_DOF; d++)
   {
-    // 1 - Collision - obsolete
-    /*
-    delta_x[d] = col_eps;
-    // std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
-  
-    e_plus = compute_collision_cost(x+delta_x, dual_arm_dual_hand_collision_ptr);
-    e_minus = compute_collision_cost(x-delta_x, dual_arm_dual_hand_collision_ptr);
-    
-    // std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
-    // std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
-    // std::cout << "spent " << t_0011.count() << " s." << std::endl;
-
-    _jacobianOplusXi(0, d) = K_COL * (e_plus - e_minus) / (2*col_eps);
-
-    // record
-    col_jacobians[d] = _jacobianOplusXi(0, d);
-    */
-
-    // 2 - Position Limit
+    // Position Limit
     delta_x[d] = pos_limit_eps;
     e_plus = compute_pos_limit_cost(x+delta_x, _measurement);
     e_minus = compute_pos_limit_cost(x-delta_x, _measurement);
@@ -264,6 +188,7 @@ void MyUnaryConstraints::linearizeOplus()
   {
     return;
   }
+
 
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double e_cur;
@@ -295,7 +220,8 @@ void MyUnaryConstraints::linearizeOplus()
     e_cur = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
   }
 
-  // determine updates when in collision state or safety is not met
+
+  // Determine updates when in collision state or safety is not met
   if (e_cur > 0.0) // in collision state or within safety of margin
   {
     // std::cout << "debug: e_cur = " << e_cur << std::endl;
@@ -397,6 +323,7 @@ void MyUnaryConstraints::linearizeOplus()
       int finger_id_2 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right);
 
       // compute robot jacobians (for fingers), return is 6 x N, N could be 4(thumb) or 2(others); and compute updates
+      // use gradient normal + robot jacobians method for finger, which would yield incorrect dq
       /*
       Eigen::MatrixXd jacobian_1;
       Eigen::MatrixXd jacobian_2;
@@ -982,47 +909,112 @@ void MyUnaryConstraints::linearizeOplus()
 }
 
 
-/* This function takes in the q results of TRAC-IK, and solves collision state via robot jacobians.(based on minimum distance) */
+/** 
+ * This function outputs the pair of links that are closest to each other and the corresponding minimum distance,
+ *  for checking on collision. 
+ */
+void MyUnaryConstraints::output_distance_result()
+{
+  // std::cout << "Distance result: " << std::endl;
+  std::cout << "Collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] << " and " 
+                                    << dual_arm_dual_hand_collision_ptr->link_names[1] << ", with min_dist = "
+                                    << dual_arm_dual_hand_collision_ptr->min_distance << "." << std::endl;
+
+}
+
+
+/**
+ * This function computes q velocity from Cartesian velocity, through the use of robot jacobian and gradient normal. \n
+ * From the theory of robotics, we have [dx, dy, dz, dp, dq, dw] = J * dq, i.e. [d_pos, d_ori] = J * dq. \n
+ * Here we computes dq from the given d_pos = [dx, dy, dz] and J, the jacobian matrix.
+ * @param[in]   jacobian  The robot jacobian at a particular point, with the size of 6 x N where N is the number of joints related.
+ * @param[in]   d_pos     The position part of end-effector Cartesian-space update.
+ * @param[in]   speed     The scale ratio to control the update step. With too large speed, jacobian would be inaccurate.
+ * @param[out]  d_q       Joint velocity, with the size of N x 1.
+ */
+Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobian, Eigen::Vector3d d_pos, double speed)
+{
+  // dx = J * dq, given dx and J, solve for dq ==> J'*(J*J')^-1 * dx = dq. This is solvable only when rank(J) = rank(J, dx).
+  // So when rank(J) != 6, there is rank(J,dx) > rank(J), and the result would either be incorrect or NaN.
+  // Constrain the rows of J to 3, i.e. processing only position data, this way when row rank of J is >= 3, there is rank(J, dx) >= 3, and therefore rank(J, dx) = 3 = rank(J).
+
+  // prep
+  Eigen::Matrix<double, 6, 1> d_pos_ori = Eigen::Matrix<double, 6, 1>::Zero();
+  d_pos_ori.block(0, 0, 3, 1) = speed * d_pos;// //d_pos; // the jacobian computed should be at the direction that cost increases, here d_pos is the direction for cost to decrease.
+  unsigned int num_cols = jacobian.cols();
+  Eigen::MatrixXd d_q;
+
+
+  // pre-processing J and dx to cope with rank issue. If rank is smaller than 6, J rows will be reduced to the same number, and so does d_pos_ori.
+  // *** Pros and Cons: Although dpos calculated by J*dq would be consistent with d_pos_ori, J*dq might produce huge deviation in dori part !!!
+  unsigned int rank = jacobian.colPivHouseholderQr().rank(); 
+  Eigen::MatrixXd d_x = d_pos_ori;//d_pos_ori.block(0, 0, rank, 1);
+  Eigen::MatrixXd J = jacobian;//jacobian.block(0, 0, rank, num_cols);
+  // std::cout << "debug: rank(J) = " << rank << std::endl;
+  // std::cout << "debug: original J = " << jacobian << std::endl;
+  // std::cout << "debug: processed J = " << J << std::endl;
+  // std::cout << "debug: original dx = " << d_pos_ori.transpose() << std::endl;
+  // std::cout << "debug: processed dx = " << d_x.transpose() << std::endl;
+
+
+  // solve for dq
+  std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();
+  // 1 - direct calculation
+  // d_q = J.transpose() * (J * J.transpose()).inverse() * d_x;
+  // 2 - use SVD
+  JacobiSVD<MatrixXd> svd(J, ComputeThinU | ComputeThinV); // svd.singularValues()/.matrixU()/.matrixV()
+  d_q = svd.solve(d_x);
+  std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_0011 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+  // std::cout << "SVD solution took " << t_0011.count() << " s." << std::endl;
+  // debug:
+  // std::cout << "debug: d_q = " << d_q.transpose() << std::endl;
+  // std::cout << "debug: original J * dq = " << (jacobian * d_q).transpose() << std::endl;
+  // std::cout << "debug: processed J * dq = " << (J * d_q).transpose() << std::endl;
+  // std::cout << "debug: d_x = " << d_x.transpose() << std::endl;
+  // std::cout << "debug: d_pos_ori = " << d_pos_ori.transpose() << std::endl;
+  // std::cout << "size of d_q is: " << d_q.rows() << " x " << d_q.cols() << std::endl;
+
+  // compute angle between dx and J*dq
+  // Vector3d Jdq_pos = (jacobian * d_q).block(0, 0, 3, 1);
+  // double ac = (double)(Jdq_pos.transpose() * d_pos) / (Jdq_pos.norm()*d_pos.norm());
+  // double theta = std::acos( std::min(ac, 1.0) ) * 180.0 / M_PI;
+  // std::cout << "debug: angle between the position vector of J*dq and dx = " << theta << " deg" << std::endl;
+
+
+  // post-processing on dq, to speed up and apply weighting
+  d_q = K_COL * d_q;
+
+  return d_q;
+}
+
+
+/**
+ * @brief Resolve any colliding state on a given path.
+ * 
+ * This function takes in the q results of TRAC-IK, and solves collision state via robot jacobians.(based on minimum distance) 
+ */
 std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> MyUnaryConstraints::resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur)
 {
   // Prep
-  double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
-  // double speed = 1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
-  // double hand_speed = 100.0; // for collision between links belonging to the same hand !!!
-  // double min_distance;
+  double col_eps = 3.0 * M_PI / 180.0; // in radius
 
   // Iterate to resolve collision
   for (unsigned int n = 0; n < q_cur.size(); n++)
   {
     std::cout << ">> Processing point " << (n+1) << "/" << q_cur.size() << " ..." << std::endl;
     q_cur[n] = resolve_point_collisions(q_cur[n], col_eps);    
-
   }
 
-  // iterate to calculate pos_limit jacobians
-  // double e_plus, e_minus;
-  // for (unsigned int d = 0; d < JOINT_DOF; d++)
-  // {
-    
-  //   // 2 - Position Limit
-  //   delta_x[d] = pos_limit_eps;
-  //   e_plus = compute_pos_limit_cost(x+delta_x, _measurement);
-  //   e_minus = compute_pos_limit_cost(x-delta_x, _measurement);
-  //   _jacobianOplusXi(0, d) += K_POS_LIMIT * (e_plus - e_minus) / (2*pos_limit_eps);
-  //   pos_limit_jacobians[d] = K_POS_LIMIT * (e_plus - e_minus) / (2*pos_limit_eps);
-
-  //   whole_jacobians[d] = _jacobianOplusXi(0, d);
-
-  //   // Reset
-  //   delta_x[d] = 0.0;
-  // }
-
   return q_cur;
-
 }
 
 
-/* Resolve collision state of a path point through iteration with robot jacobians.
+/**
+ * @brief Resolve collision state of a single path point.
+ * 
+ * This function is for ease of use, and is called by resolve_path_collisions(). \n
+ * Colliding state of a path point is resolved through iteration with robot jacobians and gradient normal. \n
  * col_eps is the step for computing numerical differentiation for finger joints.
  */
 Eigen::Matrix<double, JOINT_DOF, 1> MyUnaryConstraints::resolve_point_collisions(Eigen::Matrix<double, JOINT_DOF, 1> x, double col_eps)
@@ -1061,7 +1053,6 @@ Eigen::Matrix<double, JOINT_DOF, 1> MyUnaryConstraints::resolve_point_collisions
     e_cur = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
   }
     
-
   // Compute updates
   unsigned int cur_iter = 0;
   unsigned int max_iter = 500;
@@ -1549,8 +1540,12 @@ Eigen::Matrix<double, JOINT_DOF, 1> MyUnaryConstraints::resolve_point_collisions
 }
 
 
-
-/* Check the minimum distance between the specified two links */
+/**
+ * Compute the minimum distance between the specified two links. 
+ * When the specified two links are not colliding, the distance is manually set to safety margin. \n
+ * This is because the dual_hand part contains multiple fingers ("manipulators"), and we only want to
+ * know about the collision state of the specified two links.
+ */
 double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, std::string link_name_1, std::string link_name_2, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
 {
   // convert from matrix to std::vector
@@ -1560,51 +1555,35 @@ double MyUnaryConstraints::compute_dual_hands_collision_cost(Matrix<double, JOIN
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double cost;
   double min_distance;
-  // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
-  // std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-  // min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_arms", d_arm_check); 
-  // std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-  // std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  // total_col += t_spent.count();
-  // count_col++;
-  // std::cout << "debug: time spent on computing minimum distance = " << t_spent.count() << std::endl;
-  // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
-  // if (min_distance > d_arm_safe) // arm safe
-  // {
-    // check hands 
-    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-    min_distance = dual_arm_dual_hand_collision_ptr->compute_two_links_distance(x, link_name_1, link_name_2, d_hand_check);
-                                                    //compute_self_distance_test(x, "dual_hands", d_hand_check); 
-    if (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 ||
-        dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_2) 
-        min_distance = d_hand_safe; // if collision pair is changed, then the collision between the original two links is resolved !!!
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  min_distance = dual_arm_dual_hand_collision_ptr->compute_two_links_distance(x, link_name_1, link_name_2, d_hand_check);
+  if (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 ||
+      dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_2) 
+    min_distance = d_hand_safe; // if collision pair is changed, then the collision between the original two links is resolved !!!
 
-    // std::cout << "debug: Possible collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] 
-    //           << " and " << dual_arm_dual_hand_collision_ptr->link_names[1] << std::endl;
-    // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+  // std::cout << "debug: Possible collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] 
+  //           << " and " << dual_arm_dual_hand_collision_ptr->link_names[1] << std::endl;
+  // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
 
-    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-    std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-    total_col += t_spent.count();
-    count_col++;
-    cost = std::max(d_hand_safe - min_distance, 0.0);
-  // }
-  // else
-  // {
-  //   cost = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
-  // }
-   
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_col += t_spent.count();
+  count_col++;
+  cost = std::max(d_hand_safe - min_distance, 0.0);
 
+  // apply weighting
   cost = K_COL * cost; // weighting...
 
   return cost;
-
 }
 
 
+/**
+ * This function considers the whole robot model, and check arm part and hand part separately.
+ */
 double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
 {
-  // bypass
+  // bypass collision checking
   if (K_COL == 0.0)
     return 0.0;
 
@@ -1612,18 +1591,18 @@ double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q
   std::vector<double> x(JOINT_DOF);
   for (unsigned int i = 0; i < JOINT_DOF; ++i)
     x[i] = q_whole[i];
+  
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double cost;
   double min_distance;
-  // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
+  // 1 - check arms first
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_arms", d_arm_check); 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   total_col += t_spent.count();
   count_col++;
-  // std::cout << "debug: time spent on computing minimum distance = " << t_spent.count() << std::endl;
-  // check_world_collision, check_full_collision, compute_self_distance, compute_world_distance
+  // 2 check hands if arms are in safety region  
   if (min_distance > d_arm_safe) // arm safe
   {
     // check hands 
@@ -1640,14 +1619,16 @@ double MyUnaryConstraints::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q
     cost = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
   }
     
-
+  // apply weighting
   cost = K_COL * cost; // weighting...
 
   return cost;
-
 }
 
 
+/**
+ * Use l1 penalty for position limit cost. A safety margin can be modified.
+ */
 double MyUnaryConstraints::compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q_whole, my_constraint_struct &fdata)
 {
   // add safety margin for ease of limiting
@@ -1665,13 +1646,15 @@ double MyUnaryConstraints::compute_pos_limit_cost(Matrix<double, JOINT_DOF, 1> q
   }
 
   return cost;
-
 }
 
 
+/**
+ * Return collision cost without the weighting coefficient K_COL applied, 
+ * and thus it's the collision state.
+ */
 double MyUnaryConstraints::return_col_cost()
 {
-
   // get the current joint value
   // _vertices is a VertexContainer type, a std::vector<Vertex*>
   const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
@@ -1692,19 +1675,16 @@ double MyUnaryConstraints::return_col_cost()
  
   double col_result = dual_arm_dual_hand_collision_ptr->check_self_collision(xx);
   double collision_cost = (col_result > 0.0)? 1.0 : 0.0; // col_result 1 for colliding, -1 for collision-free
-    //(col_result > 0.0)? 1.0 : 0.0; // col_result 1 for colliding, -1 for collision-free
-    //compute_collision_cost(xx, dual_arm_dual_hand_collision_ptr);
-  
-  //std::cout << "Collision cost=";
-  //std::cout << collision_cost << ", ";
-
 
   return collision_cost;
 }
 
+
+/**
+ * Position limit cost is l1 penalty.
+ */
 double MyUnaryConstraints::return_pos_limit_cost()
 {
-
   // get the current joint value
   // _vertices is a VertexContainer type, a std::vector<Vertex*>
   const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
@@ -1718,60 +1698,10 @@ double MyUnaryConstraints::return_pos_limit_cost()
   q_cur_finger_l = x.block<12, 1>(14, 0);
   q_cur_finger_r = x.block<12, 1>(26, 0); 
   
-
-  // 4
   double pos_limit_cost = compute_pos_limit_cost(x, _measurement);
-  //std::cout << "Pos limit cost=";
-  //std::cout << pos_limit_cost << "; ";
-
 
   return pos_limit_cost;
 }
 
-void MyUnaryConstraints::computeError()
-{
 
-
-  // statistics
-  count_unary++;  
-  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-
-  //std::cout << "Computing Unary Constraint..." << std::endl;
-
-  // get the current joint value
-  // _vertices is a VertexContainer type, a std::vector<Vertex*>
-  const DualArmDualHandVertex *v = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
-  const Matrix<double, JOINT_DOF, 1> x = v->estimate(); // return the current estimate of the vertex
-
-  // Get joint angles
-  Matrix<double, 7, 1> q_cur_l, q_cur_r;
-  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
-  q_cur_l = x.block<7, 1>(0, 0);
-  q_cur_r = x.block<7, 1>(7, 0);
-  q_cur_finger_l = x.block<12, 1>(14, 0);
-  q_cur_finger_r = x.block<12, 1>(26, 0); 
-  
-  // Compute unary costs
-  // 1
-  double collision_cost = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
-  
-  // 2
-  double pos_limit_cost = compute_pos_limit_cost(x, _measurement);
-
-  // total cost
-  double cost = K_COL * collision_cost + K_POS_LIMIT * pos_limit_cost;
-  _error(0, 0) = cost;
-
-  // Display message
-  //std::cout << "Computing unary edge's cost: " << cost << std::endl;
-  
-  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-  std::chrono::duration<double> t_01 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  total_unary += t_01.count();
-
-}
-
-
-
-
-
+#endif

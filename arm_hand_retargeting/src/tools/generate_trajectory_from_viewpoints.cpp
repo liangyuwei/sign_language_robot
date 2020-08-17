@@ -10,7 +10,6 @@
 #include "H5Cpp.h"
 //#include "H5Location.h"
 
-
 #include "generate_trajectory_from_viewpoints.h"
 
 

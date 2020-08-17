@@ -10,9 +10,7 @@
 #include "H5Cpp.h"
 //#include "H5Location.h"
 
-
-#include "generate_trajectory_using_DMP.h"
-
+#include "tools/generate_trajectory_using_DMP.h"
 
 using namespace std;
 using namespace Eigen;

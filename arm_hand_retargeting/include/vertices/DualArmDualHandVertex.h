@@ -2,7 +2,7 @@
 #define DUAL_ARM_DUAL_HAND_VERTEX_H_
 
 // Common
-#include <boost>
+#include <boost/shared_ptr.hpp>
 
 // G2O: infrastructure
 #include <g2o/core/base_vertex.h>
@@ -80,7 +80,7 @@ class DualArmDualHandVertex : public BaseVertex<JOINT_DOF, Matrix<double, JOINT_
 /** 
  * Reset vertex state to zeros.
  */
-virtual void DualArmDualHandVertex::etToOriginImpl() 
+void DualArmDualHandVertex::setToOriginImpl() 
 {
   _estimate << Matrix<double, JOINT_DOF, 1>::Zero();
 }
@@ -111,7 +111,7 @@ void DualArmDualHandVertex::set_bounds(const std::vector<double> _q_l_arm_lb, co
 /**
  * Do position limit check and collision check before accepting the updates. Choose among the feasible ones the one closest to the updated values.
  */
-virtual void DualArmDualHandVertex::oplusImpl(const double *update) 
+void DualArmDualHandVertex::oplusImpl(const double *update) 
 {
   // Check if bounds are specified
   if (q_lb.empty() || q_ub.empty())
@@ -178,7 +178,7 @@ virtual void DualArmDualHandVertex::oplusImpl(const double *update)
  * Note that here we cannot initialize reference member in places other than initialization list (used in constructor)
  * and thus this collision checker is not the same as those used in other edges, since it's passed by value instead of by reference.
  */
-void set_collision_checker(boost::shared_ptr<DualArmDualHandCollision> _dual_arm_dual_hand_collision_ptr)
+void DualArmDualHandVertex::set_collision_checker(boost::shared_ptr<DualArmDualHandCollision> _dual_arm_dual_hand_collision_ptr)
 {
   dual_arm_dual_hand_collision_ptr = _dual_arm_dual_hand_collision_ptr;
 }

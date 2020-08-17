@@ -7,8 +7,6 @@
 // G2O: infrastructure
 #include <g2o/core/base_vertex.h>
 #include <g2o/core/base_unary_edge.h>
-#include <g2o/core/base_binary_edge.h>
-#include <g2o/core/base_multi_edge.h>
 
 // For Eigen
 #include <Eigen/Core>
@@ -52,8 +50,8 @@ class DMPConstraints : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGo
     virtual void linearizeOplus();    ///< Used by g2o internal calculation, compute jacobians.
     
     // Debug output  
-    double output_cost(unsigned int FLAG);           ///< Output value of the specified constraint.
-    Matrix<double, 1, DMPPOINTS_DOF> output_jacobian(unsigned int FLAG); ///< Output jacobian of the specified cost from last call to linearizeOplus().
+    double output_cost(unsigned int FLAG);          
+    Matrix<double, 1, DMPPOINTS_DOF> output_jacobian(unsigned int FLAG); 
     
     // Flags for specifying which constraints to choose for debug output
     unsigned int ORIEN_FLAG = 0;        ///< Flag for debug print for orientation constraint.
@@ -154,7 +152,7 @@ void DMPConstraints::computeError()
 
 
 /**
- * @brief Output cost for specified constraint. 
+ * @brief Output cost for specified constraint under the current state. 
  * 
  * Flag for orientation / scale / relative change cost: ORIEN_FLAG / SCALE_FLAG / REL_CHANGE_FLAG.
  */
@@ -202,6 +200,11 @@ Matrix<double, 1, DMPPOINTS_DOF> DMPConstraints::output_jacobian(unsigned int FL
 } 
 
 
+/**
+ * @brief Compute orientation cost.
+ * 
+ * Function for internal use.
+ */
 double DMPConstraints::compute_orien_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
 {
   // get goals and starts
@@ -237,7 +240,6 @@ double DMPConstraints::compute_orien_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
                       std::max(rew_theta - max_theta, 0.0) +
                       std::max(rw_theta - max_theta, 0.0); // l1 penalty
   
-
                       /* // l2 penalty
                       std::pow(std::max(lrw_theta - max_theta, 0.0), 2) +
                       std::pow(std::max(lew_theta - max_theta, 0.0), 2) +
@@ -251,9 +253,15 @@ double DMPConstraints::compute_orien_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
                                  std::max(rw_theta - max_theta, 0.0), 2);*/
 
   return orien_cost;
-
 }
 
+
+/**
+ * @brief Compute scale cost.
+ * 
+ * Function for internal use. Constrain the change in scale of vectors connecting DMP starts and goals, 
+ * in case the optimization algorithm scales the DMP trajectories down so as to track more easily.(lazy)
+ */
 double DMPConstraints::compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
 {
   // get goals and starts
@@ -309,7 +317,13 @@ double DMPConstraints::compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
 
 }
 
-/* Change of starts and goals of relative trajectories */
+
+/**
+ *  @brief Compute relative change cost.
+ * 
+ * Function for internal use. Constrain the shift of starts and goals of relative-traj DMPs, 
+ * do not let it go too far from the human demonstrated relative motion characteristics.
+ */
 double DMPConstraints::compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
 {
   // get goals and starts
@@ -339,12 +353,11 @@ double DMPConstraints::compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> 
                            std::max(rew_goal_change - ew_margin, 0.0); // l1 penalty
 
   return rel_change_cost;
-
 }
 
 
 /**
- * Compute and store jacobians for each constraint.
+ * Compute jacobians for g2o internal call. And also store them for debug.
  */
 void DMPConstraints::linearizeOplus()
 {
@@ -392,7 +405,7 @@ void DMPConstraints::linearizeOplus()
     // reset delta_x
     delta_x[d] = 0.0;
   }
-
 }
+
 
 #endif

@@ -1,40 +1,8 @@
-/*
-#include <ros/ros.h>
+#include "tools/collision_checking_yumi.h"
 
-#include <vector>
-#include <string>
-#include <fstream>
-#include <algorithm>
-#include <chrono>
-
-// MoveIt!
-#include <moveit/robot_model_loader/robot_model_loader.h>
-#include <moveit/rdf_loader/rdf_loader.h>
-#include <moveit/planning_scene/planning_scene.h>
-
-// MoveIt msg and srv for using planning_scene_diff
-#include <moveit_msgs/PlanningScene.h>
-#include <moveit_msgs/ApplyPlanningScene.h>
-
-// For collision checking, distance computation
-#include <moveit/collision_detection_fcl/collision_robot_fcl.h>
-#include <moveit/collision_detection_fcl/collision_world_fcl.h>
-#include <moveit/collision_detection/collision_robot.h>
-
-// For PlanningSceneInterface
-#include <moveit/planning_scene_interface/planning_scene_interface.h>
-
-// Eigen
-#include <Eigen/Eigen>
-*/
-
-// Itself
-#include "collision_checking_yumi.h"
-
-#include <fstream>
-
-
-/* Add a box to the scene (for now) */
+/**
+ * Add a box to the scene (for debug collision checking with the environment)
+ */
 void DualArmDualHandCollision::apply_collision_objects()
 {
   // Add a box
@@ -70,18 +38,17 @@ void DualArmDualHandCollision::apply_collision_objects()
   srv.request.scene = planning_scene_msg;
   planning_scene_diff_client.call(srv); // does not continue until we are sure the diff has been applied
 
-
   // way 2(checked): add collision object throught PlanningSceneInterface (actually the mechanism is the same as the above one)
   /*
   moveit::planning_interface::PlanningSceneInterface planning_scene_interface;  
   planning_scene_interface.applyCollisionObject(collision_object);
   */
-
 }
 
 
-
-/* Remove the box to the scene (for now) */
+/**
+ * Remove the box to the scene (for debug collision checking with the environment) 
+ */
 void DualArmDualHandCollision::remove_collision_objects()
 {
 
@@ -118,8 +85,11 @@ void DualArmDualHandCollision::remove_collision_objects()
 }
 
 
-
-/* Update current robot state with the given joint values (for YuMi robot) */
+/**
+ * @brief Update current robot state with the given joint values (for YuMi robot) 
+ * 
+ * @param[in]   q_in    Input joint value. In the orider: left arm -> right arm -> left hand -> right hand.
+ */
 void DualArmDualHandCollision::set_joint_values_yumi(const std::vector<double> q_in)
 {
   // Get the joint angles for each group
@@ -136,14 +106,20 @@ void DualArmDualHandCollision::set_joint_values_yumi(const std::vector<double> q
   this->current_state_.setJointGroupPositions(this->left_hand_group_, q_left_finger);
   this->current_state_.setJointGroupPositions(this->right_hand_group_, q_right_finger);
   this->current_state_.update();
-
 }
 
 
+/**
+ * (obsolete) For updating state of UR5 robot, no longer needed.
+ */
 //void DualArmDualHandCollision::set_joint_values_ur5(const std::vector<double> q_in)
 
 
-
+/**
+ * @brief Get the PlanningScene maintained by move_group 
+ * 
+ * Only in the PlanningScene maintained by move_group can we perform collision checking with the environment.
+ */
 planning_scene::PlanningScenePtr DualArmDualHandCollision::get_move_group_planning_scene()
 {
   // Get the PlanningScene maintained by move_group
@@ -155,30 +131,28 @@ planning_scene::PlanningScenePtr DualArmDualHandCollision::get_move_group_planni
   this->planning_scene_monitor_->requestPlanningSceneState(PLANNING_SCENE_SERVICE);
   planning_scene_monitor::LockedPlanningSceneRW ps(this->planning_scene_monitor_);
 
-
   // clone a planning scene
   //std::cout << "========= Get child planning scene of the one maintained by move_group =========" << std::endl;
   planning_scene::PlanningScenePtr scene = ps->diff();
   scene->decoupleParent();
 
-
   return scene;
-
 }
 
 
-/* Constructor initialization */
+/**
+ * List initialization for some variables
+ */
 DualArmDualHandCollision::DualArmDualHandCollision(std::string urdf_string, std::string srdf_string) : options_(urdf_string, srdf_string), robot_model_loader_(options_), local_planning_scene_(kinematic_model_)
 {
 
-  //this->collision_request_.contacts = false;//true;
-  //this->collision_request_.max_contacts = 1000; 
-
 }
 
 
-/* Get the global transform (translation + rotation) of the specified link under the current configuration/state (current_state_) 
- * For use in calculating reference point position from nearest point position
+/**
+ * @brief Get the global transform (translation + rotation) of the specified link under the current configuration/state (current_state_) 
+ * 
+ * For use in calculating reference point position from nearest point position.
  */
 Eigen::Vector3d DualArmDualHandCollision::get_global_link_transform(std::string target_link_name)
 {
@@ -195,9 +169,13 @@ Eigen::Vector3d DualArmDualHandCollision::get_global_link_transform(std::string 
 }
 
 
+/**
+ * @brief Get link position
+ * 
+ * Tested for performing forward kinematics but it cannot compete with KDL FK method, either in speed or efficiency.
+ */
 Eigen::Vector3d DualArmDualHandCollision::get_link_pos(const std::vector<double> q_in, std::string target_link_name)
 {
-
   // Set joint values and update current_state_ !
   this->set_joint_values_yumi(q_in);
 
@@ -210,6 +188,12 @@ Eigen::Vector3d DualArmDualHandCollision::get_link_pos(const std::vector<double>
   return position;
 }
 
+
+/**
+ * @brief Get link orientation
+ * 
+ * Tested for performing forward kinematics but it cannot compete with KDL FK method, either in speed or efficiency.
+ */
 Eigen::Matrix3d DualArmDualHandCollision::get_link_ori(const std::vector<double> q_in, std::string target_link_name)
 {
 
@@ -226,8 +210,13 @@ Eigen::Matrix3d DualArmDualHandCollision::get_link_ori(const std::vector<double>
 }
 
 
-/* Get robot arm jacobian with the given link and reference_point_position. 
- * left_or_right: choose left of right
+/**
+ * @brief Get robot arm jacobian with the given link and reference_point_position. 
+ * 
+ * @param[in]   target_link_name  which link to compute jacobian for
+ * @param[in]   ref_point_pos     which point on the link to compute jacobian for
+ * @param[in]   left_or_right     choose left of right
+ * @param[out]  jacobian          calculated robot jacobian which is used for collision avoidance (in combination with contact normal information)
  */
 Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right)
 {
@@ -249,7 +238,6 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_jacobian(std::string tar
                                               ref_point_pos, jacobian);
   }
 
-
   // Check the results
   if (result)
   {
@@ -263,7 +251,6 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_jacobian(std::string tar
   }
 
   return jacobian;
-
 }
 
 
@@ -1726,11 +1713,6 @@ int main(int argc, char **argv)
   robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian("Link111", Eigen::Vector3d::Zero(), finger_id, left_or_right);
   std::cout << "debug: jacobian of Link111 = \n" << robot_jacobian << std::endl;
 
-
-
-
   return 0;
-
 }
-
 

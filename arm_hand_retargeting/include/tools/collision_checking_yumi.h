@@ -1,5 +1,10 @@
+#ifndef COLLISION_CHECKING_YUMI_H
+#define COLLISION_CHECKING_YUMI_H
+
+// For ROS
 #include <ros/ros.h>
 
+// Common
 #include <vector>
 #include <string>
 #include <fstream>
@@ -33,18 +38,28 @@
 // For collision objects
 #include "geometric_shapes/shapes.h"
 
+// For file operation
+#include <fstream>
 
+
+/**
+ * @brief Collision checking functionality for YuMi dual-arm robot.
+ * 
+ * This class encapsulates the caller to MoveIt APIs for collision checking, distance computation via FCL. \n
+ * q velocity can also be computed with the use of contact normal and robot jacobian information.
+ */
 class DualArmDualHandCollision
 {
 
   public:
     DualArmDualHandCollision();
-    // Initialization list
-    DualArmDualHandCollision(std::string urdf_string, std::string srdf_string);// : options_(urdf_string, srdf_string), robot_model_loader_(options_), planning_scene_(kinematic_model_), collision_robot_fcl_(kinematic_model_);
 
+    // Initialization list
+    /// Constructor, initialized with paths to urdf and srdf files
+    DualArmDualHandCollision(std::string urdf_string, std::string srdf_string);
     ~DualArmDualHandCollision(){};
 
-    // API
+    // Encapsulated usage of APIs
     double check_self_collision(const std::vector<double> q_in);
     double check_arm_self_collision(const std::vector<double> q_in);
     double check_hand_self_collision(const std::vector<double> q_in);
@@ -71,7 +86,6 @@ class DualArmDualHandCollision
 
     // for use in g2o tracking constraint(get robot jacobian directly, for more efficient tracking of wrist and elbow trajectories)
     Eigen::MatrixXd get_robot_arm_jacobian(const std::vector<double> q_in, std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right);
-    
     Eigen::MatrixXd get_arm_jacobian(const std::vector<double> q_in, std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right);
 
     Eigen::Vector3d get_link_pos(const std::vector<double> q_in, std::string target_link_name);
@@ -163,7 +177,6 @@ class DualArmDualHandCollision
     std::vector<std::string> left_hand_link_names_ = left_hand_group_->getLinkModelNames();
     std::vector<std::string> right_hand_link_names_ = right_hand_group_->getLinkModelNames();
 
-    
 };
 
-
+#endif
