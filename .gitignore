@@ -5,5 +5,5 @@
 *.pt
 *.bag
 *.avi
-/doxy_docs/
+/doc/doxy_docs/
 /.vscode/
