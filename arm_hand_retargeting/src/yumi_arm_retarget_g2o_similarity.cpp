@@ -472,7 +472,7 @@ int main(int argc, char *argv[])
  
   }
   tracking_edge->setMeasurement(constraint_data);
-  tracking_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity());
+  tracking_edge->setInformation(Eigen::Matrix<double, 20, 20>::Identity());
   optimizer.addEdge(tracking_edge);
 
   
@@ -857,6 +857,7 @@ int main(int argc, char *argv[])
     DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
     best_q[s] = vertex_tmp->estimate();
   }
+  
 
 
   // Solve collision 
@@ -1250,10 +1251,10 @@ int main(int argc, char *argv[])
         std::cout << std::endl << std::endl;    
         // output jacobians of Tracking edge for q vertices
         std::cout << "Norms of tracking_q_jacobians = ";
-        Matrix<double, NUM_DATAPOINTS, JOINT_DOF> q_jacobian = tracking_edge->output_q_jacobian();
-        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        std::vector<Matrix<double, 20, JOINT_DOF>> q_jacobian = tracking_edge->output_q_jacobian();
+        for (unsigned int n = 0; n < q_jacobian.size(); n++)
         {
-          std::cout << q_jacobian.block(n, 0, 1, JOINT_DOF).norm() << " ";
+          std::cout << q_jacobian[n].norm() << " ";
         }
         std::cout << std::endl << std::endl;    
 
