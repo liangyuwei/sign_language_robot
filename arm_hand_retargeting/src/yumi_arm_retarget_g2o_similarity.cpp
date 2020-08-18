@@ -865,114 +865,19 @@ int main(int argc, char *argv[])
   finger_cost_before_optim = 0.0;
   for (unsigned s = 0; s < finger_cost_tmp.size(); s++)
     finger_cost_before_optim += finger_cost_tmp[s];
-  // way 1 - use original LM to optimize for collision
-  /*
-  // set coefficients
-  id_k_col = 1; //0; // should start with the nonzero coefficient (all the coefficients can't be zero)
-  K_SMOOTHNESS = 0.0;
-  K_POS_LIMIT = 0.0;
-  K_WRIST_POS = 0.0;
-  K_WRIST_ORI = 0.0;
-  K_ELBOW_POS = 0.0;
-  K_FINGER = 0.0;
-  // iterate to optimize for collision
-  do 
-  {
-    K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
-    
-    // Evaluate costs before optimization
-    // collision counts
-    col_cost_before_optim = 0.0;
-    for (unsigned int t = 0; t < unary_edges.size(); t++)
-      col_cost_before_optim += unary_edges[t]->return_col_cost();
-    // pos_limit
-    pos_limit_cost_before_optim = 0.0;
-    for (unsigned int t = 0; t < unary_edges.size(); t++)
-      pos_limit_cost_before_optim += unary_edges[t]->return_pos_limit_cost();
-    // smoothness
-    smoothness_cost_before_optim = 0.0;
-    for (unsigned int t = 0; t < smoothness_edges.size(); t++)
-      smoothness_cost_before_optim += smoothness_edges[t]->return_smoothness_cost();
 
-    // Report current condition
-    std::cout << ">>>> Collision Fix: adjust K_COL to resolve collision path points in TRAC-IK results " << std::endl;
-    std::cout << "Current coefficients: K_COL = " << K_COL << std::endl;
-    std::cout << "Costs before optimization: col_cost = " << col_cost_before_optim << ", pos_limit_cost = " << pos_limit_cost_before_optim << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl;
-
-    // optimize
-    std::cout << "Optimizing q..." << std::endl;
-    optimizer.optimize(20); 
-    
-    // Evaluate costs after optimization
-    col_cost_after_optim = 0.0;
-    for (unsigned int t = 0; t < unary_edges.size(); t++)
-      col_cost_after_optim += unary_edges[t]->return_col_cost();
-    // pos_limit
-    pos_limit_cost_after_optim = 0.0;
-    for (unsigned int t = 0; t < unary_edges.size(); t++)
-      pos_limit_cost_after_optim += unary_edges[t]->return_pos_limit_cost();
-    // smoothness
-    smoothness_cost_after_optim = 0.0;
-    for (unsigned int t = 0; t < smoothness_edges.size(); t++)
-      smoothness_cost_after_optim += smoothness_edges[t]->return_smoothness_cost();
-
-    // Adjust K_COL
-    if (col_cost_after_optim > col_cost_bound && id_k_col <= K_COL_set.size() - 1 ) 
-    { 
-      if (col_cost_before_optim - col_cost_after_optim <= 2.0) // if it's not descending or not descending fast enough, increase the coefficient
-      {
-        if (id_k_col < K_COL_set.size() - 1)
-          std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << " ----> " << K_COL_set[id_k_col+1] << std::endl;
-        else
-          std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << " (Reached the end) " << std::endl;
-        id_k_col++; // move to next sample point
-      }
-      else
-      {
-        std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << std::endl;
-      }
-      std::cout << "Cost: col_cost = " << col_cost_before_optim << " ----> " << col_cost_after_optim 
-                                      << "(" << (col_cost_before_optim > col_cost_after_optim ? "-" : "+")
-                                      << std::abs(col_cost_before_optim - col_cost_after_optim) << ")" 
-                                      << " (bound: " << col_cost_bound << ")" << std::endl;
-    }
-    else
-    {
-      std::cout << "Coefficient: K_COL = " << K_COL << std::endl;
-      std::cout << "Cost: col_cost = " << col_cost_after_optim << " (bound: " << col_cost_bound << ")" << std::endl;
-    }
-
-  }while(id_k_col <= (K_COL_set.size()-1) && col_cost_after_optim > col_cost_bound);
-  // reset coefficient
-  id_k_col = 0;
-  K_FINGER = 1.0;
-  // statistics
-  std::vector<double> elbow_pos_cost_tmp = tracking_edge->return_elbow_pos_cost_history();           
-  elbow_pos_cost_after_optim = 0.0;
-  for (unsigned s = 0; s < elbow_pos_cost_tmp.size(); s++)
-    elbow_pos_cost_after_optim += elbow_pos_cost_tmp[s];
-  // wrist pos 
-  std::vector<double> wrist_pos_cost_tmp = tracking_edge->return_wrist_pos_cost_history();
-  wrist_pos_cost_after_optim = 0.0;
-  for (unsigned s = 0; s < wrist_pos_cost_tmp.size(); s++)
-    wrist_pos_cost_after_optim += wrist_pos_cost_tmp[s];
-  // wrist ori
-  std::vector<double> wrist_ori_cost_tmp = tracking_edge->return_wrist_ori_cost_history();
-  wrist_ori_cost_after_optim = 0.0;
-  for (unsigned s = 0; s < wrist_ori_cost_tmp.size(); s++)
-    wrist_ori_cost_after_optim += wrist_ori_cost_tmp[s];  
-  */
-
-  // way 2 - perform collision fix directly on q vertices
+  // perform collision fix directly on q vertices
   // process TRAC-IK results
   K_COL = 1.0; // set collision checker on!!!
   best_q = unary_edges[0]->resolve_path_collisions(best_q);
+
   // assign to q vertices
   for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
   {
     DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
     vertex_tmp->setEstimate(best_q[s]);
   }
+  
   // Evaluate costs
   col_cost_after_optim = 0.0;
   for (unsigned int t = 0; t < unary_edges.size(); t++)
