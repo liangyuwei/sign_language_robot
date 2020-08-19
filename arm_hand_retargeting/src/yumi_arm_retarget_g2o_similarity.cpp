@@ -507,7 +507,7 @@ int main(int argc, char *argv[])
   // Start optimization
   std::cout << ">>>> Start optimization:" << std::endl;
   optimizer.initializeOptimization();
-  //optimizer.computeInitialGuess();  
+  //optimizer.computeInitialGuess();   
   //optimizer.computeActiveErrors();
 
   std::cout << "optimizing graph: " << optimizer.vertices().size() << " vertices, " 

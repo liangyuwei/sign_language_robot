@@ -995,7 +995,8 @@ Eigen::MatrixXd MyUnaryConstraints::compute_col_q_update(Eigen::MatrixXd jacobia
  * 
  * This function takes in the q results of TRAC-IK, and solves collision state via robot jacobians.(based on minimum distance) 
  * @param[in]     q_cur             The joint trajectory that requires reactive collision avoidance processing.
- * Note that the first point mustn't be in colliding state, because this function won't resolve the collision of the first path point!!!
+ * Note that collision state or modification of the first point are not considered in resolve_point_collisions(), 
+ * hence here we feed in x0 and x0 itself to that function, so as to check the first path point.
  * @param[in]     num_intervals     Number of intervals of interpolation for dense discrete collision checking between adjacent path points. 
  * Indicates the density of discrete collision checking. Note that a large value would cost more computation.
  */
@@ -1005,6 +1006,9 @@ std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> MyUnaryConstraints::resolve_pat
   double col_eps = 3.0 * M_PI / 180.0; // in radius
 
   // Iterate to resolve collision
+  // specifically check for the first point
+  q_cur[0] = resolve_point_collisions(q_cur[0], q_cur[0], col_eps, 1);     // just one interval
+  // iterate through
   for (unsigned int n = 0; n < q_cur.size() - 1; n++)
   {
     std::cout << ">> Processing point " << (n+1) << "/" << q_cur.size() << " ..." << std::endl;
@@ -1573,6 +1577,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> MyUnaryConstraints::resolve_point_collisions
  * @brief Perform dense discrete, binary collision checking.
  * 
  * This function is for approximating Continuous-time Collision Checking, i.e. return the time of first contact on a (linearly) interpolated path.
+ * @param[in]       num_intervals   Indicate density of discrete collision checking. Must be greater than 0, otherwise collision checking is bypassed!!!
  * @param[in,out]   x_col           If any colliding state exists in between x0 and x1, return that state.
  * @param[out]      t_contact       Time of contact. -1 if no intermediate collision state is found.
  */
