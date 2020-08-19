@@ -146,6 +146,7 @@ void DualArmDualHandVertex::oplusImpl(const double *update)
   // std::cout << "Amount of out-of-bounds = " << amount_out_of_bound << std::endl;
 
   // Collision avoidance
+  /*
   Matrix<double, JOINT_DOF, 1> tmp_estimate;
   std::vector<double> tmp_estimate_vec(JOINT_DOF);
   for(int n = 0; n < num_intervals; n++)
@@ -166,9 +167,10 @@ void DualArmDualHandVertex::oplusImpl(const double *update)
     else // if all in collision, just reject the updates and use the current state still
       tmp_estimate = cur_estimate; 
   }
+  */
 
   // Assign processed estimates to _estimate for g2o
-  _estimate = tmp_estimate;
+  _estimate = new_estimate; //tmp_estimate;
 
 }
 

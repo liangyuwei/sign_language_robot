@@ -31,7 +31,7 @@ double K_DMPRELCHANGE;          ///< Coefficient for the cost of relative trajec
 
 unsigned int count_col = 0;         ///< For debug, count the number of times collision checking is performed.
 unsigned int count_traj = 0;        ///< For debug, count the number of times (DMP) trajectory generator is called.
-unsigned int count_unary = 0;       ///< For debug, count the number of times unary edges are called.
+unsigned int count_unary = 0;       ///< For debug, count the number of times unary edges are called. (now it's collision edge)
 unsigned int count_smoothness = 0;  ///< For debug, count the number of times smoothness cost is computed.
 unsigned int count_tracking = 0;    ///< For debug, count the number of times tracking edge is called.
 

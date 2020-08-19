@@ -70,7 +70,8 @@
 
 // For edges
 #include "edges/DMPConstraints.h"
-#include "edges/MyUnaryConstraints.h"
+// #include "edges/MyUnaryConstraints.h"
+#include "edges/CollisionConstraint.h"
 #include "edges/SmoothnessConstraint.h"
 #include "edges/TrackingConstraint.h"
 

@@ -41,7 +41,6 @@
 // For file operation
 #include <fstream>
 
-
 /**
  * @brief Collision checking functionality for YuMi dual-arm robot.
  * 

@@ -199,7 +199,7 @@ int main(int argc, char *argv[])
   const std::vector<double> q_r_arm_ub = {2.8, 0.75, 1.2, 1.4, 1.578, 2.1, 1.578}; // modified on 2020/07/20
   //{0.5, 0.75, 2.9, 1.4, 1.578, 2.1, 1.57};//{2.94, 0.76, 2.94, 1.4, 5.06, 2.41, 4.0};
 
-  // remember to keep inconsistent with _robot_finger_start and _robot_finger_goal
+  // remember to keep consistent with _robot_finger_start and _robot_finger_goal
   const std::vector<double> q_l_finger_lb = {-1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -0.75, 0.0, -0.2, -0.15};
                                             //{-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
   const std::vector<double> q_l_finger_ub = {0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3,  0.1,  0.0,  0.0};
@@ -290,7 +290,8 @@ int main(int argc, char *argv[])
   // Add vertices and edges
   std::vector<DualArmDualHandVertex*> v_list(NUM_DATAPOINTS);
   DMPStartsGoalsVertex* dmp_vertex;
-  std::vector<MyUnaryConstraints*> unary_edges;
+  // std::vector<MyUnaryConstraints*> unary_edges;
+  std::vector<CollisionConstraint*> collision_edges;
   std::vector<SmoothnessConstraint*> smoothness_edges;  
   TrackingConstraint* tracking_edge;
   DMPConstraints* dmp_edge;
@@ -403,7 +404,7 @@ int main(int argc, char *argv[])
     v_list[it] = new DualArmDualHandVertex();
     v_list[it]->set_bounds(q_l_arm_lb, q_l_arm_ub, q_r_arm_lb, q_r_arm_ub, 
                            q_l_finger_lb, q_l_finger_ub, q_r_finger_lb, q_r_finger_ub); // set bounds for restraining updates
-    v_list[it]->set_collision_checker(dual_arm_dual_hand_collision_ptr); // set collision checker for use in OplusImpl()                                           
+    // v_list[it]->set_collision_checker(dual_arm_dual_hand_collision_ptr); // set collision checker for use in OplusImpl()                                           
     
 
     v_list[it]->setEstimate(q_initial);
@@ -457,15 +458,13 @@ int main(int argc, char *argv[])
 
 
     // add unary edges
-    MyUnaryConstraints *unary_edge = new MyUnaryConstraints(dual_arm_dual_hand_collision_ptr);
-    unary_edge->setId(it+2); // similarity and tracking edges ahead of it
-    unary_edge->setVertex(0, optimizer.vertex(1+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
-    unary_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
-    unary_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
-    optimizer.addEdge(unary_edge);
-
-    unary_edges.push_back(unary_edge);
-    
+    // MyUnaryConstraints *unary_edge = new MyUnaryConstraints(dual_arm_dual_hand_collision_ptr);
+    // unary_edge->setId(it+2); // similarity and tracking edges ahead of it
+    // unary_edge->setVertex(0, optimizer.vertex(1+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
+    // unary_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
+    // unary_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
+    // optimizer.addEdge(unary_edge);
+    // unary_edges.push_back(unary_edge);
     
     // add tracking edges
     tracking_edge->setVertex(1+it, optimizer.vertex(1+it)); 
@@ -476,9 +475,33 @@ int main(int argc, char *argv[])
   optimizer.addEdge(tracking_edge);
 
   
-  std::cout << ">>>> Adding binary edges " << std::endl;
+  std::cout << ">>>> Adding binary edges: smoothness and collision costs " << std::endl;
+  unsigned int num_col_checks = 50; // 100; // when set to 100, one iteration takes about 5-6 seconds
+  // collision edge for the first path point, since this constraint only processes the latter vertex;
+  // set number of check to 1, so as to perform only one collision checking on x0
+  CollisionConstraint *first_collision_edge = new CollisionConstraint(dual_arm_dual_hand_collision_ptr, 1);
+  first_collision_edge->setId(2); // similarity and tracking edges ahead of it
+  first_collision_edge->setVertex(0, optimizer.vertex(1)); 
+  first_collision_edge->setVertex(1, optimizer.vertex(1));   
+  first_collision_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
+  first_collision_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
+  
+  collision_edges.push_back(first_collision_edge);
+
+  optimizer.addEdge(first_collision_edge);
   for (unsigned int it = 0; it < NUM_DATAPOINTS - 1; ++it)
   {
+    // add collision edges
+    CollisionConstraint *collision_edge = new CollisionConstraint(dual_arm_dual_hand_collision_ptr, num_col_checks);
+    collision_edge->setId(it+3); // the first one with id=2 is already included
+    collision_edge->setVertex(0, optimizer.vertex(1+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
+    collision_edge->setVertex(1, optimizer.vertex(2+it)); 
+    collision_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
+    collision_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
+    optimizer.addEdge(collision_edge);
+
+    collision_edges.push_back(collision_edge);
+    
     // Add binary edges
     SmoothnessConstraint *smoothness_edge = new SmoothnessConstraint();
     smoothness_edge->setId(NUM_DATAPOINTS+2+it); // set a unique ID
@@ -514,7 +537,7 @@ int main(int argc, char *argv[])
                                     << optimizer.edges().size() << " edges." << std::endl;
 
   std::vector<std::vector<double> > col_cost_history;
-  std::vector<std::vector<double> > pos_limit_cost_history;
+  // std::vector<std::vector<double> > pos_limit_cost_history;
   std::vector<std::vector<double> > wrist_pos_cost_history;
   std::vector<std::vector<double> > l_wrist_pos_cost_history;
   std::vector<std::vector<double> > r_wrist_pos_cost_history;
@@ -568,23 +591,23 @@ int main(int argc, char *argv[])
   
   // Sets of selectable coefficients
   // Matrix<double, 20, 1> K_COL_set; K_COL_set << 0.0, 0.1, 0.5, 1.0, 1.5, 2.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  Matrix<double, 35, 1> K_COL_set; K_COL_set[0] = 0.0;
+  Matrix<double, 35, 1> K_COL_set; //K_COL_set[0] = 0.0;
   double k_col_init = 0.1;
-  for (unsigned int s = 0; s < 34; s++)
+  for (unsigned int s = 0; s < 35; s++)
   {
-    K_COL_set[s+1] = k_col_init;
+    K_COL_set[s] = k_col_init;
     k_col_init = k_col_init * 1.5;
   }
   
   // Matrix<double, 2, 1> K_COL_set; K_COL_set << 0.0, 1.0;
   //K_COL_set = K_COL_set * 10; // set large penalty coefficient for bound (starts from colliding-free state?)
-  double k_pos_limit_init = 0.1;
-  Matrix<double, 15, 1> K_POS_LIMIT_set; //K_POS_LIMIT_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  for (unsigned int s = 0; s < 15; s++)
-  {
-    K_POS_LIMIT_set[s] = k_pos_limit_init;
-    k_pos_limit_init = k_pos_limit_init * 1.5;
-  }
+  // double k_pos_limit_init = 0.1;
+  // Matrix<double, 15, 1> K_POS_LIMIT_set; //K_POS_LIMIT_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  // for (unsigned int s = 0; s < 15; s++)
+  // {
+  //   K_POS_LIMIT_set[s] = k_pos_limit_init;
+  //   k_pos_limit_init = k_pos_limit_init * 1.5;
+  // }
   double k_smoothness_init = 0.1;
   Matrix<double, 15, 1> K_SMOOTHNESS_set; //K_SMOOTHNESS_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
   for (unsigned int s = 0; s < 15; s++)
@@ -600,14 +623,14 @@ int main(int argc, char *argv[])
   
   std::cout << ">>>> Selectable coefficients: ";
   std::cout << "K_COL = " << K_COL_set.transpose() << std::endl;
-  std::cout << "K_POS_LIMIT = " << K_POS_LIMIT_set.transpose() << std::endl;
+  // std::cout << "K_POS_LIMIT = " << K_POS_LIMIT_set.transpose() << std::endl;
   std::cout << "K_SMOOTHNESS = " << K_SMOOTHNESS_set.transpose() << std::endl;
   std::cout << "K_WRIST_POS = " << K_WRIST_POS_set.transpose() << std::endl;
   std::cout << "K_WRIST_ORI = " << K_WRIST_ORI_set.transpose() << std::endl;
   std::cout << "K_ELBOW_POS = " << K_ELBOW_POS_set.transpose() << std::endl;
   
   unsigned int id_k_col = 0;
-  unsigned int id_k_pos_limit = 0;
+  // unsigned int id_k_pos_limit = 0;
   unsigned int id_k_smoothness = 0;
 
   unsigned int id_k_wrist_pos = 0;
@@ -619,7 +642,7 @@ int main(int argc, char *argv[])
   double eps = 1e-6; // numeric error
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
   double smoothness_bound = std::sqrt(std::pow(3.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
-  double pos_limit_bound = std::sqrt(std::pow(eps, 2) * JOINT_DOF); // 0.0, on account of numric error
+  // double pos_limit_bound = std::sqrt(std::pow(eps, 2) * JOINT_DOF); // 0.0, on account of numric error
 
   double dmp_orien_cost_bound = eps; // 0.0, on account of numeric error //0.0; // better be 0, margin is already set in it!!!
   double dmp_scale_cost_bound = eps; // 0.0, on account of numeric error 0.0; // better be 0
@@ -692,8 +715,8 @@ int main(int argc, char *argv[])
     // signal flag for adjusting coefficients
     double col_cost_before_optim;
     double col_cost_after_optim;
-    double pos_limit_cost_before_optim;
-    double pos_limit_cost_after_optim;
+    // double pos_limit_cost_before_optim;
+    // double pos_limit_cost_after_optim;
     double smoothness_cost_before_optim;
     double smoothness_cost_after_optim;
     double wrist_pos_cost_before_optim;
@@ -713,7 +736,7 @@ int main(int argc, char *argv[])
     double best_wrist_pos_cost = 10000;
     double best_wrist_ori_cost = 10000;
     double best_col_cost = NUM_DATAPOINTS;
-    double best_pos_limit_cost = 10000;
+    // double best_pos_limit_cost = 10000;
     double best_smoothness_cost = 10000;
     double best_dist = std::max(best_wrist_pos_cost - wrist_pos_cost_bound, 0.0) / wrist_pos_cost_bound + 
                        std::max(best_wrist_ori_cost - wrist_ori_cost_bound, 0.0) / wrist_ori_cost_bound +
@@ -813,12 +836,14 @@ int main(int argc, char *argv[])
     tmp_finger_pos_cost += finger_cost[s];
   // collision 
   double tmp_col_cost = 0.0;
-  for (unsigned int t = 0; t < unary_edges.size(); t++)
-    tmp_col_cost += unary_edges[t]->return_col_cost(); // return_col_cost() is not affected by K_COL, just the count of collision path points
+  for (unsigned int t = 0; t < collision_edges.size(); t++)
+    tmp_col_cost += collision_edges[t]->return_col_cost(); // return_col_cost() is not affected by K_COL, just the count of collision path points
+  // for (unsigned int t = 0; t < unary_edges.size(); t++)
+    // tmp_col_cost += unary_edges[t]->return_col_cost(); // return_col_cost() is not affected by K_COL, just the count of collision path points
   // pos_limit
-  double tmp_pos_limit_cost = 0.0;
-  for (unsigned int t = 0; t < unary_edges.size(); t++)
-    tmp_pos_limit_cost += unary_edges[t]->return_pos_limit_cost();
+  // double tmp_pos_limit_cost = 0.0;
+  // for (unsigned int t = 0; t < unary_edges.size(); t++)
+    // tmp_pos_limit_cost += unary_edges[t]->return_pos_limit_cost();
   // smoothness
   double tmp_smoothness_cost = 0.0;
   for (unsigned int t = 0; t < smoothness_edges.size(); t++)
@@ -836,7 +861,7 @@ int main(int argc, char *argv[])
   std::cout << "Cost: elbow_pos_cost = " << tmp_elbow_pos_cost << std::endl;
   std::cout << "Cost: finger_pos_cost = " << tmp_finger_pos_cost << std::endl;
   std::cout << "Cost: col_cost = " << tmp_col_cost << std::endl;
-  std::cout << "Cost: pos_limit_cost = " << tmp_pos_limit_cost << std::endl;
+  // std::cout << "Cost: pos_limit_cost = " << tmp_pos_limit_cost << std::endl;
   std::cout << "Cost: smoothness_cost = " << tmp_smoothness_cost << std::endl;
   std::cout << "Total time spent: " << t_spent_wrist_trac_ik_loop.count() << " s." << std::endl;
 
@@ -849,7 +874,7 @@ int main(int argc, char *argv[])
   best_wrist_ori_cost = tmp_wrist_ori_cost;
   best_elbow_pos_cost = tmp_elbow_pos_cost;
   best_col_cost = tmp_col_cost;
-  best_pos_limit_cost = tmp_pos_limit_cost;
+  // best_pos_limit_cost = tmp_pos_limit_cost;
   best_smoothness_cost = tmp_smoothness_cost;
   // record the q values
   for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
@@ -869,7 +894,9 @@ int main(int argc, char *argv[])
   // perform collision fix directly on q vertices
   // process TRAC-IK results
   K_COL = 1.0; // set collision checker on!!!
-  best_q = unary_edges[0]->resolve_path_collisions(best_q);
+  // best_q = unary_edges[0]->resolve_path_collisions(best_q);
+  best_q = collision_edges[0]->resolve_path_collisions(best_q);
+
 
   // assign to q vertices
   for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
@@ -880,12 +907,14 @@ int main(int argc, char *argv[])
   
   // Evaluate costs
   col_cost_after_optim = 0.0;
-  for (unsigned int t = 0; t < unary_edges.size(); t++)
-    col_cost_after_optim += unary_edges[t]->return_col_cost();
+  for (unsigned int t = 0; t < collision_edges.size(); t++)
+    col_cost_after_optim += collision_edges[t]->return_col_cost();
+  // for (unsigned int t = 0; t < unary_edges.size(); t++)
+    // col_cost_after_optim += unary_edges[t]->return_col_cost();
   // pos_limit
-  pos_limit_cost_after_optim = 0.0;
-  for (unsigned int t = 0; t < unary_edges.size(); t++)
-    pos_limit_cost_after_optim += unary_edges[t]->return_pos_limit_cost();
+  // pos_limit_cost_after_optim = 0.0;
+  // for (unsigned int t = 0; t < unary_edges.size(); t++)
+  //   pos_limit_cost_after_optim += unary_edges[t]->return_pos_limit_cost();
   // smoothness
   smoothness_cost_after_optim = 0.0;
   for (unsigned int t = 0; t < smoothness_edges.size(); t++)
@@ -915,7 +944,8 @@ int main(int argc, char *argv[])
   std::chrono::duration<double> t_spent_col_fix = std::chrono::duration_cast<std::chrono::duration<double>>(t1_col_fix - t0_col_fix);
   
   std::cout << ">>>> Collision fix done!" << std::endl;
-  std::cout << "Costs: col_cost = " << col_cost_after_optim << ", pos_limit_cost = " << pos_limit_cost_after_optim << ", smoothness_cost = " << smoothness_cost_after_optim << std::endl;
+  // std::cout << "Costs: col_cost = " << col_cost_after_optim << ", pos_limit_cost = " << pos_limit_cost_after_optim << ", smoothness_cost = " << smoothness_cost_after_optim << std::endl;
+  std::cout << "Costs: col_cost = " << col_cost_after_optim << ", smoothness_cost = " << smoothness_cost_after_optim << std::endl;
   std::cout << "Costs: wrist_pos_cost = " << wrist_pos_cost_after_optim << std::endl;
   std::cout << "Costs: wrist_ori_cost = " << wrist_ori_cost_after_optim << std::endl;
   std::cout << "Costs: elbow_pos_cost = " << elbow_pos_cost_after_optim << std::endl;
@@ -934,7 +964,7 @@ int main(int argc, char *argv[])
   best_wrist_ori_cost = wrist_ori_cost_after_optim;
   best_elbow_pos_cost = elbow_pos_cost_after_optim;
   best_col_cost = col_cost_after_optim;
-  best_pos_limit_cost = pos_limit_cost_after_optim;
+  // best_pos_limit_cost = pos_limit_cost_after_optim;
   best_smoothness_cost = smoothness_cost_after_optim;
   // record the q values
   for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
@@ -962,7 +992,7 @@ int main(int argc, char *argv[])
       std::cout << ">>>> Outer loop: adjust K_WRIST_POS, K_WRIST_ORI and K_ELBOW_POS." << std::endl;
 
 
-      // Evaluate cost before optimization
+      // Evaluate cost before optimization,
       // elbow pos
       std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history(tracking_edge->BOTH_FLAG);           
       elbow_pos_cost_before_optim = 0.0;
@@ -999,9 +1029,9 @@ int main(int argc, char *argv[])
         count_inner_loop++;
 
         // Set coefficients
-        // K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
-        K_COL = 0.0; // set collision checker off
-        K_POS_LIMIT = K_POS_LIMIT_set[(id_k_pos_limit <= K_POS_LIMIT_set.size()-1 ? id_k_pos_limit : K_POS_LIMIT_set.size()-1)];
+        K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
+        // K_COL = 0.0; // set collision checker off
+        // K_POS_LIMIT = K_POS_LIMIT_set[(id_k_pos_limit <= K_POS_LIMIT_set.size()-1 ? id_k_pos_limit : K_POS_LIMIT_set.size()-1)];
         K_SMOOTHNESS = K_SMOOTHNESS_set[(id_k_smoothness <= K_SMOOTHNESS_set.size()-1 ? id_k_smoothness : K_SMOOTHNESS_set.size()-1)];
         K_WRIST_POS = K_WRIST_POS_set[(id_k_wrist_pos <= K_WRIST_POS_set.size()-1 ? id_k_wrist_pos : K_WRIST_POS_set.size()-1)];
         K_WRIST_ORI = K_WRIST_ORI_set[(id_k_wrist_ori <= K_WRIST_ORI_set.size()-1 ? id_k_wrist_ori : K_WRIST_ORI_set.size()-1)];
@@ -1011,12 +1041,14 @@ int main(int argc, char *argv[])
         // Evaluate costs before optimization
         // collision counts
         col_cost_before_optim = 0.0;
-        for (unsigned int t = 0; t < unary_edges.size(); t++)
-          col_cost_before_optim += unary_edges[t]->return_col_cost(); // not affected by K_COL, no need to worry
+        for (unsigned int t = 0; t < collision_edges.size(); t++)
+          col_cost_before_optim += collision_edges[t]->return_col_cost();
+        // for (unsigned int t = 0; t < unary_edges.size(); t++)
+        //   col_cost_before_optim += unary_edges[t]->return_col_cost(); // not affected by K_COL, no need to worry
         // pos_limit
-        pos_limit_cost_before_optim = 0.0;
-        for (unsigned int t = 0; t < unary_edges.size(); t++)
-          pos_limit_cost_before_optim += unary_edges[t]->return_pos_limit_cost();
+        // pos_limit_cost_before_optim = 0.0;
+        // for (unsigned int t = 0; t < unary_edges.size(); t++)
+        //   pos_limit_cost_before_optim += unary_edges[t]->return_pos_limit_cost();
         // smoothness
         smoothness_cost_before_optim = 0.0;
         for (unsigned int t = 0; t < smoothness_edges.size(); t++)
@@ -1024,9 +1056,12 @@ int main(int argc, char *argv[])
 
 
         // Report current condition
-        std::cout << ">>>> Inner loop: adjust K_COL, K_POS_LIMIT and K_SMOOTHNESS." << std::endl;
-        std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
-        std::cout << "Costs before optimization: col_cost = " << col_cost_before_optim << ", pos_limit_cost = " << pos_limit_cost_before_optim << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl;
+        std::cout << ">>>> Inner loop: adjust K_COL and K_SMOOTHNESS." << std::endl;
+        // std::cout << "Current coefficients: K_COL = " << K_COL << ", K_POS_LIMIT = " << K_POS_LIMIT << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
+        std::cout << "Current coefficients: K_COL = " << K_COL << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
+        std::cout << "Costs before optimization: col_cost = " << col_cost_before_optim 
+                  // << ", pos_limit_cost = " << pos_limit_cost_before_optim 
+                  << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl;
         std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
         std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
         std::cout << "Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
@@ -1041,16 +1076,18 @@ int main(int argc, char *argv[])
         std::cout << ">> Costs <<" << std::endl;
         // collision 
         std::vector<double> col_cost;
-        for (unsigned int t = 0; t < unary_edges.size(); t++)
-          col_cost.push_back(unary_edges[t]->return_col_cost()); // store
+        for (unsigned int t = 0; t < collision_edges.size(); t++)
+          col_cost.push_back(collision_edges[t]->return_col_cost()); // store
+        // for (unsigned int t = 0; t < unary_edges.size(); t++)
+        //   col_cost.push_back(unary_edges[t]->return_col_cost()); // store
         col_cost_history.push_back(col_cost);
         print_debug_output("col_cost", col_cost);
         // pos_limit
-        std::vector<double> pos_limit_cost;
-        for (unsigned int t = 0; t < unary_edges.size(); t++)
-          pos_limit_cost.push_back(unary_edges[t]->return_pos_limit_cost()); // store
-        pos_limit_cost_history.push_back(pos_limit_cost);
-        print_debug_output("pos_limit_cost", pos_limit_cost);
+        // std::vector<double> pos_limit_cost;
+        // for (unsigned int t = 0; t < unary_edges.size(); t++)
+        //   pos_limit_cost.push_back(unary_edges[t]->return_pos_limit_cost()); // store
+        // pos_limit_cost_history.push_back(pos_limit_cost);
+        // print_debug_output("pos_limit_cost", pos_limit_cost);
         // smoothness
         std::vector<double> smoothness_cost;
         for (unsigned int t = 0; t < smoothness_edges.size(); t++)
@@ -1127,16 +1164,17 @@ int main(int argc, char *argv[])
         std::cout << "Norms of col_jacobians = ";
         for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
         {
-          std::cout << unary_edges[n]->col_jacobians.norm() << " ";
+          // std::cout << unary_edges[n]->col_jacobians.norm() << " ";
+          std::cout << collision_edges[n]->col_jacobians.norm() << " ";
         }
         std::cout << std::endl << std::endl;    
         // output position limit jacobians for debug
-        std::cout << "Norms of pos_limit_jacobians = ";
-        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-        {
-          std::cout << unary_edges[n]->pos_limit_jacobians.norm() << " ";
-        }
-        std::cout << std::endl << std::endl;    
+        // std::cout << "Norms of pos_limit_jacobians = ";
+        // for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        // {
+        //   std::cout << unary_edges[n]->pos_limit_jacobians.norm() << " ";
+        // }
+        // std::cout << std::endl << std::endl;    
         // output jacobians of Smoothness edge for q vertices
         std::cout << "Norms of smoothness_q_jacobian = ";
         Matrix<double, 2, JOINT_DOF> smoothness_q_jacobian;
@@ -1147,12 +1185,13 @@ int main(int argc, char *argv[])
         }
         std::cout << std::endl << std::endl;  
         // output jacobians of unary edges for q vertices
-        std::cout << "Norms of unary_jacobians = ";
-        for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-        {
-          std::cout << unary_edges[n]->whole_jacobians.norm() << " ";
-        }
-        std::cout << std::endl << std::endl;    
+        // std::cout << "Norms of unary_jacobians = ";
+        // for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+        // {
+        //   // std::cout << unary_edges[n]->whole_jacobians.norm() << " ";
+        //   std::cout << collision_edges[n]->whole_jacobians.norm() << " ";
+        // }
+        // std::cout << std::endl << std::endl;    
         // output jacobians of Tracking edge for q vertices
         std::cout << "Norms of tracking_q_jacobians = ";
         Matrix<double, NUM_DATAPOINTS, JOINT_DOF> q_jacobian = tracking_edge->output_q_jacobian();
@@ -1181,12 +1220,14 @@ int main(int argc, char *argv[])
           elbow_pos_cost_after_optim += elbow_pos_cost[s];
         // collision counts
         col_cost_after_optim = 0.0;
-        for (unsigned int t = 0; t < unary_edges.size(); t++)
-          col_cost_after_optim += unary_edges[t]->return_col_cost();
+        for (unsigned int t = 0; t < collision_edges.size(); t++)
+          col_cost_after_optim += collision_edges[t]->return_col_cost();
+        // for (unsigned int t = 0; t < unary_edges.size(); t++)
+        //   col_cost_after_optim += unary_edges[t]->return_col_cost();
         // pos_limit
-        pos_limit_cost_after_optim = 0.0;
-        for (unsigned int t = 0; t < unary_edges.size(); t++)
-          pos_limit_cost_after_optim += unary_edges[t]->return_pos_limit_cost();
+        // pos_limit_cost_after_optim = 0.0;
+        // for (unsigned int t = 0; t < unary_edges.size(); t++)
+        //   pos_limit_cost_after_optim += unary_edges[t]->return_pos_limit_cost();
         // smoothness
         smoothness_cost_after_optim = 0.0;
         for (unsigned int t = 0; t < smoothness_edges.size(); t++)
@@ -1246,6 +1287,7 @@ int main(int argc, char *argv[])
         }
 
         // Adjust K_POS_LIMIT
+        /*
         if (pos_limit_cost_after_optim > pos_limit_bound && id_k_pos_limit <= K_POS_LIMIT_set.size() - 1) 
         {
           if (pos_limit_cost_before_optim - pos_limit_cost_after_optim <= ftol) // if not descending, or not descending fast enough, increase the K
@@ -1270,7 +1312,7 @@ int main(int argc, char *argv[])
           std::cout << "Coefficient: K_POS_LIMIT = " << K_POS_LIMIT << std::endl;
           std::cout << "Cost: pos_limit_cost = " << pos_limit_cost_after_optim << " (bound: " << pos_limit_bound << ")" << std::endl;
         }
-
+        */
 
         // Checking collision situation
         /*
@@ -1307,8 +1349,8 @@ int main(int argc, char *argv[])
       std::cout << "Time used for current inner loop is: " << t_spent_inner_loop_cur.count() << " s." << std::endl;
       
       }while( (id_k_col <= (K_COL_set.size()-1) && col_cost_after_optim > col_cost_bound) || 
-              (id_k_smoothness <= (K_SMOOTHNESS_set.size()-1) && smoothness_cost_after_optim > smoothness_bound) || 
-              (id_k_pos_limit <= (K_POS_LIMIT_set.size()-1) && pos_limit_cost_after_optim > pos_limit_bound)); // when coefficients still within bounds, and costs still out of bounds
+              (id_k_smoothness <= (K_SMOOTHNESS_set.size()-1) && smoothness_cost_after_optim > smoothness_bound) );// ||
+              // (id_k_pos_limit <= (K_POS_LIMIT_set.size()-1) && pos_limit_cost_after_optim > pos_limit_bound)); // when coefficients still within bounds, and costs still out of bounds
       
       std::cout << ">>>> End of Inner loop" << std::endl << std::endl;
 
@@ -1337,7 +1379,7 @@ int main(int argc, char *argv[])
           best_wrist_ori_cost = wrist_ori_cost_after_optim;
           best_elbow_pos_cost = elbow_pos_cost_after_optim;
           best_col_cost = col_cost_after_optim;
-          best_pos_limit_cost = pos_limit_cost_after_optim;
+          // best_pos_limit_cost = pos_limit_cost_after_optim;
           best_smoothness_cost = smoothness_cost_after_optim;
           // record the q values
           for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
@@ -1472,12 +1514,12 @@ int main(int argc, char *argv[])
     // final weights, useless in that we perform multiple runs with different combinations of coefficients and store the best results 
     std::cout << "Final weights: K_COL = " << K_COL 
               << ", K_SMOOTHNESS = " << K_SMOOTHNESS 
-              << ", K_POS_LIMIT = " << K_POS_LIMIT 
+              // << ", K_POS_LIMIT = " << K_POS_LIMIT 
               << ", K_WRIST_POS = " << K_WRIST_POS
               << ", K_ELBOW_POS = " << K_ELBOW_POS
               << ", with col_cost = " << col_cost_after_optim
               << ", smoothness_cost = " << smoothness_cost_after_optim
-              << ", pos_limit_cost = " << pos_limit_cost_after_optim 
+              // << ", pos_limit_cost = " << pos_limit_cost_after_optim 
               << ", wrist_pos_cost = " << wrist_pos_cost_after_optim 
               << ", wrist_ori_cost = " << wrist_ori_cost_after_optim 
               << ", elbow_cost = " << elbow_pos_cost_after_optim << std::endl << std::endl;
@@ -1503,7 +1545,7 @@ int main(int argc, char *argv[])
     // store statistics of the best result
     write_h5_1_helper(out_file_name, in_group_name, "best_dist_"+std::to_string(n), best_dist);
     write_h5_1_helper(out_file_name, in_group_name, "best_col_cost_"+std::to_string(n), best_col_cost);
-    write_h5_1_helper(out_file_name, in_group_name, "best_pos_limit_cost_"+std::to_string(n), best_pos_limit_cost);
+    // write_h5_1_helper(out_file_name, in_group_name, "best_pos_limit_cost_"+std::to_string(n), best_pos_limit_cost);
     write_h5_1_helper(out_file_name, in_group_name, "best_smoothness_cost_"+std::to_string(n), best_smoothness_cost);
     write_h5_1_helper(out_file_name, in_group_name, "best_wrist_pos_cost_"+std::to_string(n), best_wrist_pos_cost);
     write_h5_1_helper(out_file_name, in_group_name, "best_wrist_ori_cost_"+std::to_string(n), best_wrist_ori_cost);
@@ -1512,7 +1554,7 @@ int main(int argc, char *argv[])
 
     // Check stopping criteria (q and DMP!!!)
     if (col_cost_after_optim <= col_cost_bound && 
-        pos_limit_cost_after_optim <= pos_limit_bound && 
+        // pos_limit_cost_after_optim <= pos_limit_bound && 
         smoothness_cost_after_optim <= smoothness_bound)
     {
       if (n!=0) // not for the first round
@@ -1819,23 +1861,29 @@ int main(int argc, char *argv[])
     // collision 
     double cur_col_cost_check = 0.0;
     std::cout << "Current collision costs = ";
-    for (unsigned int t = 0; t < unary_edges.size(); t++)
+    for (unsigned int t = 0; t < collision_edges.size(); t++)
     {
-      double c = unary_edges[t]->return_col_cost();
+      double c = collision_edges[t]->return_col_cost();
       cur_col_cost_check += c; // check
       std::cout << c << " "; // display
     }
+    // for (unsigned int t = 0; t < unary_edges.size(); t++)
+    // {
+    //   double c = unary_edges[t]->return_col_cost();
+    //   cur_col_cost_check += c; // check
+    //   std::cout << c << " "; // display
+    // }
     std::cout << "\nTotal col_cost = " << cur_col_cost_check << std::endl;
     // pos_limit
-    std::cout << "Current pos_limit_cost = ";
-    double cur_pos_limit_cost_check = 0.0;
-    for (unsigned int t = 0; t < unary_edges.size(); t++)
-    {
-      double p = unary_edges[t]->return_pos_limit_cost();
-      cur_pos_limit_cost_check += p; // check
-      std::cout << p << " "; // display      
-    }
-    std::cout << "\nTotal pos_limit_cost = " << cur_pos_limit_cost_check << std::endl;    
+    // std::cout << "Current pos_limit_cost = ";
+    // double cur_pos_limit_cost_check = 0.0;
+    // for (unsigned int t = 0; t < unary_edges.size(); t++)
+    // {
+    //   double p = unary_edges[t]->return_pos_limit_cost();
+    //   cur_pos_limit_cost_check += p; // check
+    //   std::cout << p << " "; // display      
+    // }
+    // std::cout << "\nTotal pos_limit_cost = " << cur_pos_limit_cost_check << std::endl;    
     // smoothness
     std::cout << "Current smoothness_cost = ";
     double cur_smoothness_cost_check = 0.0;
@@ -1847,7 +1895,8 @@ int main(int argc, char *argv[])
     }
     std::cout << "\nTotal smoothness_cost = " << cur_smoothness_cost_check << std::endl;
 
-    if(cur_col_cost_check < col_cost_bound && cur_pos_limit_cost_check < pos_limit_bound && cur_smoothness_cost_check < smoothness_bound) 
+    // if(cur_col_cost_check < col_cost_bound && cur_pos_limit_cost_check < pos_limit_bound && cur_smoothness_cost_check < smoothness_bound) 
+    if(cur_col_cost_check < col_cost_bound && cur_smoothness_cost_check < smoothness_bound) 
     {
       std::cout << ">>>>>>>> Terminate condition met. Optimization stopped after " << n+1 << " rounds." << std::endl;
       break;
@@ -1870,7 +1919,7 @@ int main(int argc, char *argv[])
   // Store the cost history
   std::cout << ">>>> Storing the cost history..." << std::endl;
   write_h5_2d_helper(out_file_name, in_group_name, "col_cost_history", col_cost_history);
-  write_h5_2d_helper(out_file_name, in_group_name, "pos_limit_cost_history", pos_limit_cost_history);
+  // write_h5_2d_helper(out_file_name, in_group_name, "pos_limit_cost_history", pos_limit_cost_history);
   write_h5_2d_helper(out_file_name, in_group_name, "smoothness_cost_history", smoothness_cost_history);
 
   write_h5_2d_helper(out_file_name, in_group_name, "wrist_pos_cost_history", wrist_pos_cost_history);
