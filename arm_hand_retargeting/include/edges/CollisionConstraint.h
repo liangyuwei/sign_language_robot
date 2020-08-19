@@ -31,9 +31,15 @@ using namespace Eigen;
 
 
 /**
- * Collision edge for dense collision checking and avoidance. (approximate CCD)
+ * @brief Collision edge for dense collision checking and avoidance. (approximate CCD)
+ * 
+ * We model collision cost as 6-dim error vector, each 3-dim describes the contact normal pointing to the direction of collision. \n
+ * Note that the concept of jacobian (gradient) is about the direct in which f rises, and thus we let dx be the direction where collision 
+ * gets more severe. \n
+ * For reactive collision avoidance, dx = J * dq; for optimization, we solve J * dq = -error (from g2o LS formulation, J^T * J * dq = -b = - J^T * e), 
+ * and thus error = -dx.
  */
-class CollisionConstraint : public BaseBinaryEdge<1, my_constraint_struct, DualArmDualHandVertex, DualArmDualHandVertex>
+class CollisionConstraint : public BaseBinaryEdge<6, my_constraint_struct, DualArmDualHandVertex, DualArmDualHandVertex>
 {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -103,6 +109,12 @@ class CollisionConstraint : public BaseBinaryEdge<1, my_constraint_struct, DualA
     double d_arm_safe = 0.001;   ///< Safety margin for arm part. In the current condition, 0.01 would actually be too large, for some links are very close to each other, e.g. _5_l and _7_l.
     double d_hand_check = 0.002; ///< Distance threshold under which to check collision, note that d_check must be strictly greater than d_safe. 
     double d_hand_safe = 1e-6;   ///< Safety margin for hand part. A small value close to 0 is fine since link51 and link111 are really close to each other under initial collision-free state.
+
+    // Time of contact (stored to reduce number of queries)
+    double time_of_contact;
+
+    // Intermediate contact state
+    Matrix<double, JOINT_DOF, 1> x_colliding;
 };
 
 
@@ -121,13 +133,53 @@ void CollisionConstraint::computeError()
   const DualArmDualHandVertex *v1 = static_cast<const DualArmDualHandVertex*>(_vertices[1]);
   const Matrix<double, JOINT_DOF, 1> x0 = v0->estimate(); 
   const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
-  Matrix<double, JOINT_DOF, 1> x_col;
+  // Matrix<double, JOINT_DOF, 1> x_col;
 
   // Dense collision checking
-  double t_contact = dense_collision_checking(x0, x1, x_col, this->num_checks);
-  
-  // total cost
-  _error(0, 0) = (t_contact < 0.0 ? 0.0 : 1.0); // -1 for no collision, otherwise there exists a collision state between transition from x0 to x1
+  this->time_of_contact = dense_collision_checking(x0, x1, this->x_colliding, this->num_checks);
+  bool no_collision = (this->time_of_contact < 0.0); // -1 for no collision
+
+  // Set the error vector (contact normal)
+  if (no_collision)
+  {
+    _error = Matrix<double, 6, 1>::Zero();
+  }
+  else
+  {
+    // convert from matrix to std::vector
+    std::vector<double> x(JOINT_DOF);
+    for (unsigned int i = 0; i < JOINT_DOF; ++i)
+      x[i] = this->x_colliding[i];
+    
+    // Check collision, get contact information
+    double min_distance;
+    // 1 - check arms first
+    std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+    min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_arms", d_arm_check); 
+    std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+    std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+    total_col += t_spent.count();
+    count_col++;
+    // 2 - check hands if arms are in safety region  
+    if (min_distance > d_arm_safe) // arm safe
+    {
+      t0 = std::chrono::steady_clock::now();
+      min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_hands", d_hand_check); 
+      t1 = std::chrono::steady_clock::now();
+      t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+      total_col += t_spent.count();
+      count_col++;
+    }
+
+    // Set error vector (note that in the direction where cost rises) for colliding links
+    int group_id_1 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[0]);
+    int group_id_2 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[1]);
+    // if object 1 does not belong to arms or hands, then it's in the environment, thus no need for assigning dx to it
+    Vector3d contact_normal = dual_arm_dual_hand_collision_ptr->normal;
+    _error.block(0, 0, 3, 1) = (group_id_1 == -1 ? 0.0 : 1.0) * contact_normal; // distance_result.normal points from link_names[0] to link_names[1]
+    _error.block(3, 0, 3, 1) = (group_id_2 == -1 ? 0.0 : -1.0) * contact_normal; // distance_result.normal points from link_names[0] to link_names[1]
+
+  }
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_01 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
@@ -157,759 +209,636 @@ void CollisionConstraint::linearizeOplus()
   DualArmDualHandVertex *v1 = dynamic_cast<DualArmDualHandVertex*>(_vertices[1]);
   Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
-  // Dense collision checking (do it again, for safety. g2o internal calculation order not known)
-  Matrix<double, JOINT_DOF, 1> x_col;
-  double t_contact = dense_collision_checking(x0, x1, x_col, this->num_checks);
-  if (t_contact < 0.0)  // no collision
+  // Use the result from computeError() directly, reduce number of queries
+  Matrix<double, JOINT_DOF, 1> x_col = this->x_colliding;
+  double t_contact = this->time_of_contact; 
+  if (t_contact < 0.0) // no collision, return zero jacobians.
     return;
 
   // epsilons
   double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
-  double simple_update = 0.2;//0.1;//0.1; // update step for (4,0) or (0,4), i.e. only one end is in colliding state, close to boundary
+  // double simple_update = 0.2;//0.1;//0.1; // update step for (4,0) or (0,4), i.e. only one end is in colliding state, close to boundary
   double pos_limit_eps = 0.02;
+  double hand_speed = 100; 
 
   // Get colliding joint angles
   Matrix<double, JOINT_DOF, 1> x = x_col;
   Matrix<double, JOINT_DOF, 1> delta_x = Matrix<double, JOINT_DOF, 1>::Zero();
 
-  // Real-time collision checking strategy using robot jacobian and normal
-  // double e_cur = compute_collision_cost(x, dual_arm_dual_hand_collision_ptr);
-  // convert from matrix to std::vector
-  std::vector<double> xx(JOINT_DOF);
-  for (unsigned int i = 0; i < JOINT_DOF; ++i)
-    xx[i] = x[i];
+  // get group belonging information: 0 - left_arm, 1 - right_arm, 2 - left_hand, 3 - right_hand, -1 - others
+  int group_id_1 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[0]);
+  int group_id_2 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[1]);
+  
+  // prep
+  std::string link_name_1 = dual_arm_dual_hand_collision_ptr->link_names[0];
+  std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
 
-  // Collision checking (or distance computation), check out the DualArmDualHandCollision class
-  double e_cur;
-  double speed = 1.0;//1000.0;//10.0;//1.0;//100.0;//1.0;//10.0;//50.0;//100.0;//10.0;//1.0;//0.1;//1.0; // speed up collision updates, since .normal is a normalized vector, we may need this term to modify the speed (or step)  
-  double hand_speed = 100.0;//1.0;//100.0; //500.0;//200.0;//10.0;//1.0;//400.0;//200.0;//100.0;// 1.0; // for collision between links belonging to the same hand !!!
-  double min_distance;
-  // check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
-  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-  min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(xx, "dual_arms", d_arm_check); 
-  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-  std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  total_col += t_spent.count();
-  count_col++;
-  // if *dual_arms* group does not satisfy safety requirement, the lastest distance result would be used directly
-  // if not, *dual_hands* group would be checked and overwriting the last distance result
-  if (min_distance > d_arm_safe) // arm safe
-  {
-    // check hands 
-    t0 = std::chrono::steady_clock::now();
-    min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(xx, "dual_hands", d_hand_check); 
-    t1 = std::chrono::steady_clock::now();
-    t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-    total_col += t_spent.count();
-    count_col++;
-    e_cur = std::max(d_hand_safe - min_distance, 0.0);
+  // std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
+  // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+
+  // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
+  Eigen::Vector3d link_pos_1 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_1);
+  Eigen::Vector3d link_pos_2 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_2);
+  Eigen::Vector3d ref_point_pos_1 = dual_arm_dual_hand_collision_ptr->nearest_points[0] - link_pos_1;
+  Eigen::Vector3d ref_point_pos_2 = dual_arm_dual_hand_collision_ptr->nearest_points[1] - link_pos_2;    
+
+  // Compute jacobians for different situations
+  if ((group_id_1 == 0 && group_id_2 == 0) ||
+      (group_id_1 == 0 && group_id_2 == 1) || 
+      (group_id_1 == 1 && group_id_2 == 0) || 
+      (group_id_1 == 1 && group_id_2 == 1) ) // collision between arm and arm (could be the same), update only q_arm
+  {    
+    // determine left or right
+    bool left_or_right_1 = (group_id_1 == 0); 
+    bool left_or_right_2 = (group_id_2 == 0);
+
+    // compute jacobians (for arms) - return is 6 x 7, 6 for instantaneous pos/ori ([dx, dy, dz, dp, dq, dw])
+    Eigen::MatrixXd jacobian_1 = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_1, 
+                                                                                          ref_point_pos_1, 
+                                                                                          left_or_right_1);
+    Eigen::MatrixXd jacobian_2 = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_2, 
+                                                                                          ref_point_pos_2, 
+                                                                                          left_or_right_2);  
+
+    // first link (take only the first three rows)
+    if (left_or_right_1)
+    {
+      _jacobianOplusXj.block(0, 0, 3, 7) = jacobian_1.block(0, 0, 3, 7); // take the first three rows 
+    }
+    else
+    {
+      _jacobianOplusXj.block(0, 7, 3, 7) = jacobian_1.block(0, 0, 3, 7);
+    }
+    // std::cout << "1 - jacobian = " << _jacobianOplusXj << std::endl;
+    // for debug
+    bool debug = isnan(_jacobianOplusXj.norm());
+    if (debug)
+    {
+      std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+      double a;
+    }
+
+    // second link (take only the first three rows)
+    if (left_or_right_2)
+    {
+      _jacobianOplusXj.block(3, 0, 3, 7) = jacobian_2.block(0, 0, 3, 7); //+= dq_col_update_2.transpose();
+    }
+    else
+    {
+      _jacobianOplusXj.block(3, 7, 3, 7) = jacobian_2.block(0, 0, 3, 7); //+= dq_col_update_2.transpose();
+    }
+    // std::cout << "2 - jacobian = " << _jacobianOplusXj << std::endl;
+
+    // for debug
+    debug = isnan(_jacobianOplusXj.norm());
+    if (debug)
+    {
+      std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+      double a;
+    }
+
   }
-  else
+  else if ((group_id_1 == 2 && group_id_2 == 2) || (group_id_1 == 3 && group_id_2 == 3) ) // collision between hand and hand (the same one), update only q_finger
   {
-    e_cur = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
-  }
-
-
-  // Determine updates when in collision state or safety is not met
-  if (e_cur > 0.0) // in collision state or within safety of margin
-  {
-    // std::cout << "debug: e_cur = " << e_cur << std::endl;
-
-    // get group belonging information: 0 - left_arm, 1 - right_arm, 2 - left_hand, 3 - right_hand, -1 - others
-    int group_id_1 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[0]);
-    int group_id_2 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[1]);
-    
     // prep
-    std::string link_name_1 = dual_arm_dual_hand_collision_ptr->link_names[0];
-    std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
+    bool left_or_right = (group_id_1 == 2);
+    int finger_id_1 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_1, left_or_right);
+    int finger_id_2 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right);
 
-    // std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
-    // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+    // assign jacobians for collision cost
+    // init
+    _jacobianOplusXj = Matrix<double, 1, JOINT_DOF>::Zero();
+    Matrix<double, 1, JOINT_DOF> jacobian_way_1 = Matrix<double, 1, JOINT_DOF>::Zero();
+    Matrix<double, 1, JOINT_DOF> jacobian_way_2 = Matrix<double, 1, JOINT_DOF>::Zero();
+    unsigned int d = left_or_right ? 0 : 12;
+    double e_up, e_down;
 
-    // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
-    Eigen::Vector3d link_pos_1 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_1);
-    Eigen::Vector3d link_pos_2 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_2);
-    Eigen::Vector3d ref_point_pos_1 = dual_arm_dual_hand_collision_ptr->nearest_points[0] - link_pos_1;
-    Eigen::Vector3d ref_point_pos_2 = dual_arm_dual_hand_collision_ptr->nearest_points[1] - link_pos_2;    
-
-    // Inspect the circumstance
-    if ((group_id_1 == 0 && group_id_2 == 0) ||
-        (group_id_1 == 0 && group_id_2 == 1) || 
-        (group_id_1 == 1 && group_id_2 == 0) || 
-        (group_id_1 == 1 && group_id_2 == 1) ) // collision between arm and arm (could be the same), update only q_arm
+    // first link 
+    switch (finger_id_1)
     {
-      // debug display
-      // std::cout << "debug: possible collision between arm and arm... update only q_arm" << std::endl;
-      
-      // determine left or right
-      bool left_or_right_1 = (group_id_1 == 0); 
-      bool left_or_right_2 = (group_id_2 == 0);
-
-      // compute jacobians (for arms) - return is 6 x 7, 6 for instantaneous pos/ori ([dx, dy, dz, dp, dq, dw])
-      Eigen::MatrixXd jacobian_1 = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_1, 
-                                                                                            ref_point_pos_1, 
-                                                                                            left_or_right_1);
-      Eigen::MatrixXd jacobian_2 = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_2, 
-                                                                                            ref_point_pos_2, 
-                                                                                            left_or_right_2);  
-      
-      // note that .normal is the normalized vector pointing from link_names[0] to link_names[1]; output is column vector with size N x 1
-      Eigen::MatrixXd dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, speed);
-      Eigen::MatrixXd dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, speed);
-
-      // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() 
-      //                          << ", dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
-
-      // assign jacobians for collision cost
-      // init
-      _jacobianOplusXj = Matrix<double, 1, JOINT_DOF>::Zero();
-      // first link
-      if (left_or_right_1)
-      {
-        _jacobianOplusXj.block(0, 0, 1, 7) += dq_col_update_1.transpose();
-      }
-      else
-      {
-        _jacobianOplusXj.block(0, 7, 1, 7) += dq_col_update_1.transpose();
-      }
-      std::cout << "1 - jacobian = " << _jacobianOplusXj << std::endl;
-      // for debug
-      bool debug = isnan(_jacobianOplusXj.norm());
-      if (debug)
-      {
-        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-        double a;
-      }
-
-      // second link
-      if (left_or_right_2)
-      {
-        _jacobianOplusXj.block(0, 0, 1, 7) += dq_col_update_2.transpose();
-      }
-      else
-      {
-        _jacobianOplusXj.block(0, 7, 1, 7) += dq_col_update_2.transpose();
-      }
-      std::cout << "2 - jacobian = " << _jacobianOplusXj << std::endl;
-
-      // for debug
-      debug = isnan(_jacobianOplusXj.norm());
-      if (debug)
-      {
-        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-        double a;
-      }
-
-      // change direction: d_q update calculated by compute_col_q_update() points in the direction where collision cost 'decreases',
-      // while gradient should point in the direction collision cost increases!!!
-      _jacobianOplusXj = -1 * _jacobianOplusXj;
-
-    }
-    else if ((group_id_1 == 2 && group_id_2 == 2) || (group_id_1 == 3 && group_id_2 == 3) ) // collision between hand and hand (the same one), update only q_finger
-    {
-      // debug display
-      // std::cout << "debug: possible collision between fingers of the same hand... update only q_finger" << std::endl;
-
-      // prep
-      bool left_or_right = (group_id_1 == 2);
-      int finger_id_1 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_1, left_or_right);
-      int finger_id_2 = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right);
-
-      // compute robot jacobians (for fingers), return is 6 x N, N could be 4(thumb) or 2(others); and compute updates
-      // use gradient normal + robot jacobians method for finger, which would yield incorrect dq
-      /*
-      Eigen::MatrixXd jacobian_1;
-      Eigen::MatrixXd jacobian_2;
-      Eigen::MatrixXd dq_col_update_1;
-      Eigen::MatrixXd dq_col_update_2;
-      std::cout << "Current joint values = " << x.transpose() << std::endl;
-      if (finger_id_1 != -1) // if not belonging to palm groups!!!
-      {
-        jacobian_1 = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian(link_name_1, 
-                                                                               ref_point_pos_1, 
-                                                                               finger_id_1,
-                                                                               left_or_right);
-        dq_col_update_1 = this->compute_col_q_update(jacobian_1, - dual_arm_dual_hand_collision_ptr->normal, hand_speed*speed);                                                                               
-        std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update_1.transpose() << std::endl;
-      }
-      if (finger_id_2 != -1) // if not belonging to palm groups!!!
-      {
-        jacobian_2 = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian(link_name_2, 
-                                                                               ref_point_pos_2, 
-                                                                               finger_id_2,
-                                                                               left_or_right);
-        dq_col_update_2 = this->compute_col_q_update(jacobian_2, dual_arm_dual_hand_collision_ptr->normal, hand_speed*speed);                                                                               
-        std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update_2.transpose() << std::endl;
-      }
-      */
-
-
-      // assign jacobians for collision cost
-      // init
-      _jacobianOplusXj = Matrix<double, 1, JOINT_DOF>::Zero();
-      Matrix<double, 1, JOINT_DOF> jacobian_way_1 = Matrix<double, 1, JOINT_DOF>::Zero();
-      Matrix<double, 1, JOINT_DOF> jacobian_way_2 = Matrix<double, 1, JOINT_DOF>::Zero();
-      unsigned int d = left_or_right ? 0 : 12;
-      double e_up, e_down;
-      // first link
-      switch (finger_id_1)
-      {
-        case 0: // thumb
-          for (unsigned int s = 0; s < 4; s++)
-          {
-            // set
-            delta_x[22+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); // K_COL already included in compute_dual_hands_collision_cost()
-            jacobian_way_1(0, 22+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 22 + d, 1, 4) += dq_col_update_1.transpose();
-            // reset
-            delta_x[22+d+s] = 0.0;
-          }
-          break;
-        case 1: //index
-          for (unsigned int s = 0; s < 2; s++)
-          {
-            // set
-            delta_x[14+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-            jacobian_way_1(0, 14+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 14 + d, 1, 2) += dq_col_update_1.transpose();
-            // reset
-            delta_x[14+d+s] = 0.0;
-          }
-          break;
-        case 2: //middle
-          for (unsigned int s = 0; s < 2; s++)
-          {
-            // set
-            delta_x[16+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-            jacobian_way_1(0, 16+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 16 + d, 1, 2) += dq_col_update_1.transpose();
-            // reset
-            delta_x[16+d+s] = 0.0;
-          }
-          break;
-        case 3: // ring
-          for (unsigned int s = 0; s < 2; s++)
-          {
-            // set
-            delta_x[18+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-            jacobian_way_1(0, 18+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 18 + d, 1, 2) += dq_col_update_1.transpose();
-            // reset
-            delta_x[18+d+s] = 0.0;
-          }
-          break;
-        case 4: // little
-          for (unsigned int s = 0; s < 2; s++)
-          {
-            // set
-            delta_x[20+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-            jacobian_way_1(0, 20+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 20 + d, 1, 2) += dq_col_update_1.transpose();
-            // reset
-            delta_x[20+d+s] = 0.0;
-          }
-          break;
-        case -1: // palm, do nothing
-          break;
-        default:
-          std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
-          exit(-1);
-          break;
-      }
-      // std::cout << "1 - jacobian = " << _jacobianOplusXj << std::endl;
-      // std::cout << "1 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
-      // std::cout << "1 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
-
-      // for debug
-      bool debug = isnan(_jacobianOplusXj.norm());
-      if (debug)
-      {
-        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-        double a;
-      }
-
-      // second link
-      switch (finger_id_2)
-      {
-        case 0: // thumb
-          for (unsigned int s = 0; s < 4; s++)
-          {
-            // set
-            delta_x[22+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-            jacobian_way_1(0, 22+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 22 + d, 1, 4) += dq_col_update_2.transpose();
-            // reset
-            delta_x[22+d+s] = 0.0;
-          }
-          break;
-        case 1: //index
-          for (unsigned int s = 0; s < 2; s++)
-          {
-            // set
-            delta_x[14+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-            jacobian_way_1(0, 14+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 14 + d, 1, 2) += dq_col_update_2.transpose();
-            // reset
-            delta_x[14+d+s] = 0.0;
-          }
-          break;
-        case 2: //middle
-          for (unsigned int s = 0; s < 2; s++)
-          {
-            // set
-            delta_x[16+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-            jacobian_way_1(0, 16+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 16 + d, 1, 2) += dq_col_update_2.transpose();
-            // reset
-            delta_x[16+d+s] = 0.0;
-          }
-          break;
-        case 3: // ring
-          for (unsigned int s = 0; s < 2; s++)
-          {
-            // set
-            delta_x[18+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); // 
-            jacobian_way_1(0, 18+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 18 + d, 1, 2) += dq_col_update_2.transpose();
-            // reset
-            delta_x[18+d+s] = 0.0;
-          }
-          break;
-        case 4: // little
-          for (unsigned int s = 0; s < 2; s++)
-          {
-            // set
-            delta_x[20+d+s] = col_eps;
-            // compute
-            e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-            _jacobianOplusXj(0, 20+d+s) +=  hand_speed * (e_up - e_down) / (2*col_eps); //
-            jacobian_way_1(0, 20+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
-            jacobian_way_2(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
-          // _jacobianOplusXj.block(0, 20 + d, 1, 2) += dq_col_update_2.transpose();
-            // reset
-            delta_x[20+d+s] = 0.0;
-          }
-          break;
-        case -1: // palm, do nothing
-          break;
-        default:
-          std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
-          exit(-1);
-          break;
-      }
-
-      // std::cout << "2 - jacobian = " << _jacobianOplusXj << std::endl;
-      // std::cout << "2 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
-      // std::cout << "2 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
-
-       // for debug
-      debug = isnan(_jacobianOplusXj.norm());
-      if (debug)
-      {
-        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-        double a;
-      }
-
-      // change direction??
-      // no need to adjust the jacobians calculated by same-hand part of calculation, since we use numerical differentiation here,
-      // which is consistent with the gradient direction
-
-    }
-    else if (group_id_1 == -1 || group_id_2 == -1) // one of the object doesn't belong to arms or hands, update only one arm+hand
-    {
-
-      // std::cout << "debug: possible collision between robot arms/hands and others..." << std::endl;
-
-      // just in case
-      if (group_id_1 == -1 && group_id_2 == -1)
-      {
-        std::cerr << "Error: Something might be wrong, both links in collision do not belong to arms or hands, which should never happen.." << std::endl;
+      case 0: // thumb
+        for (unsigned int s = 0; s < 4; s++)
+        {
+          // set
+          delta_x[22+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); // K_COL already included in compute_dual_hands_collision_cost()
+          // jacobian_way_1(0, 22+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          // jacobian_way_2(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 22 + d, 1, 4) += dq_col_update_1.transpose();
+          // reset
+          delta_x[22+d+s] = 0.0;
+        }
+        break;
+      case 1: //index
+        for (unsigned int s = 0; s < 2; s++)
+        {
+          // set
+          delta_x[14+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // jacobian_way_1(0, 14+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          // jacobian_way_2(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 14 + d, 1, 2) += dq_col_update_1.transpose();
+          // reset
+          delta_x[14+d+s] = 0.0;
+        }
+        break;
+      case 2: //middle
+        for (unsigned int s = 0; s < 2; s++)
+        {
+          // set
+          delta_x[16+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          // jacobian_way_1(0, 16+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          // jacobian_way_2(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 16 + d, 1, 2) += dq_col_update_1.transpose();
+          // reset
+          delta_x[16+d+s] = 0.0;
+        }
+        break;
+      case 3: // ring
+        for (unsigned int s = 0; s < 2; s++)
+        {
+          // set
+          delta_x[18+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          jacobian_way_1(0, 18+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          jacobian_way_2(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 18 + d, 1, 2) += dq_col_update_1.transpose();
+          // reset
+          delta_x[18+d+s] = 0.0;
+        }
+        break;
+      case 4: // little
+        for (unsigned int s = 0; s < 2; s++)
+        {
+          // set
+          delta_x[20+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          jacobian_way_1(0, 20+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          jacobian_way_2(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 20 + d, 1, 2) += dq_col_update_1.transpose();
+          // reset
+          delta_x[20+d+s] = 0.0;
+        }
+        break;
+      case -1: // palm, do nothing
+        break;
+      default:
+        std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
         exit(-1);
-      }
+        break;
+    }
+    // std::cout << "1 - jacobian = " << _jacobianOplusXj << std::endl;
+    // std::cout << "1 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
+    // std::cout << "1 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
 
-      // prep
-      int group_id = (group_id_1 == -1) ? group_id_2 : group_id_1;
-      std::string link_name = (group_id_1 == -1) ? link_name_2 : link_name_1;
-      Eigen::Vector3d ref_point_pos = (group_id_1 == -1) ? ref_point_pos_2 : ref_point_pos_1;
-      Eigen::MatrixXd jacobian;
-      Eigen::MatrixXd dq_col_update;
+    // for debug
+    bool debug = isnan(_jacobianOplusXj.norm());
+    if (debug)
+    {
+      std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+      double a;
+    }
 
-      // initialization
-      _jacobianOplusXj = Matrix<double, 1, JOINT_DOF>::Zero();
+    // second link
+    switch (finger_id_2)
+    {
+      case 0: // thumb
+        for (unsigned int s = 0; s < 4; s++)
+        {
+          // set
+          delta_x[22+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          jacobian_way_1(0, 22+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          jacobian_way_2(0, 22+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 22 + d, 1, 4) += dq_col_update_2.transpose();
+          // reset
+          delta_x[22+d+s] = 0.0;
+        }
+        break;
+      case 1: //index
+        for (unsigned int s = 0; s < 2; s++)
+        {
+          // set
+          delta_x[14+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          jacobian_way_1(0, 14+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          jacobian_way_2(0, 14+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 14 + d, 1, 2) += dq_col_update_2.transpose();
+          // reset
+          delta_x[14+d+s] = 0.0;
+        }
+        break;
+      case 2: //middle
+        for (unsigned int s = 0; s < 2; s++)
+        {
+          // set
+          delta_x[16+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+          jacobian_way_1(0, 16+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          jacobian_way_2(0, 16+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 16 + d, 1, 2) += dq_col_update_2.transpose();
+          // reset
+          delta_x[16+d+s] = 0.0;
+        }
+        break;
+      case 3: // ring
+        for (unsigned int s = 0; s < 2; s++)
+        {
+          // set
+          delta_x[18+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); // 
+          jacobian_way_1(0, 18+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          jacobian_way_2(0, 18+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 18 + d, 1, 2) += dq_col_update_2.transpose();
+          // reset
+          delta_x[18+d+s] = 0.0;
+        }
+        break;
+      case 4: // little
+        for (unsigned int s = 0; s < 2; s++)
+        {
+          // set
+          delta_x[20+d+s] = col_eps;
+          // compute
+          e_up = compute_dual_hands_collision_cost(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          e_down = compute_dual_hands_collision_cost(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
+          _jacobianOplusXj(0, 20+d+s) +=  hand_speed * (e_up - e_down) / (2*col_eps); //
+          jacobian_way_1(0, 20+d+s) += K_COL * ((e_up > e_down) ? simple_update : -simple_update);
+          jacobian_way_2(0, 20+d+s) += hand_speed * (e_up - e_down) / (2*col_eps); //
+        // _jacobianOplusXj.block(0, 20 + d, 1, 2) += dq_col_update_2.transpose();
+          // reset
+          delta_x[20+d+s] = 0.0;
+        }
+        break;
+      case -1: // palm, do nothing
+        break;
+      default:
+        std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
+        exit(-1);
+        break;
+    }
 
-      // decide if the link is arm or finger
-      if (group_id == 2 || group_id == 3) // hand (should update for arm+hand group)
+    // std::cout << "2 - jacobian = " << _jacobianOplusXj << std::endl;
+    // std::cout << "2 - jacobian_way_1 = " << jacobian_way_1 << std::endl;
+    // std::cout << "2 - jacobian_way_2 = " << jacobian_way_2 << std::endl;
+
+      // for debug
+    debug = isnan(_jacobianOplusXj.norm());
+    if (debug)
+    {
+      std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+      double a;
+    }
+
+    // change direction??
+    // no need to adjust the jacobians calculated by same-hand part of calculation, since we use numerical differentiation here,
+    // which is consistent with the gradient direction
+
+  }
+  else if (group_id_1 == -1 || group_id_2 == -1) // one of the object doesn't belong to arms or hands, update only one arm+hand
+  {
+
+    // std::cout << "debug: possible collision between robot arms/hands and others..." << std::endl;
+
+    // just in case
+    if (group_id_1 == -1 && group_id_2 == -1)
+    {
+      std::cerr << "Error: Something might be wrong, both links in collision do not belong to arms or hands, which should never happen.." << std::endl;
+      exit(-1);
+    }
+
+    // prep
+    int group_id = (group_id_1 == -1) ? group_id_2 : group_id_1;
+    std::string link_name = (group_id_1 == -1) ? link_name_2 : link_name_1;
+    Eigen::Vector3d ref_point_pos = (group_id_1 == -1) ? ref_point_pos_2 : ref_point_pos_1;
+    Eigen::MatrixXd jacobian;
+    Eigen::MatrixXd dq_col_update;
+
+    // initialization
+    _jacobianOplusXj = Matrix<double, 1, JOINT_DOF>::Zero();
+
+    // decide if the link is arm or finger
+    if (group_id == 2 || group_id == 3) // hand (should update for arm+hand group)
+    {
+      // compute robot jacobians
+      bool left_or_right = (group_id == 2);
+      int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name, left_or_right);
+      if (finger_id != -1) // if not palm group !!!
       {
-        // compute robot jacobians
-        bool left_or_right = (group_id == 2);
-        int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name, left_or_right);
-        if (finger_id != -1) // if not palm group !!!
-        {
-          jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name,
-                                                                                  ref_point_pos,
-                                                                                  finger_id,
-                                                                                  left_or_right);
-          // compute updates
-          double direction = (group_id_1 == -1) ? 1.0 : -1.0;
-          dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, speed);
-          // std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;                                                                                  
-        }
-        
-
-        // assign updates to col jacobian
-        // arm part
-        unsigned int d_arm = left_or_right ? 0 : 7;
-        _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
-        // hand part
-        unsigned int d_hand = left_or_right ? 0 : 12;
-        switch (finger_id)
-        {
-          case 0: // thummb
-            _jacobianOplusXj.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
-            break;
-          case 1: //index
-            _jacobianOplusXj.block(0, 14 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case 2: //middle
-            _jacobianOplusXj.block(0, 16 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case 3: // ring
-            _jacobianOplusXj.block(0, 18 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case 4: // little
-            _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case -1: // palm, do nothing
-            break;
-          default:
-            std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
-            exit(-1);
-            break;
-        }
-        // for debug
-        bool debug = isnan(_jacobianOplusXj.norm());
-        if (debug)
-        {
-          std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-          double a;
-        }
-
-      }
-      else // arm (update only for arm group)
-      {
-        // compute robot jacobians
-        bool left_or_right = (group_id == 0);
-        jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name,
-                                                                            ref_point_pos,
-                                                                            left_or_right);
-        
+        jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name,
+                                                                                ref_point_pos,
+                                                                                finger_id,
+                                                                                left_or_right);
         // compute updates
         double direction = (group_id_1 == -1) ? 1.0 : -1.0;
         dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, speed);
-        // std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;
-
-        // assign updates to col jacobian
-        unsigned int d_arm = left_or_right ? 0 : 7;
-        _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
-
-        // for debug
-        bool debug = isnan(_jacobianOplusXj.norm());
-        if (debug)
-        {
-          std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-          double a;
-        }
-
+        // std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;                                                                                  
       }
-
-      // change direction: d_q update calculated by compute_col_q_update() points in the direction where collision cost 'decreases',
-      // while gradient should point in the direction collision cost increases!!!
-      _jacobianOplusXj = -1 * _jacobianOplusXj;
-
-      // std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-  
-    }
-    else // all the other conditions, update both q_arm and q_finger ()
-    {
-      // std::cout << "debug: Possible collision between arm and hand, or left and right hands... update both q_arm and q_finger" << std::endl;
-
-      // prep
-      bool left_or_right_1 = ( (group_id_1 == 0) || (group_id_1 == 2) );
-      bool left_or_right_2 = ( (group_id_2 == 0) || (group_id_2 == 2) );
-      // initialization
-      _jacobianOplusXj = Matrix<double, 1, JOINT_DOF>::Zero();
-
-      // process the first link
-      if (group_id_1 == 2 || group_id_1 == 3) // hand, should calculate robot jacobian for arm+hand group
-      {
-        // prep
-        int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_1, left_or_right_1);
-
-        // compute robot jacobian for arm+hand group and compute updates
-        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_1,
-                                                                                                 ref_point_pos_1,
-                                                                                                 finger_id,
-                                                                                                 left_or_right_1);
-        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);                                                                                  
-        // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
-
-
-        // assign updates to col jacobian
-        // arm part
-        unsigned int d_arm = left_or_right_1 ? 0 : 7;
-        _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
-        // for debug
-        bool debug = isnan(_jacobianOplusXj.norm());
-        if (debug)
-        {
-          std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-          double a;
-        }
-
-        // hand part
-        unsigned int d_hand = left_or_right_1 ? 0 : 12;
-        switch (finger_id)
-        {
-          case 0: // thummb
-            _jacobianOplusXj.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
-            break;
-          case 1: //index
-            _jacobianOplusXj.block(0, 14 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case 2: //middle
-            _jacobianOplusXj.block(0, 16 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case 3: // ring
-            _jacobianOplusXj.block(0, 18 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case 4: // little
-            _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case -1: // palm, zero updates would be provided for finger joints, but the size is in consistent with little finger_group since it's used in get_robot_arm_hand_jacobian()
-            _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          default:
-            std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
-            exit(-1);
-            break;
-        }
-        // for debug
-        debug = isnan(_jacobianOplusXj.norm());
-        if (debug)
-        {
-          std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-          double a;
-        }
-
-      }
-      else // 0 or 1, arm, should calculate robot jacobian for arm group
-      {
-
-        // compute robot jacobian for arm group
-        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_1,
-                                                                                            ref_point_pos_1,
-                                                                                            left_or_right_1);
-        
-        // compute updates
-        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);
-        // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
-
-        // assign updates to col jacobian
-        // arm part
-        unsigned int d_arm = left_or_right_1 ? 0 : 7;
-        _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
-        // for debug
-        bool debug = isnan(_jacobianOplusXj.norm());
-        if (debug)
-        {
-          std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-          double a;
-        }
-      }
-      // std::cout << "debug: 1 - jacobian = " << _jacobianOplusXj << std::endl;
       
-     
-      // process the second link
-      if (group_id_2 == 2 || group_id_2 == 3) // hand, should calculate robot jacobian for arm+hand group
+
+      // assign updates to col jacobian
+      // arm part
+      unsigned int d_arm = left_or_right ? 0 : 7;
+      _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
+      // hand part
+      unsigned int d_hand = left_or_right ? 0 : 12;
+      switch (finger_id)
       {
-        // prep
-        int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right_2);
-
-
-        // compute robot jacobian for arm+hand group
-        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_2,
-                                                                                                 ref_point_pos_2,
-                                                                                                 finger_id,
-                                                                                                 left_or_right_2);
-
-        // compute updates
-        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, speed);
-       
-
-        // assign updates to col jacobian
-        // arm part
-        unsigned int d_arm = left_or_right_2 ? 0 : 7;
-        _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
-        // for debug
-        bool debug = isnan(_jacobianOplusXj.norm());
-        if (debug)
-        {
-          std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-          double a;
-        }
-
-        // hand part
-        unsigned int d_hand = left_or_right_2 ? 0 : 12;
-        switch (finger_id)
-        {
-          case 0: // thummb
-            _jacobianOplusXj.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
-            break;
-          case 1: //index
-            _jacobianOplusXj.block(0, 14 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case 2: //middle
-            _jacobianOplusXj.block(0, 16 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case 3: // ring
-            _jacobianOplusXj.block(0, 18 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case 4: // little
-            _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          case -1: // palm, zero updates would be provided for finger joints, but the size is in consistent with little finger_group since it's used in get_robot_arm_hand_jacobian()
-            _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
-            break;
-          default:
-            std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
-            exit(-1);
-            break;
-        }
-        // for debug
-        debug = isnan(_jacobianOplusXj.norm());
-        if (debug)
-        {
-          std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-          double a;
-        }
-
+        case 0: // thummb
+          _jacobianOplusXj.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
+          break;
+        case 1: //index
+          _jacobianOplusXj.block(0, 14 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case 2: //middle
+          _jacobianOplusXj.block(0, 16 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case 3: // ring
+          _jacobianOplusXj.block(0, 18 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case 4: // little
+          _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case -1: // palm, do nothing
+          break;
+        default:
+          std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
+          exit(-1);
+          break;
       }
-      else // 0 or 1, arm, should calculate robot jacobian for arm group
+      // for debug
+      bool debug = isnan(_jacobianOplusXj.norm());
+      if (debug)
       {
-
-        // compute robot jacobian for arm group
-        Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_2,
-                                                                                            ref_point_pos_2,
-                                                                                            left_or_right_2);
-        
-        // compute updates
-        Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, speed);
-        // std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update.transpose() << std::endl;
-
-        // assign updates to col jacobian
-        // arm part
-        unsigned int d_arm = left_or_right_2 ? 0 : 7;
-        _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
-        // for debug
-        bool debug = isnan(_jacobianOplusXj.norm());
-        if (debug)
-        {
-          std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
-          double a;
-        }
-
+        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+        double a;
       }
-      // std::cout << "debug: 2 - jacobian = " << _jacobianOplusXj << std::endl;
 
-      // change direction: d_q update calculated by compute_col_q_update() points in the direction where collision cost 'decreases',
-      // while gradient should point in the direction collision cost increases!!!
-      _jacobianOplusXj = -1 * _jacobianOplusXj;
+    }
+    else // arm (update only for arm group)
+    {
+      // compute robot jacobians
+      bool left_or_right = (group_id == 0);
+      jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name,
+                                                                          ref_point_pos,
+                                                                          left_or_right);
+      
+      // compute updates
+      double direction = (group_id_1 == -1) ? 1.0 : -1.0;
+      dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, speed);
+      // std::cout << "debug: \n" << "dq_col_update = " << dq_col_update.transpose() << std::endl;
 
-    } // END of calculating collision jacobian for optimization
+      // assign updates to col jacobian
+      unsigned int d_arm = left_or_right ? 0 : 7;
+      _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
+
+      // for debug
+      bool debug = isnan(_jacobianOplusXj.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+        double a;
+      }
+
+    }
+
+    // change direction: d_q update calculated by compute_col_q_update() points in the direction where collision cost 'decreases',
+    // while gradient should point in the direction collision cost increases!!!
+    _jacobianOplusXj = -1 * _jacobianOplusXj;
+
+    // std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+
   }
-  else // in collision-free state and outside of safety margin (meaning safe now)
+  else // all the other conditions, update both q_arm and q_finger ()
   {
-    _jacobianOplusXj = Matrix<double, 1, JOINT_DOF>::Zero(); // assign no updates for avoiding collision
+    // std::cout << "debug: Possible collision between arm and hand, or left and right hands... update both q_arm and q_finger" << std::endl;
+
+    // prep
+    bool left_or_right_1 = ( (group_id_1 == 0) || (group_id_1 == 2) );
+    bool left_or_right_2 = ( (group_id_2 == 0) || (group_id_2 == 2) );
+    // initialization
+    _jacobianOplusXj = Matrix<double, 1, JOINT_DOF>::Zero();
+
+    // process the first link
+    if (group_id_1 == 2 || group_id_1 == 3) // hand, should calculate robot jacobian for arm+hand group
+    {
+      // prep
+      int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_1, left_or_right_1);
+
+      // compute robot jacobian for arm+hand group and compute updates
+      Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_1,
+                                                                                                ref_point_pos_1,
+                                                                                                finger_id,
+                                                                                                left_or_right_1);
+      Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);                                                                                  
+      // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
+
+
+      // assign updates to col jacobian
+      // arm part
+      unsigned int d_arm = left_or_right_1 ? 0 : 7;
+      _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
+      // for debug
+      bool debug = isnan(_jacobianOplusXj.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+        double a;
+      }
+
+      // hand part
+      unsigned int d_hand = left_or_right_1 ? 0 : 12;
+      switch (finger_id)
+      {
+        case 0: // thummb
+          _jacobianOplusXj.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
+          break;
+        case 1: //index
+          _jacobianOplusXj.block(0, 14 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case 2: //middle
+          _jacobianOplusXj.block(0, 16 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case 3: // ring
+          _jacobianOplusXj.block(0, 18 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case 4: // little
+          _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case -1: // palm, zero updates would be provided for finger joints, but the size is in consistent with little finger_group since it's used in get_robot_arm_hand_jacobian()
+          _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        default:
+          std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
+          exit(-1);
+          break;
+      }
+      // for debug
+      debug = isnan(_jacobianOplusXj.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+        double a;
+      }
+
+    }
+    else // 0 or 1, arm, should calculate robot jacobian for arm group
+    {
+
+      // compute robot jacobian for arm group
+      Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_1,
+                                                                                          ref_point_pos_1,
+                                                                                          left_or_right_1);
+      
+      // compute updates
+      Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, - dual_arm_dual_hand_collision_ptr->normal, speed);
+      // std::cout << "debug: \n" << "dq_col_update_1 = " << dq_col_update.transpose() << std::endl;
+
+      // assign updates to col jacobian
+      // arm part
+      unsigned int d_arm = left_or_right_1 ? 0 : 7;
+      _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
+      // for debug
+      bool debug = isnan(_jacobianOplusXj.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+        double a;
+      }
+    }
+    // std::cout << "debug: 1 - jacobian = " << _jacobianOplusXj << std::endl;
+    
+    
+    // process the second link
+    if (group_id_2 == 2 || group_id_2 == 3) // hand, should calculate robot jacobian for arm+hand group
+    {
+      // prep
+      int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name_2, left_or_right_2);
+
+
+      // compute robot jacobian for arm+hand group
+      Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name_2,
+                                                                                                ref_point_pos_2,
+                                                                                                finger_id,
+                                                                                                left_or_right_2);
+
+      // compute updates
+      Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, speed);
+      
+
+      // assign updates to col jacobian
+      // arm part
+      unsigned int d_arm = left_or_right_2 ? 0 : 7;
+      _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
+      // for debug
+      bool debug = isnan(_jacobianOplusXj.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+        double a;
+      }
+
+      // hand part
+      unsigned int d_hand = left_or_right_2 ? 0 : 12;
+      switch (finger_id)
+      {
+        case 0: // thummb
+          _jacobianOplusXj.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
+          break;
+        case 1: //index
+          _jacobianOplusXj.block(0, 14 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case 2: //middle
+          _jacobianOplusXj.block(0, 16 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case 3: // ring
+          _jacobianOplusXj.block(0, 18 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case 4: // little
+          _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        case -1: // palm, zero updates would be provided for finger joints, but the size is in consistent with little finger_group since it's used in get_robot_arm_hand_jacobian()
+          _jacobianOplusXj.block(0, 20 + d_hand, 1, 2) += dq_col_update.block(7, 0, 2, 1).transpose();
+          break;
+        default:
+          std::cerr << "error: Finger ID doesn't lie in {-1,0,1,2,3,4}!!!" << std::endl;
+          exit(-1);
+          break;
+      }
+      // for debug
+      debug = isnan(_jacobianOplusXj.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+        double a;
+      }
+
+    }
+    else // 0 or 1, arm, should calculate robot jacobian for arm group
+    {
+
+      // compute robot jacobian for arm group
+      Eigen::MatrixXd jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(link_name_2,
+                                                                                          ref_point_pos_2,
+                                                                                          left_or_right_2);
+      
+      // compute updates
+      Eigen::MatrixXd dq_col_update = this->compute_col_q_update(jacobian, dual_arm_dual_hand_collision_ptr->normal, speed);
+      // std::cout << "debug: \n" << "dq_col_update_2 = " << dq_col_update.transpose() << std::endl;
+
+      // assign updates to col jacobian
+      // arm part
+      unsigned int d_arm = left_or_right_2 ? 0 : 7;
+      _jacobianOplusXj.block(0, 0+d_arm, 1, 7) += dq_col_update.transpose();
+      // for debug
+      bool debug = isnan(_jacobianOplusXj.norm());
+      if (debug)
+      {
+        std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
+        double a;
+      }
+
+    }
+    // std::cout << "debug: 2 - jacobian = " << _jacobianOplusXj << std::endl;
+
+    // change direction: d_q update calculated by compute_col_q_update() points in the direction where collision cost 'decreases',
+    // while gradient should point in the direction collision cost increases!!!
+    _jacobianOplusXj = -1 * _jacobianOplusXj;
+
   } // END of calculating collision jacobian for optimization
 
-  // debug:
-  // std::cout << "debug: col jacobians = " << _jacobianOplusXj << std::endl;
 
   // record col jacobians
   col_jacobians = _jacobianOplusXj.transpose();
 
-  // std::cout << "Current Col jacobian = " << _jacobianOplusXj << std::endl;
-
-  // debug:
-  /*
-  std::cout << "debug: norms of col_jacobian = " << col_jacobians.norm() << std::endl;
-  std::cout << "debug: norms of whole_jacobian = " << whole_jacobians.norm() << std::endl;
-  std::cout << "debug: col_jacobians = " << col_jacobians.transpose() << std::endl;
-  std::cout << "debug: whole_jacobians = " << whole_jacobians.transpose() << std::endl;
-
-  bool result1 = isnan(col_jacobians.norm());
-  bool result2 = isnan(whole_jacobians.norm());
-
-  if (result1)
-  {
-    std::cout << "debug: col_jacobians contains NaN!!!" << std::endl;
-    double a;
-  }
-
-  if (result2)
-  {
-    std::cout << "debug: whole_jacobians contains NaN!!!" << std::endl;
-    double a;
-  }
-  // std::cout << "debug: unary jacobians = " <<  _jacobianOplusXi << std::endl;
-  //double debug;
-  */
 
 }
 
@@ -1636,6 +1565,55 @@ double CollisionConstraint::compute_dual_hands_collision_cost(Matrix<double, JOI
   // Collision checking (or distance computation), check out the DualArmDualHandCollision class
   double cost;
   double min_distance;
+  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+  min_distance = dual_arm_dual_hand_collision_ptr->compute_two_links_distance(x, link_name_1, link_name_2, d_hand_check);
+  if (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 ||
+      dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_2) 
+    min_distance = d_hand_safe; // if collision pair is changed, then the collision between the original two links is resolved !!!
+
+  // std::cout << "debug: Possible collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] 
+  //           << " and " << dual_arm_dual_hand_collision_ptr->link_names[1] << std::endl;
+  // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+
+  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+  std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+  total_col += t_spent.count();
+  count_col++;
+  cost = std::max(d_hand_safe - min_distance, 0.0);
+
+  // apply weighting
+  cost = K_COL * cost; // weighting...
+
+  return cost;
+}
+
+
+/**
+ * @brief Compute the error vector for two specified links.
+ * 
+ * When the specified two links are not colliding, the error vector is manually set to zeros. \n
+ * This function is for the same-hand collision part specifically, so in order to indicate the goodness 
+ * of a step, we need to reflect the performance on three dimensions. \n
+ * Since the calculated contact normal is a normalized vector, we need to convert it into a distance vector, 
+ * whose elements indicate the minimum distance projected onto each axis.
+ */
+Vector3d CollisionConstraint::compute_dual_hands_collision_error_vector(Matrix<double, JOINT_DOF, 1> q_whole, std::string link_name_1, std::string link_name_2, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
+{
+
+  // 
+  vec.cwiseAbs() * minimum_distance
+
+
+
+  // convert from matrix to std::vector
+  std::vector<double> x(JOINT_DOF);
+  for (unsigned int i = 0; i < JOINT_DOF; ++i)
+    x[i] = q_whole[i];
+
+  // Collision checking (or distance computation), check out the DualArmDualHandCollision class
+  double cost;
+  double min_distance;
+  double 
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   min_distance = dual_arm_dual_hand_collision_ptr->compute_two_links_distance(x, link_name_1, link_name_2, d_hand_check);
   if (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 ||
