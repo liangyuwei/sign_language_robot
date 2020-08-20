@@ -78,7 +78,7 @@ void SmoothnessConstraint::computeError()
   const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
   // Compute smoothness cost
-  _error(0, 0) = K_SMOOTHNESS * max( (x0 - x1).norm() - margin_of_smoothness, 0.0);
+  _error(0, 0) = max( (x0 - x1).norm() - margin_of_smoothness, 0.0);
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
