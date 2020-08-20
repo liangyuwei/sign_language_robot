@@ -12,7 +12,7 @@
 
 // G2O: infrastructure
 #include <g2o/core/base_vertex.h>
-#include <g2o/core/base_multi_edge.h>
+#include <g2o/core/base_binary_edge.h>
 
 // For Eigen
 #include <Eigen/Core>
@@ -44,10 +44,12 @@ using namespace Eigen;
  * @brief Define constraint for computing tracking error.
  * 
  * To reduce the number of queries of DMP trajectory generator, we combine all q vertices in a TrackingConstraint edge.
- * Try using vector error for tracking cost. wrist pos (3 x 2) + wrist ori (3 x 2) + elbow pos (3 x 2) + finger (1 x 2) = 20.
+ * Try using vector error for tracking cost. wrist pos (3 x 2) + wrist ori (3 x 2) + elbow pos (3 x 2) + finger (1 x 2) = 20. \n
+ * Error vector is in the order: l wrist pos -> l wrist ori -> l elbow pos -> r wrist pos -> r wrist ori 
+ * -> r elbow pos -> l finger (1d) -> r finger (1d).
  * /
 /* addVertex rule: connect DMP starts and goals vertex first, then datapoints */
-class TrackingConstraint : public BaseMultiEdge<20, my_constraint_struct> // <D, E>, dimension and measurement datatype
+class TrackingConstraint : public BaseBinaryEdge<20, double, DMPStartsGoalsVertex, DualArmDualHandVertex> // <D, E>, dimension and measurement datatype
 {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -56,36 +58,26 @@ class TrackingConstraint : public BaseMultiEdge<20, my_constraint_struct> // <D,
      * Constructor of TrackingConstraint. \n
      * Initialize with left and right KDL FK solver, collision checker and DMP trajectory generator. \n
      * Use list initialization for reference member.
+     * @param[in]     point_id      Indicate the ID of the current path point. (between 1 and 50)
      */
     TrackingConstraint(boost::shared_ptr<DMPTrajectoryGenerator> &_trajectory_generator_ptr, 
                       KDL::ChainFkSolverPos_recursive &_left_fk_solver, 
                       KDL::ChainFkSolverPos_recursive &_right_fk_solver, 
                       boost::shared_ptr<DualArmDualHandCollision> &_dual_arm_dual_hand_collision_ptr,
-                      unsigned int num_datapoints) : trajectory_generator_ptr(_trajectory_generator_ptr), 
+                      int point_id) : trajectory_generator_ptr(_trajectory_generator_ptr), 
                                                      left_fk_solver(_left_fk_solver), 
                                                      right_fk_solver(_right_fk_solver), 
                                                      dual_arm_dual_hand_collision_ptr(_dual_arm_dual_hand_collision_ptr)
     {
-      // record
-      this->num_datapoints = num_datapoints;  
-      this->num_vertices = num_datapoints + 1;
-      // set the number of vertices this edge connects to
-      resize(num_datapoints+1); // q path points plus one DMP vertex
+      this->point_id = point_id;
     }
 
 
-    /// (DMP) Trajectory generator
-    boost::shared_ptr<DMPTrajectoryGenerator> &trajectory_generator_ptr;
-
-
-    // KDL solvers
-    KDL::ChainFkSolverPos_recursive &left_fk_solver;      ///< KDL FK solver for left arm.
-    KDL::ChainFkSolverPos_recursive &right_fk_solver;     ///< KDL FK solver for right arm.
-
-
-    /// Collision Checker, which constains RobotState that can be used to compute jacobians, global link transforms, etc.
-    boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr;
-    
+    /// Pass in user data, e.g. wrist ID for KDL chain
+    void set_user_data(my_constraint_struct _fdata)
+    {
+      this->fdata = _fdata;
+    }
 
     // functions to compute costs
     double compute_arm_cost(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, bool left_or_right, my_constraint_struct &fdata);
@@ -130,7 +122,7 @@ class TrackingConstraint : public BaseMultiEdge<20, my_constraint_struct> // <D,
     // return Jacobians results for debug
     MatrixXd output_dmp_jacobian();
     std::vector<Matrix<double, 20, JOINT_DOF> > output_q_jacobian();
-    Matrix<double, 1, DMPPOINTS_DOF> jacobians_for_dmp;
+    Matrix<double, 20, DMPPOINTS_DOF> jacobians_for_dmp;
     std::vector<Matrix<double, 20, JOINT_DOF> > jacobians_for_q;
 
 
@@ -175,11 +167,21 @@ class TrackingConstraint : public BaseMultiEdge<20, my_constraint_struct> // <D,
     unsigned int RIGHT_FLAG = 1;    ///< Flag for querying right arm or right finger related quantities
     unsigned int BOTH_FLAG = 2;     ///< Flag for querying both arms or both fingers related quantities
 
-  private:
-    // numbers
-    unsigned int num_datapoints; ///< internal variable
-    unsigned int num_vertices;   ///< internal variable
 
+  private:
+    /// (DMP) Trajectory generator
+    boost::shared_ptr<DMPTrajectoryGenerator> &trajectory_generator_ptr;
+
+    // KDL solvers
+    KDL::ChainFkSolverPos_recursive &left_fk_solver;      ///< KDL FK solver for left arm.
+    KDL::ChainFkSolverPos_recursive &right_fk_solver;     ///< KDL FK solver for right arm.
+
+    /// Collision Checker, which constains RobotState that can be used to compute jacobians, global link transforms, etc.
+    boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr;
+
+    // numbers
+    int point_id; ///< Internal variable, indicates the ID of the current path point, for locating the corresponding goal positions in DMP results.
+    my_constraint_struct fdata;   ///< User data, pass in user-defined data, such as goal orientation and goal finger angles.
 };
 
 
@@ -376,7 +378,7 @@ void TrackingConstraint::linearizeOplus()
   double dmp_eps = 0.001; // better be small enough so that gradients on different dimensions won't diverge too much
   double q_arm_eps = 0.5 * M_PI / 180; //2.0 * M_PI / 180; //0.5; // may need tests // in radius!!!
   double q_finger_eps = 1.0 * M_PI / 180; //2.0 * M_PI / 180; // in radius
-  double e_plus, e_minus;
+  Matrix<double, 20, 1> e_plus, e_minus;
 
   // for calculating and storing jacobians for wrist_pos, wrist_ori and elbow_pos
   double e_wrist_pos_plus, e_wrist_pos_minus;  
@@ -388,10 +390,10 @@ void TrackingConstraint::linearizeOplus()
   DMPStartsGoalsVertex *v = dynamic_cast<DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
   if (v->fixed()) // if dmp vertex is fixed, use the data passed in, and assign zeros updates to dmp vertex
   {
-      // assign zeros
-      _jacobianOplus[0] = Matrix<double, 1, DMPPOINTS_DOF>::Zero();
-      // record
-      this->jacobians_for_dmp = _jacobianOplus[0];
+    // assign zeros
+    _jacobianOplusXi = Matrix<double, 20, DMPPOINTS_DOF>::Zero();
+    // record
+    this->jacobians_for_dmp = _jacobianOplusXi;
   }
   else
   {
@@ -411,10 +413,7 @@ void TrackingConstraint::linearizeOplus()
       e_wrist_ori_plus = this->cur_wrist_ori_cost_total;
       e_elbow_pos_plus = this->cur_elbow_pos_cost_total;
       e_finger_pos_plus = this->cur_finger_pos_cost_total;
-      e_plus = K_WRIST_POS * e_wrist_pos_plus 
-              + K_WRIST_ORI * e_wrist_ori_plus 
-              + K_ELBOW_POS * e_elbow_pos_plus 
-              + K_FINGER * e_finger_pos_plus; // need to consider coefficients
+      e_plus = _error;
 
       v->setEstimate(x-delta_x);
       this->computeError();
@@ -423,39 +422,35 @@ void TrackingConstraint::linearizeOplus()
       e_wrist_ori_minus = this->cur_wrist_ori_cost_total;
       e_elbow_pos_minus = this->cur_elbow_pos_cost_total; 
       e_finger_pos_minus = this->cur_finger_pos_cost_total;   
-      e_minus = K_WRIST_POS * e_wrist_pos_minus 
-              + K_WRIST_ORI * e_wrist_ori_minus 
-              + K_ELBOW_POS * e_elbow_pos_minus 
-              + K_FINGER * e_finger_pos_minus;
+      e_minus = _error;
 
       // reset delta
       delta_x[n] = 0.0;
 
       // set and store jacobians 
-      _jacobianOplus[0](0, n) = (e_plus - e_minus) / (2*dmp_eps); // for DMP starts and goals
+      _jacobianOplusXi.col(n) = (e_plus - e_minus) / (2*dmp_eps); // for DMP starts and goals
       wrist_pos_jacobian_for_dmp[n] = K_WRIST_POS * (e_wrist_pos_plus - e_wrist_pos_minus) / ( 2 * dmp_eps);
       wrist_ori_jacobian_for_dmp[n] = K_WRIST_ORI * (e_wrist_ori_plus - e_wrist_ori_minus) / ( 2 * dmp_eps);
       elbow_pos_jacobian_for_dmp[n] = K_ELBOW_POS * (e_elbow_pos_plus - e_elbow_pos_minus) / ( 2 * dmp_eps); // remember to change the eps !!
       finger_pos_jacobian_for_dmp[n] = K_FINGER * (e_finger_pos_plus - e_finger_pos_minus) / (2 * dmp_eps); 
 
       // store jacobians
-      this->jacobians_for_dmp[n] = _jacobianOplus[0](0, n);
+      this->jacobians_for_dmp[n] = (e_plus - e_minus) / (2*dmp_eps);
     }
 
     // reset vertex value
     v->setEstimate(x);
 
     // 2 - Assign zero jacobians to q vertices
-    for (unsigned int n = 0; n < num_datapoints; n++)
-      _jacobianOplus[n+1] = Matrix<double, 20*NUM_DATAPOINTS, JOINT_DOF>::Zero(); 
-      //Matrix<double, 1, JOINT_DOF>::Zero();
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+      _jacobianOplusXj = Matrix<double, 20, JOINT_DOF>::Identity() * 1e-7; // assign a small nonzero value 
 
     // skip the calculation of q jacobians when q vertices are fixed
     return; 
   }
 
 
-  // 2 - For q vertices
+  // 2 - For q vertex
   DMP_trajs result;
   if ( !(v->fixed()) ) // if dmp vertex not fixed, use it to generate trajectories
   {
@@ -488,185 +483,196 @@ void TrackingConstraint::linearizeOplus()
   Matrix<double, 20, 1> e_err_vec_plus, e_err_vec_minus;  // for a single path point 
   Matrix<double, 20, JOINT_DOF> jacobian_vec; // for a single path point
 
-  for (unsigned int n = 0; n < num_datapoints; n++)
+  // get the current joint values
+  const DualArmDualHandVertex *v_tmp = dynamic_cast<const DualArmDualHandVertex*>(_vertices[1]);
+  const Matrix<double, JOINT_DOF, 1> q = v_tmp->estimate(); // return the current estimate of the vertex
+
+  // Get joint angles
+  Matrix<double, 7, 1> q_cur_l, q_cur_r;    
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = q.block<7, 1>(0, 0);
+  q_cur_r = q.block<7, 1>(7, 0);
+  q_cur_finger_l = q.block<12, 1>(14, 0);
+  q_cur_finger_r = q.block<12, 1>(26, 0); 
+  
+  // Set new goals(expected trajectory) to _measurement
+  if (v->fixed()) // if dmp vertex fixed, use data passed in
   {
-    // get the current joint values
-    const DualArmDualHandVertex *v_tmp = dynamic_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
-    const Matrix<double, JOINT_DOF, 1> q = v_tmp->estimate(); // return the current estimate of the vertex
+    fdata.l_wrist_pos_goal = fdata.DMP_lw.block(0, point_id-1, 3, 1);
+    fdata.l_elbow_pos_goal = fdata.DMP_le.block(0, point_id-1, 3, 1);
+  }
+  else
+  {
+    fdata.l_wrist_pos_goal = result.y_lw.block(0, point_id-1, 3, 1); // Vector3d
+    fdata.l_elbow_pos_goal = result.y_le.block(0, point_id-1, 3, 1); // Vector3d
+  }
+  Quaterniond q_l(trajectory_generator_ptr->l_wrist_quat_traj(point_id-1, 0), 
+                  trajectory_generator_ptr->l_wrist_quat_traj(point_id-1, 1),
+                  trajectory_generator_ptr->l_wrist_quat_traj(point_id-1, 2),
+                  trajectory_generator_ptr->l_wrist_quat_traj(point_id-1, 3));
+  Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
+  fdata.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
+  // right arm part:
+  if (v->fixed()) // if dmp vertex fixed, use data passed in
+  {
+    fdata.r_wrist_pos_goal = fdata.DMP_rw.block(0, point_id-1, 3, 1);
+    fdata.r_elbow_pos_goal = fdata.DMP_re.block(0, point_id-1, 3, 1);
+  }
+  else
+  {
+    fdata.r_wrist_pos_goal = result.y_rw.block(0, point_id-1, 3, 1); // Vector3d
+    fdata.r_elbow_pos_goal = result.y_re.block(0, point_id-1, 3, 1); // Vector3d
+  }
+  Quaterniond q_r(trajectory_generator_ptr->r_wrist_quat_traj(point_id-1, 0), 
+                  trajectory_generator_ptr->r_wrist_quat_traj(point_id-1, 1),
+                  trajectory_generator_ptr->r_wrist_quat_traj(point_id-1, 2),
+                  trajectory_generator_ptr->r_wrist_quat_traj(point_id-1, 3));
+  Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
+  fdata.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
+  // hand parts:
+  fdata.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(point_id-1, 0, 1, 14).transpose() * M_PI / 180.0; // y_seq's glove data is already in radius
+  fdata.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(point_id-1, 0, 1, 14).transpose() * M_PI / 180.0; // size is 50 x DOF
 
-    // Get joint angles
-    Matrix<double, 7, 1> q_cur_l, q_cur_r;    
-    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
-    q_cur_l = q.block<7, 1>(0, 0);
-    q_cur_r = q.block<7, 1>(7, 0);
-    q_cur_finger_l = q.block<12, 1>(14, 0);
-    q_cur_finger_r = q.block<12, 1>(26, 0); 
+
+  // Initialize for convenience 
+  e_err_vec_plus = Matrix<double, 20, 1>::Zero();
+  e_err_vec_minus = Matrix<double, 20, 1>::Zero();
+  jacobian_vec = Matrix<double, 20, JOINT_DOF>::Zero();     
+
+
+  // (1) - jacobians for arms
+  std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();      
+
+  // get jacobians from robotstate.... or liweijie's result...
+  MatrixXd l_wrist_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(LEFT_WRIST_LINK, Vector3d::Zero(), true);
+  MatrixXd r_wrist_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(RIGHT_WRIST_LINK, Vector3d::Zero(), false);
+  MatrixXd l_elbow_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(LEFT_ELBOW_LINK, Vector3d::Zero(), true);
+  MatrixXd r_elbow_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(RIGHT_ELBOW_LINK, Vector3d::Zero(), false);
+
+  _jacobianOplusXj.block(0, 0, 6, 7) = l_wrist_jacobian;
+  _jacobianOplusXj.block(6, 0, 3, 7) = l_elbow_jacobian.topRows(3); // first three rows
+
+
+pppp
+
+  /*
+  for (unsigned int d = 0; d < 7; d++)
+  {
+    // reset 
+    e_plus = Matrix<double, 20, 1>::Zero();
+    e_err_vec_minus = Matrix<double, 20, 1>::Zero();
+
+    // set delta
+    delta_q_arm[d] = q_arm_eps;
+
+    // left arm
+    e_plus.block(0, 0, 3, 1) = compute_wrist_pos_error(left_fk_solver, q_cur_l+delta_q_arm, 
+                                                              _measurement.l_num_wrist_seg, true, _measurement);
+    e_plus.block(3, 0, 3, 1) = compute_wrist_ori_error(left_fk_solver, q_cur_l+delta_q_arm, 
+                                                              _measurement.l_num_wrist_seg, true, _measurement);
+    e_plus.block(6, 0, 3, 1) = compute_elbow_pos_error(left_fk_solver, q_cur_l+delta_q_arm, 
+                                                              _measurement.l_num_elbow_seg, true, _measurement);      
+    e_wrist_pos_plus = this->cur_wrist_pos_cost;
+    e_wrist_ori_plus = this->cur_wrist_ori_cost;
+    e_elbow_pos_plus = this->cur_elbow_pos_cost;
+
+    e_err_vec_minus.block(0, 0, 3, 1) = compute_wrist_pos_error(left_fk_solver, q_cur_l-delta_q_arm, 
+                                                              _measurement.l_num_wrist_seg, true, _measurement);
+    e_err_vec_minus.block(3, 0, 3, 1) = compute_wrist_ori_error(left_fk_solver, q_cur_l-delta_q_arm, 
+                                                              _measurement.l_num_wrist_seg, true, _measurement);
+    e_err_vec_minus.block(6, 0, 3, 1) = compute_elbow_pos_error(left_fk_solver, q_cur_l-delta_q_arm, 
+                                                              _measurement.l_num_elbow_seg, true, _measurement);      
+    e_wrist_pos_minus = this->cur_wrist_pos_cost;
+    e_wrist_ori_minus = this->cur_wrist_ori_cost;
+    e_elbow_pos_minus = this->cur_elbow_pos_cost;      
+
+    jacobian_vec.block(0, d, 20, 1) = (e_plus - e_err_vec_minus) / (2 * q_arm_eps);
+
+    // _jacobianOplus[n+1].block(0, d, ) = (e_plus - e_minus) / (2 * q_arm_eps);
+    // this is not correct when using error vector
+    wrist_pos_jacobian_for_q_arm(d, n) = K_WRIST_POS * (e_wrist_pos_plus - e_wrist_pos_minus) / ( 2 * q_arm_eps);
+    wrist_ori_jacobian_for_q_arm(d, n) = K_WRIST_ORI * (e_wrist_ori_plus - e_wrist_ori_minus) / ( 2 * q_arm_eps);
+    elbow_pos_jacobian_for_q_arm(d, n) = K_ELBOW_POS * (e_elbow_pos_plus - e_elbow_pos_minus) / ( 2 * q_arm_eps);
+
+
+    // reset 
+    e_plus = Matrix<double, 20, 1>::Zero();
+    e_err_vec_minus = Matrix<double, 20, 1>::Zero();
     
-    // Set new goals(expected trajectory) to _measurement
-    if (v->fixed()) // if dmp vertex fixed, use data passed in
-    {
-      _measurement.l_wrist_pos_goal = _measurement.DMP_lw.block(0, n, 3, 1);
-      _measurement.l_elbow_pos_goal = _measurement.DMP_le.block(0, n, 3, 1);
-    }
-    else
-    {
-      _measurement.l_wrist_pos_goal = result.y_lw.block(0, n, 3, 1); // Vector3d
-      _measurement.l_elbow_pos_goal = result.y_le.block(0, n, 3, 1); // Vector3d
-    }
-    Quaterniond q_l(trajectory_generator_ptr->l_wrist_quat_traj(n, 0), 
-                    trajectory_generator_ptr->l_wrist_quat_traj(n, 1),
-                    trajectory_generator_ptr->l_wrist_quat_traj(n, 2),
-                    trajectory_generator_ptr->l_wrist_quat_traj(n, 3));
-    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
-    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
+    // right arm
+    e_plus.block(9, 0, 3, 1) = compute_wrist_pos_error(right_fk_solver, q_cur_r+delta_q_arm, 
+                                                              _measurement.r_num_wrist_seg, false, _measurement);
+    e_plus.block(12, 0, 3, 1) = compute_wrist_ori_error(right_fk_solver, q_cur_r+delta_q_arm, 
+                                                              _measurement.r_num_wrist_seg, false, _measurement);
+    e_plus.block(15, 0, 3, 1) = compute_elbow_pos_error(right_fk_solver, q_cur_r+delta_q_arm, 
+                                                              _measurement.r_num_elbow_seg, false, _measurement);      
+    e_wrist_pos_plus = this->cur_wrist_pos_cost;
+    e_wrist_ori_plus = this->cur_wrist_ori_cost;
+    e_elbow_pos_plus = this->cur_elbow_pos_cost;
 
+    e_err_vec_minus.block(9, 0, 3, 1) = compute_wrist_pos_error(right_fk_solver, q_cur_r-delta_q_arm, 
+                                                              _measurement.r_num_wrist_seg, false, _measurement);
+    e_err_vec_minus.block(12, 0, 3, 1) = compute_wrist_ori_error(right_fk_solver, q_cur_r-delta_q_arm, 
+                                                              _measurement.r_num_wrist_seg, false, _measurement);
+    e_err_vec_minus.block(15, 0, 3, 1) = compute_elbow_pos_error(right_fk_solver, q_cur_r-delta_q_arm, 
+                                                              _measurement.r_num_elbow_seg, false, _measurement);      
+    e_wrist_pos_minus = this->cur_wrist_pos_cost;
+    e_wrist_ori_minus = this->cur_wrist_ori_cost;
+    e_elbow_pos_minus = this->cur_elbow_pos_cost;      
 
-    // right arm part:
-    if (v->fixed()) // if dmp vertex fixed, use data passed in
-    {
-      _measurement.r_wrist_pos_goal = _measurement.DMP_rw.block(0, n, 3, 1);
-      _measurement.r_elbow_pos_goal = _measurement.DMP_re.block(0, n, 3, 1);
-    }
-    else
-    {
-      _measurement.r_wrist_pos_goal = result.y_rw.block(0, n, 3, 1); // Vector3d
-      _measurement.r_elbow_pos_goal = result.y_re.block(0, n, 3, 1); // Vector3d
-    }
-    Quaterniond q_r(trajectory_generator_ptr->r_wrist_quat_traj(n, 0), 
-                    trajectory_generator_ptr->r_wrist_quat_traj(n, 1),
-                    trajectory_generator_ptr->r_wrist_quat_traj(n, 2),
-                    trajectory_generator_ptr->r_wrist_quat_traj(n, 3));
-    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
-    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
+    jacobian_vec.block(0, d+7, 20, 1) = (e_plus - e_err_vec_minus) / (2 * q_arm_eps);
 
-    // hand parts:
-    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // size is 50 x DOF
+    // _jacobianOplus[n+1](0, d+7) = (e_plus - e_minus) / (2 * q_arm_eps);      
+    // wrist_pos_jacobian_for_q_arm(d+7, n) = K_WRIST_POS * (e_wrist_pos_plus - e_wrist_pos_minus) / ( 2 * q_arm_eps);
+    // wrist_ori_jacobian_for_q_arm(d+7, n) = K_WRIST_ORI * (e_wrist_ori_plus - e_wrist_ori_minus) / ( 2 * q_arm_eps);
+    // elbow_pos_jacobian_for_q_arm(d+7, n) = K_ELBOW_POS * (e_elbow_pos_plus - e_elbow_pos_minus) / ( 2 * q_arm_eps);
+
+    // reset delta
+    delta_q_arm[d] = 0.0;
+  }
+  */
+
+  std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();  
+  std::chrono::duration<double> t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
+  t_arm_numeric += t_spent1.count();
+    
+
+  // (2) - jacobians for fingers
+  // left_tmp = compute_finger_cost(q_cur_finger_l, true, _measurement);  
+  // right_tmp = compute_finger_cost(q_cur_finger_r, false, _measurement); 
+  for (unsigned int d = 0; d < 12; d++)
+  {
+    // set delta
+    delta_q_finger[d] = q_finger_eps;
+
+    // left hand
+    e_plus = compute_finger_cost(q_cur_finger_l+delta_q_finger, true, _measurement);
+    e_minus = compute_finger_cost(q_cur_finger_l-delta_q_finger, true, _measurement);
+    // left fingers only affects left hand
+    jacobian_vec(18, d+14) = K_FINGER * (e_plus - e_minus) / (2 * q_finger_eps);
+    // _jacobianOplus[n+1](0, d+14) = K_FINGER * (e_plus - e_minus) / (2*q_finger_eps); // K_FINGER not included
+    finger_pos_jacobian_for_q_finger(d, n) = K_FINGER * (e_plus - e_minus) / (2*q_finger_eps);
+
+    // right hand
+    e_plus = compute_finger_cost(q_cur_finger_r+delta_q_finger, false, _measurement);  
+    e_minus = compute_finger_cost(q_cur_finger_r-delta_q_finger, false, _measurement);  
+    // right fingers only affects right hand
+    jacobian_vec(19, d+26) = K_FINGER * (e_plus - e_minus) / (2 * q_finger_eps);
+    // _jacobianOplus[n+1](0, d+26) = K_FINGER * (e_plus - e_minus) / (2*q_finger_eps);
+    finger_pos_jacobian_for_q_finger(d+12, n) = K_FINGER * (e_plus - e_minus) / (2*q_finger_eps);
+
+    // reset delta
+    delta_q_finger[d] = 0.0;
+  }
+
+  // assign to _jacobianOplus
+  _jacobianOplus[n+1] = jacobian_vec;
+
+  // debug output
+  std::cout << "debug: size of _jacobianOplus = " << _jacobianOplus[n+1].rows() << " x " << _jacobianOplus[n+1].cols() << std::endl;
+  std::cout << "debug: jacobian of current q = \n" << jacobian_vec << std::endl;
 
   
-    // Initialize for convenience 
-    e_err_vec_plus = Matrix<double, 20, 1>::Zero();
-    e_err_vec_minus = Matrix<double, 20, 1>::Zero();
-    jacobian_vec = Matrix<double, 20, JOINT_DOF>::Zero();     
-
-    
-    // (1) - jacobians for arms
-    std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();      
-    for (unsigned int d = 0; d < 7; d++)
-    {
-      // reset 
-      e_err_vec_plus = Matrix<double, 20, 1>::Zero();
-      e_err_vec_minus = Matrix<double, 20, 1>::Zero();
-
-      // set delta
-      delta_q_arm[d] = q_arm_eps;
-
-      // left arm
-      e_err_vec_plus.block(0, 0, 3, 1) = compute_wrist_pos_error(left_fk_solver, q_cur_l+delta_q_arm, 
-                                                                _measurement.l_num_wrist_seg, true, _measurement);
-      e_err_vec_plus.block(3, 0, 3, 1) = compute_wrist_ori_error(left_fk_solver, q_cur_l+delta_q_arm, 
-                                                                _measurement.l_num_wrist_seg, true, _measurement);
-      e_err_vec_plus.block(6, 0, 3, 1) = compute_elbow_pos_error(left_fk_solver, q_cur_l+delta_q_arm, 
-                                                                _measurement.l_num_elbow_seg, true, _measurement);      
-      e_wrist_pos_plus = this->cur_wrist_pos_cost;
-      e_wrist_ori_plus = this->cur_wrist_ori_cost;
-      e_elbow_pos_plus = this->cur_elbow_pos_cost;
-
-      e_err_vec_minus.block(0, 0, 3, 1) = compute_wrist_pos_error(left_fk_solver, q_cur_l-delta_q_arm, 
-                                                                _measurement.l_num_wrist_seg, true, _measurement);
-      e_err_vec_minus.block(3, 0, 3, 1) = compute_wrist_ori_error(left_fk_solver, q_cur_l-delta_q_arm, 
-                                                                _measurement.l_num_wrist_seg, true, _measurement);
-      e_err_vec_minus.block(6, 0, 3, 1) = compute_elbow_pos_error(left_fk_solver, q_cur_l-delta_q_arm, 
-                                                                _measurement.l_num_elbow_seg, true, _measurement);      
-      e_wrist_pos_minus = this->cur_wrist_pos_cost;
-      e_wrist_ori_minus = this->cur_wrist_ori_cost;
-      e_elbow_pos_minus = this->cur_elbow_pos_cost;      
-
-      jacobian_vec.block(0, d, 20, 1) = (e_err_vec_plus - e_err_vec_minus) / (2 * q_arm_eps);
-
-      // _jacobianOplus[n+1].block(0, d, ) = (e_plus - e_minus) / (2 * q_arm_eps);
-      // this is not correct when using error vector
-      wrist_pos_jacobian_for_q_arm(d, n) = K_WRIST_POS * (e_wrist_pos_plus - e_wrist_pos_minus) / ( 2 * q_arm_eps);
-      wrist_ori_jacobian_for_q_arm(d, n) = K_WRIST_ORI * (e_wrist_ori_plus - e_wrist_ori_minus) / ( 2 * q_arm_eps);
-      elbow_pos_jacobian_for_q_arm(d, n) = K_ELBOW_POS * (e_elbow_pos_plus - e_elbow_pos_minus) / ( 2 * q_arm_eps);
-
-
-      // reset 
-      e_err_vec_plus = Matrix<double, 20, 1>::Zero();
-      e_err_vec_minus = Matrix<double, 20, 1>::Zero();
-      
-      // right arm
-      e_err_vec_plus.block(9, 0, 3, 1) = compute_wrist_pos_error(right_fk_solver, q_cur_r+delta_q_arm, 
-                                                                _measurement.r_num_wrist_seg, false, _measurement);
-      e_err_vec_plus.block(12, 0, 3, 1) = compute_wrist_ori_error(right_fk_solver, q_cur_r+delta_q_arm, 
-                                                                _measurement.r_num_wrist_seg, false, _measurement);
-      e_err_vec_plus.block(15, 0, 3, 1) = compute_elbow_pos_error(right_fk_solver, q_cur_r+delta_q_arm, 
-                                                                _measurement.r_num_elbow_seg, false, _measurement);      
-      e_wrist_pos_plus = this->cur_wrist_pos_cost;
-      e_wrist_ori_plus = this->cur_wrist_ori_cost;
-      e_elbow_pos_plus = this->cur_elbow_pos_cost;
-
-      e_err_vec_minus.block(9, 0, 3, 1) = compute_wrist_pos_error(right_fk_solver, q_cur_r-delta_q_arm, 
-                                                                _measurement.r_num_wrist_seg, false, _measurement);
-      e_err_vec_minus.block(12, 0, 3, 1) = compute_wrist_ori_error(right_fk_solver, q_cur_r-delta_q_arm, 
-                                                                _measurement.r_num_wrist_seg, false, _measurement);
-      e_err_vec_minus.block(15, 0, 3, 1) = compute_elbow_pos_error(right_fk_solver, q_cur_r-delta_q_arm, 
-                                                                _measurement.r_num_elbow_seg, false, _measurement);      
-      e_wrist_pos_minus = this->cur_wrist_pos_cost;
-      e_wrist_ori_minus = this->cur_wrist_ori_cost;
-      e_elbow_pos_minus = this->cur_elbow_pos_cost;      
-
-      jacobian_vec.block(0, d+7, 20, 1) = (e_err_vec_plus - e_err_vec_minus) / (2 * q_arm_eps);
-
-      // _jacobianOplus[n+1](0, d+7) = (e_plus - e_minus) / (2 * q_arm_eps);      
-      // wrist_pos_jacobian_for_q_arm(d+7, n) = K_WRIST_POS * (e_wrist_pos_plus - e_wrist_pos_minus) / ( 2 * q_arm_eps);
-      // wrist_ori_jacobian_for_q_arm(d+7, n) = K_WRIST_ORI * (e_wrist_ori_plus - e_wrist_ori_minus) / ( 2 * q_arm_eps);
-      // elbow_pos_jacobian_for_q_arm(d+7, n) = K_ELBOW_POS * (e_elbow_pos_plus - e_elbow_pos_minus) / ( 2 * q_arm_eps);
-
-      // reset delta
-      delta_q_arm[d] = 0.0;
-    }
-    std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();  
-    std::chrono::duration<double> t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
-    t_arm_numeric += t_spent1.count();
-    
-
-    // (2) - jacobians for fingers
-    // left_tmp = compute_finger_cost(q_cur_finger_l, true, _measurement);  
-    // right_tmp = compute_finger_cost(q_cur_finger_r, false, _measurement); 
-    for (unsigned int d = 0; d < 12; d++)
-    {
-      // set delta
-      delta_q_finger[d] = q_finger_eps;
-
-      // left hand
-      e_plus = compute_finger_cost(q_cur_finger_l+delta_q_finger, true, _measurement);
-      e_minus = compute_finger_cost(q_cur_finger_l-delta_q_finger, true, _measurement);
-      // left fingers only affects left hand
-      jacobian_vec(18, d+14) = K_FINGER * (e_plus - e_minus) / (2 * q_finger_eps);
-      // _jacobianOplus[n+1](0, d+14) = K_FINGER * (e_plus - e_minus) / (2*q_finger_eps); // K_FINGER not included
-      finger_pos_jacobian_for_q_finger(d, n) = K_FINGER * (e_plus - e_minus) / (2*q_finger_eps);
-
-      // right hand
-      e_plus = compute_finger_cost(q_cur_finger_r+delta_q_finger, false, _measurement);  
-      e_minus = compute_finger_cost(q_cur_finger_r-delta_q_finger, false, _measurement);  
-      // right fingers only affects right hand
-      jacobian_vec(19, d+26) = K_FINGER * (e_plus - e_minus) / (2 * q_finger_eps);
-      // _jacobianOplus[n+1](0, d+26) = K_FINGER * (e_plus - e_minus) / (2*q_finger_eps);
-      finger_pos_jacobian_for_q_finger(d+12, n) = K_FINGER * (e_plus - e_minus) / (2*q_finger_eps);
-
-      // reset delta
-      delta_q_finger[d] = 0.0;
-    }
-
-    // assign to _jacobianOplus
-    _jacobianOplus[n+1] = jacobian_vec;
-
-    // debug output
-    std::cout << "debug: size of _jacobianOplus = " << _jacobianOplus[n+1].rows() << " x " << _jacobianOplus[n+1].cols() << std::endl;
-    std::cout << "debug: jacobian of current q = \n" << jacobian_vec << std::endl;
-
-  }
   
   // debug output: show the computed _jacobianOplus()
 
@@ -959,13 +965,13 @@ Vector3d TrackingConstraint::compute_wrist_pos_error(KDL::ChainFkSolverPos_recur
   Vector3d wrist_pos_human = (left_or_right ? (fdata.l_wrist_pos_goal) : (fdata.r_wrist_pos_goal) );
 
   // Get error vector
-  Vector3d wrist_pos_err_vec = (wrist_pos_cur - wrist_pos_human).cwiseAbs();
+  Vector3d wrist_pos_err_vec = wrist_pos_human - wrist_pos_cur;//.cwiseAbs();
   
   // store for debug 
   this->cur_wrist_pos_cost = wrist_pos_err_vec.norm();
 
   // Return cost function value
-  return K_WRIST_POS * wrist_pos_err_vec;
+  return wrist_pos_err_vec;
 }
 
 
@@ -994,8 +1000,13 @@ Vector3d TrackingConstraint::compute_wrist_ori_error(KDL::ChainFkSolverPos_recur
   // Specify human data
   Matrix3d wrist_ori_human = ( left_or_right ? (fdata.l_wrist_ori_goal) : (fdata.r_wrist_ori_goal) );
 
-  // Get error vector
-  Vector3d wrist_ori_err_vec = ((wrist_ori_human * wrist_ori_cur.transpose()).eulerAngles(0, 1, 2)).cwiseAbs(); // x-y-z euler angles
+  // Get error vector (differential velocity, computed from differential movement: from R1 to R2, (R2*R1' - I) is the skew symmetric matrix that contains the differential rotation terms)
+  // when R1 deviates from R2 too much, the result would not be skew-symmetric any more, and the result of doing so remains to be seen...
+  Matrix3d skew_symmetric = (wrist_ori_human * wrist_ori_cur.transpose() - Matrix3d::Identity());
+  Vector3d wrist_ori_err_vec;
+  wrist_ori_err_vec[0] = -1 * skew_symmetric(1, 2);
+  wrist_ori_err_vec[1] = skew_symmetric(0, 2);
+  wrist_ori_err_vec[2] = -1 * skew_symmetric(0, 1);
 
   // Compute cost function
   double wrist_ori_cost = std::fabs( std::acos( std::min(((wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0, 1.0) ) );
@@ -1004,7 +1015,7 @@ Vector3d TrackingConstraint::compute_wrist_ori_error(KDL::ChainFkSolverPos_recur
   this->cur_wrist_ori_cost = wrist_ori_cost;
 
   // Return cost function value
-  return K_WRIST_ORI * wrist_ori_err_vec;
+  return wrist_ori_err_vec;
 }
 
 
@@ -1034,13 +1045,13 @@ Vector3d TrackingConstraint::compute_elbow_pos_error(KDL::ChainFkSolverPos_recur
   Vector3d elbow_pos_human = (left_or_right ? (fdata.l_elbow_pos_goal) : (fdata.r_elbow_pos_goal) );
 
   // Get error vector
-  Vector3d elbow_pos_err_vec = (elbow_pos_cur - elbow_pos_human).cwiseAbs();
+  Vector3d elbow_pos_err_vec = elbow_pos_human- elbow_pos_cur; 
 
   // Store for debug
   this->cur_elbow_pos_cost = elbow_pos_err_vec.norm();
 
   // Return cost function value
-  return K_ELBOW_POS * elbow_pos_err_vec;
+  return elbow_pos_err_vec;
 }
 
 
@@ -1637,9 +1648,7 @@ void TrackingConstraint::computeError()
 
   // Use DMP to generate new trajectories
   DMP_trajs result;
-
   std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();  
-  
   const DMPStartsGoalsVertex *v = dynamic_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
   if (!(v->fixed())) // if DMP vertex not fixed, use DMP to generate trajectories
   {
@@ -1654,149 +1663,107 @@ void TrackingConstraint::computeError()
     MatrixXd rw_new_goal(3, 1); rw_new_goal = x.block(18, 0, 3, 1);
     MatrixXd rw_new_start(3, 1); rw_new_start = x.block(21, 0, 3, 1);
 
-    /*
-    std::cout << "debug: \nx = " << x.transpose() << std::endl
-              << "lrw_new_goal = " << lrw_new_goal.transpose() << ", lrw_new_start = " << lrw_new_start.transpose() << std::endl
-              << "lew_new_goal = " << lew_new_goal.transpose() << ", lew_new_start = " << lew_new_start.transpose() << std::endl
-              << "rew_new_goal = " << rew_new_goal.transpose() << ", rew_new_start = " << rew_new_start.transpose() << std::endl
-              << "rw_new_goal = " << rw_new_goal.transpose() << ", rw_new_start = " << rw_new_start.transpose() << std::endl;
-    */
-
     result = trajectory_generator_ptr->generate_trajectories(lrw_new_goal.transpose(), lrw_new_start.transpose(), // should be row vectors
-                                                                      lew_new_goal.transpose(), lew_new_start.transpose(),
-                                                                      rew_new_goal.transpose(), rew_new_start.transpose(),
-                                                                      rw_new_goal.transpose(), rw_new_start.transpose(),
-                                                                      NUM_DATAPOINTS); // results are 3 x N
+                                                            lew_new_goal.transpose(), lew_new_start.transpose(),
+                                                            rew_new_goal.transpose(), rew_new_start.transpose(),
+                                                            rw_new_goal.transpose(), rw_new_start.transpose(),
+                                                            NUM_DATAPOINTS); // results are 3 x N
   }
   std::chrono::steady_clock::time_point t11 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent1 = std::chrono::duration_cast<std::chrono::duration<double>>(t11 - t00);
   total_traj += t_spent1.count();
   count_traj++;  
 
-  /*
-  std::cout << "lrw_new_goal = " << result.y_lrw.block(0, num_datapoints-1, 3, 1).transpose() << ", lrw_new_start = " << result.y_lrw.block(0, 0, 3, 1).transpose() << std::endl
-            << "lew_new_goal = " << result.y_lew.block(0, num_datapoints-1, 3, 1).transpose() << ", lew_new_start = " << result.y_lew.block(0, 0, 3, 1).transpose() << std::endl
-            << "rew_new_goal = " << result.y_rew.block(0, num_datapoints-1, 3, 1).transpose() << ", rew_new_start = " << result.y_rew.block(0, 0, 3, 1).transpose() << std::endl
-            << "rw_new_goal = " << result.y_rw.block(0, num_datapoints-1, 3, 1).transpose() << ", rw_new_start = " << result.y_rw.block(0, 0, 3, 1).transpose() << std::endl;
-  */
-
   // Iterate through all path points to compute costs
   double cost = 0;
   double total_cost = 0;
-  // store for debug
   this->cur_wrist_pos_cost_total = 0;
   this->cur_wrist_ori_cost_total = 0;
   this->cur_elbow_pos_cost_total = 0;
   this->cur_finger_pos_cost_total = 0;  
-  // initialize error vector
-  Matrix<double, 20, 1> err_vec = Matrix<double, 20, 1>::Zero();
-  for (unsigned int n = 0; n < num_datapoints; n++)
+
+  // get the current joint value
+  const DualArmDualHandVertex *qv = static_cast<const DualArmDualHandVertex*>(_vertices[1]);
+  const Matrix<double, JOINT_DOF, 1> x = qv->estimate(); // return the current estimate of the vertex
+
+  // Get joint angles
+  Matrix<double, 7, 1> q_cur_l, q_cur_r;
+  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
+  q_cur_l = x.block<7, 1>(0, 0);
+  q_cur_r = x.block<7, 1>(7, 0);
+  q_cur_finger_l = x.block<12, 1>(14, 0);
+  q_cur_finger_r = x.block<12, 1>(26, 0); 
+  
+  // Set new goals(expected trajectory) to user data
+  // left arm part:
+  if (v->fixed()) // if DMP vertex is fixed, use data passed in
   {
-    // get the current joint value
-    // _vertices is a VertexContainer type, a std::vector<Vertex*>
-    const DualArmDualHandVertex *qv = static_cast<const DualArmDualHandVertex*>(_vertices[n+1]);
-    const Matrix<double, JOINT_DOF, 1> x = qv->estimate(); // return the current estimate of the vertex
-    //std::cout << "debug: x size is: " << x.rows() << " x " << x.cols() << std::endl;
-    //std::cout << "debug: x = \n" << x.transpose() << std::endl;
-
-    // Get joint angles
-    Matrix<double, 7, 1> q_cur_l, q_cur_r;
-    Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
-    q_cur_l = x.block<7, 1>(0, 0);
-    q_cur_r = x.block<7, 1>(7, 0);
-    q_cur_finger_l = x.block<12, 1>(14, 0);
-    q_cur_finger_r = x.block<12, 1>(26, 0); 
-    
-    // Use DMP to generate new position trajectories, orientation & glove trajs are resampled and loaded in DMPTrajectoryGenerator
-    // Set new goals(expected trajectory) to _measurement
-    // left arm part:
-    if (v->fixed()) // if DMP vertex is fixed, use data passed in
-    {
-      _measurement.l_wrist_pos_goal = _measurement.DMP_lw.block(0, n, 3, 1);
-      _measurement.l_elbow_pos_goal = _measurement.DMP_le.block(0, n, 3, 1);
-    }
-    else
-    {
-      _measurement.l_wrist_pos_goal = result.y_lw.block(0, n, 3, 1); // Vector3d
-      _measurement.l_elbow_pos_goal = result.y_le.block(0, n, 3, 1); // Vector3d
-    }
-    Quaterniond q_l(trajectory_generator_ptr->l_wrist_quat_traj(n, 0), 
-                    trajectory_generator_ptr->l_wrist_quat_traj(n, 1),
-                    trajectory_generator_ptr->l_wrist_quat_traj(n, 2),
-                    trajectory_generator_ptr->l_wrist_quat_traj(n, 3));
-    Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
-    _measurement.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
-
-    // right arm part:
-    if (v->fixed()) // if DMP vertex is fixed, use data passed in
-    {
-      _measurement.r_wrist_pos_goal = _measurement.DMP_rw.block(0, n, 3, 1);
-      _measurement.r_elbow_pos_goal = _measurement.DMP_re.block(0, n, 3, 1);
-    }
-    else
-    {
-      _measurement.r_wrist_pos_goal = result.y_rw.block(0, n, 3, 1); // Vector3d
-      _measurement.r_elbow_pos_goal = result.y_re.block(0, n, 3, 1); // Vector3d is column vector
-    }
-    Quaterniond q_r(trajectory_generator_ptr->r_wrist_quat_traj(n, 0), 
-                    trajectory_generator_ptr->r_wrist_quat_traj(n, 1),
-                    trajectory_generator_ptr->r_wrist_quat_traj(n, 2),
-                    trajectory_generator_ptr->r_wrist_quat_traj(n, 3));
-    Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
-    _measurement.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
-
-
-    // hand parts:
-    _measurement.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // y_seq's glove data is already in radius
-    _measurement.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(n, 0, 1, 14).transpose() * M_PI / 180.0; // size is 50 x DOF
-
-    /*
-    std::cout << "l_wrist_pos_goal: \n" << _measurement.l_wrist_pos_goal.transpose() << "\n"
-              << "l_wrist_ori_goal: \n" << _measurement.l_wrist_ori_goal << "\n"
-              << "l_elbow_pos_goal: \n" << _measurement.l_elbow_pos_goal.transpose() << "\n"
-              << "quaternion q_l: \n" << q_l.w() << " " << q_l.x() << " " << q_l.y() << " " << q_l.z() << "\n"
-
-              << "r_wrist_pos_goal: \n" << _measurement.r_wrist_pos_goal.transpose() << "\n"
-              << "r_wrist_ori_goal: \n" << _measurement.r_wrist_ori_goal << "\n"
-              << "r_elbow_pos_goal: \n" << _measurement.r_elbow_pos_goal.transpose() << "\n"
-              << "quaternion q_r: \n" << q_r.w() << " " << q_r.x() << " " << q_r.y() << " " << q_r.z() << "\n"
-
-              << "l_finger_pos_goal: \n" << _measurement.l_finger_pos_goal.transpose() << "\n"
-              << "r_finger_pos_goal: \n" << _measurement.r_finger_pos_goal.transpose() << std::endl;
-    */
-
-    //21,22,23,24, 25,26,27,28, 29,30,31,32, 33,34,
-    //35,36,37,38,39,40,41,42,43,44,45,46,47,48
-
-    
-    // Compute error vector (coefficients included)
-    // l arm
-    err_vec.block(0, 0, 3, 1) += compute_wrist_pos_error(left_fk_solver, q_cur_l, 
-                                                        _measurement.l_num_wrist_seg, true, _measurement);
-    err_vec.block(3, 0, 3, 1) += compute_wrist_ori_error(left_fk_solver, q_cur_l, 
-                                                        _measurement.l_num_wrist_seg, true, _measurement);
-    err_vec.block(6, 0, 3, 1) += compute_elbow_pos_error(left_fk_solver, q_cur_l, 
-                                                        _measurement.l_num_elbow_seg, true, _measurement);
-    this->cur_wrist_pos_cost_total += this->cur_wrist_pos_cost;
-    this->cur_wrist_ori_cost_total += this->cur_wrist_ori_cost;
-    this->cur_elbow_pos_cost_total += this->cur_elbow_pos_cost;
-    // r arm
-    err_vec.block(9, 0, 3, 1) += compute_wrist_pos_error(right_fk_solver, q_cur_r, 
-                                                        _measurement.r_num_wrist_seg, false, _measurement);
-    err_vec.block(12, 0, 3, 1) += compute_wrist_ori_error(right_fk_solver, q_cur_r, 
-                                                        _measurement.r_num_wrist_seg, false, _measurement);
-    err_vec.block(15, 0, 3, 1) += compute_elbow_pos_error(right_fk_solver, q_cur_r, 
-                                                        _measurement.r_num_elbow_seg, false, _measurement);
-    this->cur_wrist_pos_cost_total += this->cur_wrist_pos_cost;
-    this->cur_wrist_ori_cost_total += this->cur_wrist_ori_cost;
-    this->cur_elbow_pos_cost_total += this->cur_elbow_pos_cost;
-    // l finger
-    err_vec[18] += K_FINGER * compute_finger_cost(q_cur_finger_l, true, _measurement);  
-    this->cur_finger_pos_cost_total += this->cur_finger_pos_cost;
-    err_vec[19] += K_FINGER * compute_finger_cost(q_cur_finger_r, false, _measurement);  
-    this->cur_finger_pos_cost_total += this->cur_finger_pos_cost; 
-
+    fdata.l_wrist_pos_goal = fdata.DMP_lw.block(0, point_id-1, 3, 1);
+    fdata.l_elbow_pos_goal = fdata.DMP_le.block(0, point_id-1, 3, 1);
   }
+  else
+  {
+    fdata.l_wrist_pos_goal = result.y_lw.block(0, point_id-1, 3, 1); // Vector3d
+    fdata.l_elbow_pos_goal = result.y_le.block(0, point_id-1, 3, 1); // Vector3d
+  }
+  Quaterniond q_l(trajectory_generator_ptr->l_wrist_quat_traj(point_id-1, 0), 
+                  trajectory_generator_ptr->l_wrist_quat_traj(point_id-1, 1),
+                  trajectory_generator_ptr->l_wrist_quat_traj(point_id-1, 2),
+                  trajectory_generator_ptr->l_wrist_quat_traj(point_id-1, 3));
+  Matrix3d l_wrist_ori_goal = q_l.toRotationMatrix();
+  fdata.l_wrist_ori_goal = l_wrist_ori_goal; // Matrix3d
+  // right arm part:
+  if (v->fixed()) // if DMP vertex is fixed, use data passed in
+  {
+    fdata.r_wrist_pos_goal = fdata.DMP_rw.block(0, point_id-1, 3, 1);
+    fdata.r_elbow_pos_goal = fdata.DMP_re.block(0, point_id-1, 3, 1);
+  }
+  else
+  {
+    fdata.r_wrist_pos_goal = result.y_rw.block(0, point_id-1, 3, 1); // Vector3d
+    fdata.r_elbow_pos_goal = result.y_re.block(0, point_id-1, 3, 1); // Vector3d is column vector
+  }
+  Quaterniond q_r(trajectory_generator_ptr->r_wrist_quat_traj(point_id-1, 0), 
+                  trajectory_generator_ptr->r_wrist_quat_traj(point_id-1, 1),
+                  trajectory_generator_ptr->r_wrist_quat_traj(point_id-1, 2),
+                  trajectory_generator_ptr->r_wrist_quat_traj(point_id-1, 3));
+  Matrix3d r_wrist_ori_goal = q_r.toRotationMatrix();  
+  fdata.r_wrist_ori_goal = r_wrist_ori_goal; // Matrix3d
+
+
+  // hand parts:
+  fdata.l_finger_pos_goal = trajectory_generator_ptr->l_glove_angle_traj.block(point_id-1, 0, 1, 14).transpose() * M_PI / 180.0; // y_seq's glove data is already in radius
+  fdata.r_finger_pos_goal = trajectory_generator_ptr->r_glove_angle_traj.block(point_id-1, 0, 1, 14).transpose() * M_PI / 180.0; // size is 50 x DOF
+
+  
+  // Compute error vector (coefficients included)
+  // initialize error vector
+  Matrix<double, 20, 1> err_vec;
+  // l arm
+  err_vec.block(0, 0, 3, 1) = compute_wrist_pos_error(left_fk_solver, q_cur_l, 
+                                                      fdata.l_num_wrist_seg, true, fdata);
+  err_vec.block(3, 0, 3, 1) = compute_wrist_ori_error(left_fk_solver, q_cur_l, 
+                                                      fdata.l_num_wrist_seg, true, fdata);
+  err_vec.block(6, 0, 3, 1) = compute_elbow_pos_error(left_fk_solver, q_cur_l, 
+                                                      fdata.l_num_elbow_seg, true, fdata);
+  this->cur_wrist_pos_cost_total += this->cur_wrist_pos_cost;
+  this->cur_wrist_ori_cost_total += this->cur_wrist_ori_cost;
+  this->cur_elbow_pos_cost_total += this->cur_elbow_pos_cost;
+  // r arm
+  err_vec.block(9, 0, 3, 1) = compute_wrist_pos_error(right_fk_solver, q_cur_r, 
+                                                      fdata.r_num_wrist_seg, false, fdata);
+  err_vec.block(12, 0, 3, 1) = compute_wrist_ori_error(right_fk_solver, q_cur_r, 
+                                                      fdata.r_num_wrist_seg, false, fdata);
+  err_vec.block(15, 0, 3, 1) = compute_elbow_pos_error(right_fk_solver, q_cur_r, 
+                                                      fdata.r_num_elbow_seg, false, fdata);
+  this->cur_wrist_pos_cost_total += this->cur_wrist_pos_cost;
+  this->cur_wrist_ori_cost_total += this->cur_wrist_ori_cost;
+  this->cur_elbow_pos_cost_total += this->cur_elbow_pos_cost;
+  // l finger
+  err_vec[18] = compute_finger_cost(q_cur_finger_l, true, fdata);  
+  this->cur_finger_pos_cost_total += this->cur_finger_pos_cost;
+  err_vec[19] = compute_finger_cost(q_cur_finger_r, false, fdata);  
+  this->cur_finger_pos_cost_total += this->cur_finger_pos_cost; 
   
   // assign to _error
   _error = err_vec; 
@@ -1804,7 +1771,6 @@ void TrackingConstraint::computeError()
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   total_tracking += t_spent.count();
-
 }
 
 #endif

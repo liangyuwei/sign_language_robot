@@ -1079,6 +1079,7 @@ int main(int argc, char *argv[])
         K_ELBOW_POS = K_ELBOW_POS_set[(id_k_elbow_pos <= K_ELBOW_POS_set.size()-1 ? id_k_elbow_pos : K_ELBOW_POS_set.size()-1)];
         set_edges_coefficients(collision_edges, K_COL * Matrix<double, 6, 1>::Ones());
         set_edges_coefficients(smoothness_edges, K_SMOOTHNESS * Matrix<double, 1, 1>::Identity());
+        set_edges_coefficients(tracking_edge, );
 
         // Evaluate costs before optimization
         // collision counts
@@ -1722,10 +1723,11 @@ int main(int argc, char *argv[])
     do
     {
       // set coefficients (information matrix) for edges
-      Matrix<double, 3, 3>
-      K_DMPSTARTSGOALS = 0.1;//0.5;//1.0;//2.0;
-      K_DMPSCALEMARGIN = 0.1; //0.5;//1.0;//2.0;
-      K_DMPRELCHANGE = 0.1; 
+      Matrix<double, 3, 3> DMP_CONSTRAINTS_INFO;
+      DMP_CONSTRAINTS_INFO(0, 0) = K_DMPSTARTSGOALS;
+      DMP_CONSTRAINTS_INFO(1, 1) = K_DMPSCALEMARGIN;
+      DMP_CONSTRAINTS_INFO(2, 2) = K_DMPRELCHANGE;
+      dmp_edge->setInformation(DMP_CONSTRAINTS_INFO);
 
 
       // iterate to optimize DMP
