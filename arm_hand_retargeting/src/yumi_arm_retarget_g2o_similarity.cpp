@@ -1,5 +1,6 @@
 #include "yumi_arm_retarget_g2o_similarity.h"
 
+
 std::stringstream read_file(std::string file_name)
 {
   std::ifstream ifs(file_name);
@@ -8,12 +9,50 @@ std::stringstream read_file(std::string file_name)
   return ss;
 }
 
+
 void print_debug_output(std::string data_name, std::vector<double> data)
 {
   std::cout << "debug: " << data_name << " = ";
   for (unsigned s = 0; s < data.size(); s++)
     std::cout << data[s] << " ";
   std::cout << std::endl << std::endl;
+}
+
+
+/**
+ * @brief A template for setting coefficents of constraints.
+ *  
+ * Assign coefficients to different constaint edges via information matrices. 
+ * Since the equation to solve for LS problem is J^T * J * dx = -b = - J^T*e and J is the jacobian of 
+ * e, any coefficients assigned wouldn't influence the value of dx. And if we were to assign coefficients 
+ * to J or e, the influence of K would be negative correlated in the former case, while in the latter case 
+ * it would be wrong not to let K pass from e to J(from the source code of g2o::BaseUnaryEdge(), it can 
+ * be seen that linearizeOplus() calculates jacobians by calling computeError() in the way of calculating 
+ * numerical differentiation !).
+ * @param[in]     edges    The edges to set coefficents (information matrix) for.
+ * @param[in]     Ks       The coefficients used to construction diagonal information matrix.
+ */
+template<typename T> void set_edges_coefficients(std::vector<T*> &edges, VectorXd Ks)
+{
+  // Check the dimension
+  int error_dim = edges[0]->dimension();
+  if (error_dim != Ks.size())
+  {
+    std::cerr << "Error dimension for information matrix! The input is of size " << Ks.size()
+              << ", while the requirement is " << error_dim << std::endl;
+    exit(-1);
+  }
+
+  // Set information matrix
+  MatrixXd coefficient_matrix = MatrixXd::Identity(error_dim, error_dim);
+  for (unsigned int i = 0; i < error_dim; i++)
+    coefficient_matrix(i, i) = Ks[i];
+
+  // Iterate to set coefficients
+  for (unsigned int it = 0; it < edges.size(); it++)
+  {
+    edges[it]->setInformation(coefficient_matrix);
+  }
 }
 
 
@@ -1037,7 +1076,8 @@ int main(int argc, char *argv[])
         K_WRIST_POS = K_WRIST_POS_set[(id_k_wrist_pos <= K_WRIST_POS_set.size()-1 ? id_k_wrist_pos : K_WRIST_POS_set.size()-1)];
         K_WRIST_ORI = K_WRIST_ORI_set[(id_k_wrist_ori <= K_WRIST_ORI_set.size()-1 ? id_k_wrist_ori : K_WRIST_ORI_set.size()-1)];
         K_ELBOW_POS = K_ELBOW_POS_set[(id_k_elbow_pos <= K_ELBOW_POS_set.size()-1 ? id_k_elbow_pos : K_ELBOW_POS_set.size()-1)];
-
+        set_edges_coefficients(collision_edges, K_COL * Matrix<double, 6, 1>::Ones());
+        set_edges_coefficients(smoothness_edges, K_SMOOTHNESS * Matrix<double, 1, 1>::Identity());
 
         // Evaluate costs before optimization
         // collision counts
@@ -1665,6 +1705,7 @@ int main(int argc, char *argv[])
     K_DMPSTARTSGOALS = 0.1;//0.5;//1.0;//2.0;
     K_DMPSCALEMARGIN = 0.1; //0.5;//1.0;//2.0;
     K_DMPRELCHANGE = 0.1; //2.0;//1.0; // relax a little to allow small variance
+    
     std::cout << "Fix q vertices." << std::endl;
     // fix q vertices
     for (unsigned int m = 0; m < NUM_DATAPOINTS; m++)
@@ -1679,151 +1720,158 @@ int main(int argc, char *argv[])
 
     do
     {
-    // iterate to optimize DMP
-    std::cout << "Optimizing DMP..." << std::endl;
-    unsigned int dmp_iter = optimizer.optimize(dmp_per_iterations);
-    // Save cost history
-    std::cout << ">>>> Costs <<<<" << std::endl;
-    // 1)
-    std::cout << "Recording tracking cost and DMP costs..." << std::endl;
-    // 3)  
-    std::vector<double> l_wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history(tracking_edge->LEFT_FLAG);
-    std::vector<double> r_wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history(tracking_edge->RIGHT_FLAG);
-    std::vector<double> l_elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history(tracking_edge->LEFT_FLAG);
-    std::vector<double> r_elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history(tracking_edge->RIGHT_FLAG);
-    std::vector<double> l_finger_cost = tracking_edge->return_finger_cost_history(tracking_edge->LEFT_FLAG);      
-    std::vector<double> r_finger_cost = tracking_edge->return_finger_cost_history(tracking_edge->RIGHT_FLAG);      
-    std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history(tracking_edge->BOTH_FLAG);
-    std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history(tracking_edge->BOTH_FLAG);
-    std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history(tracking_edge->BOTH_FLAG);
-    std::vector<double> finger_cost = tracking_edge->return_finger_cost_history(tracking_edge->BOTH_FLAG);      
-    wrist_pos_cost_history.push_back(wrist_pos_cost);
-    l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
-    r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
-    wrist_ori_cost_history.push_back(wrist_ori_cost);
-    elbow_pos_cost_history.push_back(elbow_pos_cost);
-    l_elbow_pos_cost_history.push_back(l_elbow_pos_cost);
-    r_elbow_pos_cost_history.push_back(r_elbow_pos_cost);
-    finger_cost_history.push_back(finger_cost); // store
-    l_finger_cost_history.push_back(l_finger_cost); // store
-    r_finger_cost_history.push_back(r_finger_cost); // store
-    // display for debug:
-    print_debug_output("wrist_pos_cost", wrist_pos_cost);
-    print_debug_output("l_wrist_pos_cost", l_wrist_pos_cost);
-    print_debug_output("r_wrist_pos_cost", r_wrist_pos_cost);
-    print_debug_output("wrist_ori_cost", wrist_ori_cost);
-    print_debug_output("elbow_pos_cost", elbow_pos_cost);
-    print_debug_output("l_elbow_pos_cost", l_elbow_pos_cost);
-    print_debug_output("r_elbow_pos_cost", r_elbow_pos_cost);
-    print_debug_output("finger_cost", finger_cost);
-    // 5)
-    std::vector<double> dmp_orien_cost;
-    dmp_orien_cost.push_back(dmp_edge->output_cost(dmp_edge->ORIEN_FLAG));
-    dmp_orien_cost_history.push_back(dmp_orien_cost);
-    std::vector<double> dmp_scale_cost;
-    dmp_scale_cost.push_back(dmp_edge->output_cost(dmp_edge->SCALE_FLAG));
-    dmp_scale_cost_history.push_back(dmp_scale_cost);
-    std::vector<double> dmp_rel_change_cost;
-    dmp_rel_change_cost.push_back(dmp_edge->output_cost(dmp_edge->REL_CHANGE_FLAG));
-    dmp_rel_change_cost_history.push_back(dmp_rel_change_cost);
-    // display for debug:
-    print_debug_output("dmp_orien_cost", dmp_orien_cost);
-    print_debug_output("dmp_scale_cost", dmp_scale_cost);
-    print_debug_output("dmp_rel_change_cost", dmp_rel_change_cost);
+      // set coefficients (information matrix) for edges
+      Matrix<double, 3, 3>
+      K_DMPSTARTSGOALS = 0.1;//0.5;//1.0;//2.0;
+      K_DMPSCALEMARGIN = 0.1; //0.5;//1.0;//2.0;
+      K_DMPRELCHANGE = 0.1; 
 
 
-    // Save Jacobians of constraints w.r.t DMP starts and goals
-    std::cout << ">>>> Jacobians <<<<" << std::endl;
-    std::cout << "Recording DMP jacobians.." << std::endl;
-    MatrixXd jacobians(1, DMPPOINTS_DOF);    
-    // 1)
-    std::vector<double> jacobian_vec(DMPPOINTS_DOF); // from MatrixXd to std::vector<std::vector<double>>
-    // 2)
-    jacobians = tracking_edge->output_dmp_jacobian();
-    std::cout << "debug: track_jacobian = ";
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-    {
-      jacobian_vec[j] = jacobians(0, j);
-      std::cout << jacobians(0, j) << " ";
-    }
-    std::cout << std::endl;
-    track_jacobian_history.push_back(jacobian_vec);
-    // 3)
-    jacobians = dmp_edge->output_jacobian(dmp_edge->ORIEN_FLAG);
-    std::cout << "debug: orien_jacobian = ";    
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-    {
-      jacobian_vec[j] = jacobians(0, j);
-      std::cout << jacobians(0, j) << " ";
-    }
-    std::cout << std::endl;
-    orien_jacobian_history.push_back(jacobian_vec);    
-    // 4)
-    jacobians = dmp_edge->output_jacobian(dmp_edge->SCALE_FLAG);
-    std::cout << "debug: scale_jacobian = ";    
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-    {
-      jacobian_vec[j] = jacobians(0, j);
-      std::cout << jacobians(0, j) << " ";      
-    }
-    std::cout << std::endl;
-    scale_jacobian_history.push_back(jacobian_vec);    
-    // 5)
-    jacobians = dmp_edge->output_jacobian(dmp_edge->REL_CHANGE_FLAG);
-    std::cout << "debug: rel_change_jacobian = ";    
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-    {
-      jacobian_vec[j] = jacobians(0, j);
-      std::cout << jacobians(0, j) << " ";      
-    }
-    std::cout << std::endl;
-    rel_change_jacobian_history.push_back(jacobian_vec);    
+      // iterate to optimize DMP
+      std::cout << "Optimizing DMP..." << std::endl;
+      unsigned int dmp_iter = optimizer.optimize(dmp_per_iterations);
+      // Save cost history
+      std::cout << ">>>> Costs <<<<" << std::endl;
+      // 1)
+      std::cout << "Recording tracking cost and DMP costs..." << std::endl;
+      // 3)  
+      std::vector<double> l_wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history(tracking_edge->LEFT_FLAG);
+      std::vector<double> r_wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history(tracking_edge->RIGHT_FLAG);
+      std::vector<double> l_elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history(tracking_edge->LEFT_FLAG);
+      std::vector<double> r_elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history(tracking_edge->RIGHT_FLAG);
+      std::vector<double> l_finger_cost = tracking_edge->return_finger_cost_history(tracking_edge->LEFT_FLAG);      
+      std::vector<double> r_finger_cost = tracking_edge->return_finger_cost_history(tracking_edge->RIGHT_FLAG);      
+      std::vector<double> wrist_pos_cost = tracking_edge->return_wrist_pos_cost_history(tracking_edge->BOTH_FLAG);
+      std::vector<double> wrist_ori_cost = tracking_edge->return_wrist_ori_cost_history(tracking_edge->BOTH_FLAG);
+      std::vector<double> elbow_pos_cost = tracking_edge->return_elbow_pos_cost_history(tracking_edge->BOTH_FLAG);
+      std::vector<double> finger_cost = tracking_edge->return_finger_cost_history(tracking_edge->BOTH_FLAG);      
+      wrist_pos_cost_history.push_back(wrist_pos_cost);
+      l_wrist_pos_cost_history.push_back(l_wrist_pos_cost);
+      r_wrist_pos_cost_history.push_back(r_wrist_pos_cost);
+      wrist_ori_cost_history.push_back(wrist_ori_cost);
+      elbow_pos_cost_history.push_back(elbow_pos_cost);
+      l_elbow_pos_cost_history.push_back(l_elbow_pos_cost);
+      r_elbow_pos_cost_history.push_back(r_elbow_pos_cost);
+      finger_cost_history.push_back(finger_cost); // store
+      l_finger_cost_history.push_back(l_finger_cost); // store
+      r_finger_cost_history.push_back(r_finger_cost); // store
+      // display for debug:
+      print_debug_output("wrist_pos_cost", wrist_pos_cost);
+      print_debug_output("l_wrist_pos_cost", l_wrist_pos_cost);
+      print_debug_output("r_wrist_pos_cost", r_wrist_pos_cost);
+      print_debug_output("wrist_ori_cost", wrist_ori_cost);
+      print_debug_output("elbow_pos_cost", elbow_pos_cost);
+      print_debug_output("l_elbow_pos_cost", l_elbow_pos_cost);
+      print_debug_output("r_elbow_pos_cost", r_elbow_pos_cost);
+      print_debug_output("finger_cost", finger_cost);
+      // 5)
+      std::vector<double> dmp_orien_cost;
+      dmp_orien_cost.push_back(dmp_edge->output_cost(dmp_edge->ORIEN_FLAG));
+      dmp_orien_cost_history.push_back(dmp_orien_cost);
+      std::vector<double> dmp_scale_cost;
+      dmp_scale_cost.push_back(dmp_edge->output_cost(dmp_edge->SCALE_FLAG));
+      dmp_scale_cost_history.push_back(dmp_scale_cost);
+      std::vector<double> dmp_rel_change_cost;
+      dmp_rel_change_cost.push_back(dmp_edge->output_cost(dmp_edge->REL_CHANGE_FLAG));
+      dmp_rel_change_cost_history.push_back(dmp_rel_change_cost);
+      // display for debug:
+      print_debug_output("dmp_orien_cost", dmp_orien_cost);
+      print_debug_output("dmp_scale_cost", dmp_scale_cost);
+      print_debug_output("dmp_rel_change_cost", dmp_rel_change_cost);
 
 
-    // output jacobians for wrist_pos, wrist_ori and elbow_pos costs for DMP vertex
-    Matrix<double, DMPPOINTS_DOF, 1> wrist_pos_jacobian_for_dmp;
-    Matrix<double, DMPPOINTS_DOF, 1> wrist_ori_jacobian_for_dmp;
-    Matrix<double, DMPPOINTS_DOF, 1> elbow_pos_jacobian_for_dmp;
-    Matrix<double, DMPPOINTS_DOF, 1> finger_pos_jacobian_for_dmp;
-    wrist_pos_jacobian_for_dmp = tracking_edge->wrist_pos_jacobian_for_dmp;
-    wrist_ori_jacobian_for_dmp = tracking_edge->wrist_ori_jacobian_for_dmp;
-    elbow_pos_jacobian_for_dmp = tracking_edge->elbow_pos_jacobian_for_dmp;    
-    finger_pos_jacobian_for_dmp = tracking_edge->finger_pos_jacobian_for_dmp;    
-    std::cout << "debug: wrist_pos_jacobian_for_dmp = " << wrist_pos_jacobian_for_dmp.transpose() << std::endl;
-    std::cout << "debug: wrist_ori_jacobian_for_dmp = " << wrist_ori_jacobian_for_dmp.transpose() << std::endl;
-    std::cout << "debug: elbow_pos_jacobian_for_dmp = " << elbow_pos_jacobian_for_dmp.transpose() << std::endl;
-    std::cout << "debug: finger_pos_jacobian_for_dmp = " << finger_pos_jacobian_for_dmp.transpose() << std::endl;
+      // Save Jacobians of constraints w.r.t DMP starts and goals
+      std::cout << ">>>> Jacobians <<<<" << std::endl;
+      std::cout << "Recording DMP jacobians.." << std::endl;
+      MatrixXd jacobians(1, DMPPOINTS_DOF);    
+      // 1)
+      std::vector<double> jacobian_vec(DMPPOINTS_DOF); // from MatrixXd to std::vector<std::vector<double>>
+      // 2)
+      jacobians = tracking_edge->output_dmp_jacobian();
+      std::cout << "debug: track_jacobian = ";
+      for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+      {
+        jacobian_vec[j] = jacobians(0, j);
+        std::cout << jacobians(0, j) << " ";
+      }
+      std::cout << std::endl;
+      track_jacobian_history.push_back(jacobian_vec);
+      // 3)
+      jacobians = dmp_edge->output_jacobian(dmp_edge->ORIEN_FLAG);
+      std::cout << "debug: orien_jacobian = ";    
+      for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+      {
+        jacobian_vec[j] = jacobians(0, j);
+        std::cout << jacobians(0, j) << " ";
+      }
+      std::cout << std::endl;
+      orien_jacobian_history.push_back(jacobian_vec);    
+      // 4)
+      jacobians = dmp_edge->output_jacobian(dmp_edge->SCALE_FLAG);
+      std::cout << "debug: scale_jacobian = ";    
+      for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+      {
+        jacobian_vec[j] = jacobians(0, j);
+        std::cout << jacobians(0, j) << " ";      
+      }
+      std::cout << std::endl;
+      scale_jacobian_history.push_back(jacobian_vec);    
+      // 5)
+      jacobians = dmp_edge->output_jacobian(dmp_edge->REL_CHANGE_FLAG);
+      std::cout << "debug: rel_change_jacobian = ";    
+      for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+      {
+        jacobian_vec[j] = jacobians(0, j);
+        std::cout << jacobians(0, j) << " ";      
+      }
+      std::cout << std::endl;
+      rel_change_jacobian_history.push_back(jacobian_vec);    
 
 
-    // store dmp updates
-    std::cout << "Recording DMP updates.." << std::endl;
-    std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
-    // DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));    
-    Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
-    for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
-      dmp_update_vec[j] = last_update(j, 0);
-    dmp_update_history.push_back(dmp_update_vec);
+      // output jacobians for wrist_pos, wrist_ori and elbow_pos costs for DMP vertex
+      Matrix<double, DMPPOINTS_DOF, 1> wrist_pos_jacobian_for_dmp;
+      Matrix<double, DMPPOINTS_DOF, 1> wrist_ori_jacobian_for_dmp;
+      Matrix<double, DMPPOINTS_DOF, 1> elbow_pos_jacobian_for_dmp;
+      Matrix<double, DMPPOINTS_DOF, 1> finger_pos_jacobian_for_dmp;
+      wrist_pos_jacobian_for_dmp = tracking_edge->wrist_pos_jacobian_for_dmp;
+      wrist_ori_jacobian_for_dmp = tracking_edge->wrist_ori_jacobian_for_dmp;
+      elbow_pos_jacobian_for_dmp = tracking_edge->elbow_pos_jacobian_for_dmp;    
+      finger_pos_jacobian_for_dmp = tracking_edge->finger_pos_jacobian_for_dmp;    
+      std::cout << "debug: wrist_pos_jacobian_for_dmp = " << wrist_pos_jacobian_for_dmp.transpose() << std::endl;
+      std::cout << "debug: wrist_ori_jacobian_for_dmp = " << wrist_ori_jacobian_for_dmp.transpose() << std::endl;
+      std::cout << "debug: elbow_pos_jacobian_for_dmp = " << elbow_pos_jacobian_for_dmp.transpose() << std::endl;
+      std::cout << "debug: finger_pos_jacobian_for_dmp = " << finger_pos_jacobian_for_dmp.transpose() << std::endl;
 
 
-    // check dmp constratins
-    tmp_dmp_orien_cost = dmp_edge->output_cost(dmp_edge->ORIEN_FLAG);
-    tmp_dmp_scale_cost = dmp_edge->output_cost(dmp_edge->SCALE_FLAG);
-    tmp_dmp_rel_change_cost = dmp_edge->output_cost(dmp_edge->REL_CHANGE_FLAG);
+      // store dmp updates
+      std::cout << "Recording DMP updates.." << std::endl;
+      std::vector<double> dmp_update_vec(DMPPOINTS_DOF);
+      // DMPStartsGoalsVertex* dmp_vertex_tmp = dynamic_cast<DMPStartsGoalsVertex*>(optimizer.vertex(0));    
+      Matrix<double, DMPPOINTS_DOF, 1> last_update = dmp_vertex_tmp->last_update;
+      for (unsigned int j = 0; j < DMPPOINTS_DOF; j++)
+        dmp_update_vec[j] = last_update(j, 0);
+      dmp_update_history.push_back(dmp_update_vec);
 
-    if (tmp_dmp_orien_cost > dmp_orien_cost_bound && K_DMPSTARTSGOALS <= K_DMPSTARTSGOALS_MAX)
-    {
-      K_DMPSTARTSGOALS = K_DMPSTARTSGOALS * scale;
-    }
 
-    if (tmp_dmp_scale_cost > dmp_scale_cost_bound && K_DMPSCALEMARGIN <= K_DMPSCALEMARGIN_MAX)
-    {
-      K_DMPSCALEMARGIN = K_DMPSCALEMARGIN * scale;
-    }
+      // check dmp constratins
+      tmp_dmp_orien_cost = dmp_edge->output_cost(dmp_edge->ORIEN_FLAG);
+      tmp_dmp_scale_cost = dmp_edge->output_cost(dmp_edge->SCALE_FLAG);
+      tmp_dmp_rel_change_cost = dmp_edge->output_cost(dmp_edge->REL_CHANGE_FLAG);
 
-    if (tmp_dmp_rel_change_cost > dmp_rel_change_cost_bound && K_DMPRELCHANGE <= K_DMPRELCHANGE_MAX)
-    {
-      K_DMPRELCHANGE = K_DMPRELCHANGE * scale;
-    }
+      if (tmp_dmp_orien_cost > dmp_orien_cost_bound && K_DMPSTARTSGOALS <= K_DMPSTARTSGOALS_MAX)
+      {
+        K_DMPSTARTSGOALS = K_DMPSTARTSGOALS * scale;
+      }
+
+      if (tmp_dmp_scale_cost > dmp_scale_cost_bound && K_DMPSCALEMARGIN <= K_DMPSCALEMARGIN_MAX)
+      {
+        K_DMPSCALEMARGIN = K_DMPSCALEMARGIN * scale;
+      }
+
+      if (tmp_dmp_rel_change_cost > dmp_rel_change_cost_bound && K_DMPRELCHANGE <= K_DMPRELCHANGE_MAX)
+      {
+        K_DMPRELCHANGE = K_DMPRELCHANGE * scale;
+      }
 
     }while( (K_DMPSTARTSGOALS <= K_DMPSTARTSGOALS_MAX && tmp_dmp_orien_cost > dmp_orien_cost_bound) || 
             (K_DMPSCALEMARGIN <= K_DMPSCALEMARGIN_MAX && tmp_dmp_scale_cost > dmp_scale_cost_bound) || 

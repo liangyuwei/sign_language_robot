@@ -24,6 +24,7 @@
 // Self-defined helper variables
 #include "config.h"
 
+using namespace std;
 using namespace g2o;
 using namespace Eigen;
 

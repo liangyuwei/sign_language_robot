@@ -96,9 +96,6 @@ class CollisionConstraint : public BaseBinaryEdge<6, my_constraint_struct, DualA
     /// Note that it must be greater than 0, otherwise the dense collision checking would be bypassed.
     unsigned int num_checks;
 
-    /// Compute collision cost, using the minimum distance 
-    double compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
-    
     /// Compute collision cost with only the hands part
     double compute_dual_hands_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, std::string link_name_1, std::string link_name_2, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr);
     
@@ -201,14 +198,11 @@ void CollisionConstraint::computeError()
                                                                           dual_arm_dual_hand_collision_ptr->link_names[0],
                                                                           dual_arm_dual_hand_collision_ptr->link_names[1], 
                                                                           dual_arm_dual_hand_collision_ptr);
-      _error.block(0, 0, 3, 1) = distance_vector; // K_COL is already included
+      _error.block(0, 0, 3, 1) = distance_vector; 
       _error.block(3, 0, 3, 1) = distance_vector;
     }
 
   }
-
-  // apply weighting at last (it is linear, since we solve J^T * J * dx = -b = - J^T * e)
-  _error = K_COL * _error;
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_01 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
@@ -339,7 +333,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(0, 22+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); // K_COL already included in compute_dual_hands_collision_cost()
+          _jacobianOplusXj.block(0, 22+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); 
           // reset
           delta_x[22+d+s] = 0.0;
         }
@@ -851,7 +845,7 @@ Eigen::MatrixXd CollisionConstraint::compute_col_q_update(Eigen::MatrixXd jacobi
 
 
   // post-processing on dq, to speed up and apply weighting
-  d_q = K_COL * d_q;
+  // d_q = K_COL * d_q;
 
   return d_q;
 }
@@ -1512,7 +1506,7 @@ double CollisionConstraint::compute_dual_hands_collision_cost(Matrix<double, JOI
   cost = std::max(d_hand_safe - min_distance, 0.0);
 
   // apply weighting
-  cost = K_COL * cost; // weighting...
+  // cost = K_COL * cost; // weighting...
 
   return cost;
 }
@@ -1565,56 +1559,7 @@ Vector3d CollisionConstraint::compute_dual_hands_collision_error_vector(Matrix<d
 
 
 /**
- * This function considers the whole robot model, and checks arm part and hand part separately.
- */
-double CollisionConstraint::compute_collision_cost(Matrix<double, JOINT_DOF, 1> q_whole, boost::shared_ptr<DualArmDualHandCollision> &dual_arm_dual_hand_collision_ptr)
-{
-  // bypass collision checking
-  if (K_COL == 0.0)
-    return 0.0;
-
-  // convert from matrix to std::vector
-  std::vector<double> x(JOINT_DOF);
-  for (unsigned int i = 0; i < JOINT_DOF; ++i)
-    x[i] = q_whole[i];
-  
-  // Collision checking (or distance computation), check out the DualArmDualHandCollision class
-  double cost;
-  double min_distance;
-  // 1 - check arms first
-  std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-  min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_arms", d_arm_check); 
-  std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
-  std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  total_col += t_spent.count();
-  count_col++;
-  // 2 check hands if arms are in safety region  
-  if (min_distance > d_arm_safe) // arm safe
-  {
-    // check hands 
-    t0 = std::chrono::steady_clock::now();
-    min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_hands", d_hand_check); 
-    t1 = std::chrono::steady_clock::now();
-    t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-    total_col += t_spent.count();
-    count_col++;
-    cost = std::max(d_hand_safe - min_distance, 0.0);
-  }
-  else
-  {
-    cost = std::max(d_arm_safe - min_distance, 0.0); // <0 means colliding, >0 is ok
-  }
-    
-  // apply weighting
-  cost = K_COL * cost; // weighting...
-
-  return cost;
-}
-
-
-/**
- * Return collision cost without the weighting coefficient K_COL applied, 
- * and thus it's the collision state.
+ * Return the dense collision checking result, -1 for no collision.
  */
 double CollisionConstraint::return_col_cost()
 {
@@ -1631,28 +1576,7 @@ double CollisionConstraint::return_col_cost()
 
   double collision_cost = (t_contact < 0.0 ? 0.0 : 1.0); // t_contact < 0 indicates no collision
 
-  /*
-  // Get joint angles
-  Matrix<double, 7, 1> q_cur_l, q_cur_r;
-  Matrix<double, 12, 1> q_cur_finger_l, q_cur_finger_r;
-  q_cur_l = x.block<7, 1>(0, 0);
-  q_cur_r = x.block<7, 1>(7, 0);
-  q_cur_finger_l = x.block<12, 1>(14, 0);
-  q_cur_finger_r = x.block<12, 1>(26, 0); 
-  
-  // 3 (for ease of distinction, won't use distance_computation here)
-  std::vector<double> xx(JOINT_DOF);
-  for (unsigned int d = 0; d < JOINT_DOF; d++)
-    xx[d] = x[d];
- 
-  double col_result = dual_arm_dual_hand_collision_ptr->check_self_collision(xx);
-  double collision_cost = (col_result > 0.0)? 1.0 : 0.0; // col_result 1 for colliding, -1 for collision-free
-  */
-
-
   return collision_cost;
-
-
 }
 
 

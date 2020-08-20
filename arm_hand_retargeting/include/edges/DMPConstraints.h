@@ -30,9 +30,10 @@ using namespace Eigen;
  * There are three constraints directly related to DMP starts and goals: \n
  * (1) orientation of vector connecting start and goal; \n
  * (2) scale of the magnitude of vector connecting start and goal; \n
- * (3) magnitude of changes in vectors connecting relative DMPs' starts and goals.
+ * (3) magnitude of changes in vectors connecting relative DMPs' starts and goals. \n
+ * Each is an element in the error vector.
  */
-class DMPConstraints : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGoalsVertex>
+class DMPConstraints : public BaseUnaryEdge<3, my_constraint_struct, DMPStartsGoalsVertex>
 {
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -99,7 +100,6 @@ class DMPConstraints : public BaseUnaryEdge<1, my_constraint_struct, DMPStartsGo
     double compute_orien_cost(Matrix<double, DMPPOINTS_DOF, 1> x);        ///< Compute orientation constraint value.
     double compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x);        ///< Compute scale constraint value.
     double compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> x);   ///< Compute relative change constraint value.
-
 };
 
 
@@ -136,7 +136,9 @@ DMPConstraints::DMPConstraints(Matrix<double, 1, 3> lrw_goal, Matrix<double, 1, 
 
 
 /**
- * computeError() function used by g2o.
+ * computeError() function used by g2o. 
+ * 
+ * Error vector is of size 3 x 1, with the order of elements being: orien_cost, scale_cost, rel_change_cost.
  */
 void DMPConstraints::computeError()
 {
@@ -145,9 +147,11 @@ void DMPConstraints::computeError()
   Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
 
   // set error
-  _error(0, 0) = K_DMPSTARTSGOALS * this->compute_orien_cost(x) + 
-                 K_DMPSCALEMARGIN * this->compute_scale_cost(x) +
-                 K_DMPRELCHANGE * this->compute_rel_change_cost(x);
+  Vector3d err_vec;
+  err_vec[0] = this->compute_orien_cost(x);
+  err_vec[1] = this->compute_scale_cost(x);
+  err_vec[2] = this->compute_rel_change_cost(x);
+  _error = err_vec;
 }
 
 
@@ -377,30 +381,20 @@ void DMPConstraints::linearizeOplus()
     // evaluate jacobians for orientation cost
     e_plus = this->compute_orien_cost(x+delta_x);
     e_minus = this->compute_orien_cost(x-delta_x);
-    _jacobianOplusXi(0, d) = K_DMPSTARTSGOALS * (e_plus - e_minus) / (2*dmp_eps);
-    this->orien_jacobians_for_dmp(0, d) = K_DMPSTARTSGOALS * (e_plus - e_minus) / (2*dmp_eps);
-    // if (this->orien_jacobians_for_dmp(0, d) > 1 || this->orien_jacobians_for_dmp(0, d) < -1)
-    // {
-    //   std::cout << "gradient value is " << this->orien_jacobians_for_dmp(0, d) << "." << std::endl;
-    //   std::cout << "breakpoint for debug" << std::endl;
-    // }
+    _jacobianOplusXi(0, d) = (e_plus - e_minus) / (2*dmp_eps);
+    this->orien_jacobians_for_dmp(0, d) = (e_plus - e_minus) / (2*dmp_eps);
 
     // evaluate jacobians for scale cost
     e_plus = this->compute_scale_cost(x+delta_x);
     e_minus = this->compute_scale_cost(x-delta_x);
-    _jacobianOplusXi(0, d) += K_DMPSCALEMARGIN * (e_plus - e_minus) / (2*dmp_eps); // add up the influence
-    this->scale_jacobians_for_dmp(0, d) = K_DMPSCALEMARGIN * (e_plus - e_minus) / (2*dmp_eps);
-    // if (this->scale_jacobians_for_dmp(0, d) > 1 || this->scale_jacobians_for_dmp(0, d) < -1)
-    // {
-    //   std::cout << "gradient value is " << this->scale_jacobians_for_dmp(0, d) << "." << std::endl;
-    //   std::cout << "breakpoint for debug" << std::endl;
-    // }
+    _jacobianOplusXi(1, d) = (e_plus - e_minus) / (2*dmp_eps); // add up the influence
+    this->scale_jacobians_for_dmp(0, d) = (e_plus - e_minus) / (2*dmp_eps);
 
     // evaluate jacobians for rel change cost
     e_plus = this->compute_rel_change_cost(x+delta_x);
     e_minus = this->compute_rel_change_cost(x-delta_x);
-    _jacobianOplusXi(0, d) += K_DMPRELCHANGE * (e_plus - e_minus) / (2*dmp_eps); // add up the influence
-    this->rel_jacobians_for_dmp(0, d) = K_DMPRELCHANGE * (e_plus - e_minus) / (2*dmp_eps);
+    _jacobianOplusXi(2, d) = (e_plus - e_minus) / (2*dmp_eps); // add up the influence
+    this->rel_jacobians_for_dmp(0, d) = (e_plus - e_minus) / (2*dmp_eps);
 
     // reset delta_x
     delta_x[d] = 0.0;
