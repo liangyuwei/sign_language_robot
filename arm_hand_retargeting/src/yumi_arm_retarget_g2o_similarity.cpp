@@ -484,7 +484,7 @@ int main(int argc, char *argv[])
   first_collision_edge->setVertex(0, optimizer.vertex(1)); 
   first_collision_edge->setVertex(1, optimizer.vertex(1));   
   first_collision_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
-  first_collision_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
+  first_collision_edge->setInformation(Eigen::Matrix<double, 6, 6>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
   
   collision_edges.push_back(first_collision_edge);
 
@@ -497,7 +497,7 @@ int main(int argc, char *argv[])
     collision_edge->setVertex(0, optimizer.vertex(1+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
     collision_edge->setVertex(1, optimizer.vertex(2+it)); 
     collision_edge->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
-    collision_edge->setInformation(Eigen::Matrix<double, 1, 1>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
+    collision_edge->setInformation(Eigen::Matrix<double, 6, 6>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
     optimizer.addEdge(collision_edge);
 
     collision_edges.push_back(collision_edge);
@@ -885,6 +885,7 @@ int main(int argc, char *argv[])
 
 
   // Solve collision 
+  /*
   std::chrono::steady_clock::time_point t0_col_fix = std::chrono::steady_clock::now();  
   std::vector<double> finger_cost_tmp = tracking_edge->return_finger_cost_history(tracking_edge->BOTH_FLAG); 
   finger_cost_before_optim = 0.0;
@@ -896,7 +897,6 @@ int main(int argc, char *argv[])
   K_COL = 1.0; // set collision checker on!!!
   // best_q = unary_edges[0]->resolve_path_collisions(best_q);
   best_q = collision_edges[0]->resolve_path_collisions(best_q);
-
 
   // assign to q vertices
   for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
@@ -973,6 +973,7 @@ int main(int argc, char *argv[])
     best_q[s] = vertex_tmp->estimate();
     q_initial_collision_fix[s] = vertex_tmp->estimate();
   }
+  */
 
 
   // set collision checker on, so as to count the number of colliding path points
@@ -1018,8 +1019,8 @@ int main(int argc, char *argv[])
 
       // Reset/Use initial trajector computed by collision fix 
       for (unsigned int id = 0; id < NUM_DATAPOINTS; id++)
-        // (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_trac_ik[id]); // assign to the current q vertex
-        (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_collision_fix[id]); // assign to the current q vertices
+        (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_trac_ik[id]); // assign to the current q vertex
+        // (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_collision_fix[id]); // assign to the current q vertices
 
       do // Inner loop
       {

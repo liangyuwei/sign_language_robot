@@ -216,7 +216,8 @@ Eigen::Matrix3d DualArmDualHandCollision::get_link_ori(const std::vector<double>
  * @param[in]   target_link_name  which link to compute jacobian for
  * @param[in]   ref_point_pos     which point on the link to compute jacobian for
  * @param[in]   left_or_right     choose left of right
- * @param[out]  jacobian          calculated robot jacobian which is used for collision avoidance (in combination with contact normal information)
+ * @param[out]  jacobian          calculated robot jacobian which is used for collision avoidance (in combination with contact normal information), 
+ * with the size of 6 x N.
  */
 Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right)
 {
@@ -414,9 +415,12 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_hand_jacobian(std::string ta
 
 
 
-/* Get arm+hand jacobian with the given link and reference_point_position. 
- * finger_id: 0 - thumb, 1 - index, 2 - middle, 3 - ring, 4 - little
- * left_or_right: choose left of right
+/**
+ * @brief Get arm+hand jacobian with the given link and reference_point_position. 
+ * 
+ * @param[in]   finger_id       0 - thumb, 1 - index, 2 - middle, 3 - ring, 4 - little
+ * @param[in]   left_or_right   choose left of right
+ * @param[out]  jacobian        The size is 6 x DOF, DOF is the number of links that are involved.
  */
 Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right)
 {
@@ -893,100 +897,58 @@ double DualArmDualHandCollision::compute_self_distance_test(const std::vector<do
 }
 
 
-/* Compute the minimum distance for the specified two links */
+/**
+ * @brief Compute the minimum distance for the specified two links 
+ * 
+ * Request distance and contact information. Note that here we only request information for the specified
+ * two links, however the link_names[] information might contain link that is not either one of the 
+ * specified two. And thus we need to store link_names information for later analysis, and compute
+ * contact normal for later use.
+ */
 double DualArmDualHandCollision::compute_two_links_distance(const std::vector<double> q_in, std::string link_name_1, std::string link_name_2, double distance_threshold)
 {
   
   // Set up a distance request
   this->distance_request_.group_name = ""; //"dual_arms"; 
   this->distance_request_.enable_signed_distance = true;
-  
-  // this->distance_request_.compute_gradient = true; // get normalized vector
+  this->distance_request_.compute_gradient = true; // get normalized vector
   this->distance_request_.enable_nearest_points = true; // calculate nearest point information
   this->distance_request_.verbose = true; // Log debug information
   this->distance_request_.max_contacts_per_body = 1000; // ?
-
   this->distance_request_.type = collision_detection::DistanceRequestType::SINGLE; // global minimum
   this->distance_request_.acm = &(this->acm_); // specify acm to ignore adjacent links' collision check
   this->distance_request_.distance_threshold = distance_threshold;//0.02;//0.05; // compute only for objects within this threshold to each other
 
   // decide which group to check (set active_components_only)
-  // 1 - enableGroup(), includes all the links that get updated when the state of the group is changed, including links that are ***outside*** of this group
-  // this->distance_request_.enableGroup(this->kinematic_model_); // specify which group to check
-  // 2 - manually set active_components_only, which better satisfies our needs!!!
-  // std::vector<const robot_model::LinkModel*> ac;// = &(this->kinematic_model_)->getJointModelGroup(group_name)->getLinkModels();
   const robot_model::LinkModel* link_model_1 = this->kinematic_model_->getLinkModel(link_name_1);//&(robot_model::LinkModel(link_name_1));
   const robot_model::LinkModel* link_model_2 = this->kinematic_model_->getLinkModel(link_name_2);//&(robot_model::LinkModel(link_name_2));
-  // ac->push_back(link_model_1);
-  // ac->push_back(link_model_2);
   const std::set<const robot_model::LinkModel*> ac_set = {link_model_1, link_model_2};//(ac.begin(), ac.end()); // from std::vector to std::set
-  // ac_set.insert(link_model_1);
-  // ac_set.insert(link_model_2);
-  // const std::set<const robot_model::LinkModel*>* ac_set_p = &ac_set; // get pointer type
   this->distance_request_.active_components_only = &ac_set; // get pointer type
-
 
   // Clear distance result for a new query
   this->distance_result_.clear();
 
-
-  // for debug
-  // Note that, enableGroup() assigns to .active_components_only all the links that get updated when the state of the specified group is changed, and thus including links that are ***outside*** of this group!!!
-  /*
-  bool debug = this->kinematic_model_->hasJointModelGroup(group_name);
-  std::cout << "debug: Group " << group_name << " " << (debug ? "does" : "does not") << " exist in kinematic state!" << std::endl;
-  std::cout << "debug: Number of active components: " 
-            << ((this->distance_request_.active_components_only) ? this->distance_request_.active_components_only->size() : 0) << std::endl;
-  if (this->distance_request_.active_components_only)
-  {
-    std::cout << "debug: active components: " << std::endl;
-    auto ac = this->distance_request_.active_components_only;
-    for (auto s = ac->begin(); s != ac->end(); s++)
-      std::cout << (*s)->getName() << " ";
-    std::cout << std::endl;
-  }
-  */
-
-
   // Construct a CollisionRobotFCL for calling distanceSelf function
   collision_detection::CollisionRobotFCL collision_robot_fcl(this->kinematic_model_); // construct collisionrobot from RobotModelConstPtr
-
 
   // Update robot state with the given joint values
   this->set_joint_values_yumi(q_in);
 
-
   // Compute minimum distance
   collision_robot_fcl.distanceSelf(this->distance_request_, this->distance_result_, this->current_state_);
-
-
-  // Display debug information
-  /*
-  std::cout << ">> Debug information: " << std::endl;
-  std::cout << "The robot is " << (this->distance_result_.collision ? "in" : "not in") << " self-collision" << std::endl;  
-  std::cout << "Minimum distance is " << this->distance_result_.minimum_distance.distance << ", between " << this->distance_result_.minimum_distance.link_names[0] << " and " << this->distance_result_.minimum_distance.link_names[1] << std::endl;
-  std::cout << "Closest links are " << this->distance_result_.minimum_distance.link_names[0] << " and " << this->distance_result_.minimum_distance.link_names[1] << std::endl;
-  // When in collision, nearest_points[0] and nearest_points[1] are the same.
-  std::cout << "Nearest points are p1 = " << this->distance_result_.minimum_distance.nearest_points[0].transpose() 
-            << " and p2 = " << this->distance_result_.minimum_distance.nearest_points[1].transpose() << std::endl;
-  // a normalized vector pointing from link_names[0] to link_names[1]
-  std::cout << "Normal vector is v = " << this->distance_result_.minimum_distance.normal.transpose() << std::endl; 
-  */
-  
-  // Store data for later possible processing
+ 
+  // Store data for later possible processing (especially the contact normal!!!)
   this->min_distance = this->distance_result_.minimum_distance.distance;
   this->nearest_points[0] = this->distance_result_.minimum_distance.nearest_points[0];
   this->nearest_points[1] = this->distance_result_.minimum_distance.nearest_points[1];
   this->link_names[0] = this->distance_result_.minimum_distance.link_names[0];
   this->link_names[1] = this->distance_result_.minimum_distance.link_names[1];
-  // this->normal = this->distance_result_.minimum_distance.normal;
-
+  this->normal = this->distance_result_.minimum_distance.normal;
 
   // Return result
   double result = this->distance_result_.minimum_distance.distance;
   this->distance_result_.clear(); // should clear the results, in case the result object is used again!!!
   return result;
-
 }
 
 /* Check out how to add active_components_only that satisfies our needs */
