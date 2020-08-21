@@ -204,6 +204,7 @@ void CollisionConstraint::computeError()
 
   }
 
+
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_01 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   total_unary += t_01.count();
@@ -1559,7 +1560,10 @@ Vector3d CollisionConstraint::compute_dual_hands_collision_error_vector(Matrix<d
 
 
 /**
- * Return the dense collision checking result, -1 for no collision.
+ * Return the dense collision checking result, i.e. whether there exists possible collision state 
+ * between transition from x0 to x1. \n
+ * 
+ * 0 for no collision, and 1 for collision.
  */
 double CollisionConstraint::return_col_cost()
 {

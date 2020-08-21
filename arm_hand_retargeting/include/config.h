@@ -18,7 +18,6 @@ using namespace Eigen;
 
 // Global Variables
 double K_COL;                   ///< Coefficient for collision cost.
-double K_POS_LIMIT;             ///< Coefficient for position limit cost.
 double K_WRIST_ORI;             ///< Coefficient for wrist orientaion cost.
 double K_WRIST_POS;             ///< Coefficient for wrist position cost.
 double K_ELBOW_POS;             ///< Coefficient for elbow position cost.

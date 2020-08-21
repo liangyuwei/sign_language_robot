@@ -37,7 +37,7 @@ class MyUnaryConstraints : public BaseUnaryEdge<1, my_constraint_struct, DualArm
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-    /// Constructor with initialization of KDL FK solvers and collision checker.
+    /// Constructor with initialization collision checker.
     MyUnaryConstraints(boost::shared_ptr<DualArmDualHandCollision> &_dual_arm_dual_hand_collision_ptr) : dual_arm_dual_hand_collision_ptr(_dual_arm_dual_hand_collision_ptr){};
 
     /// Compute edge value. Used by g2o internal calculation
