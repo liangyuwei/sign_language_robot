@@ -78,13 +78,14 @@ class DualArmDualHandCollision
     int check_finger_belonging(std::string link_name, bool left_or_right);
 
     Eigen::MatrixXd get_robot_arm_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right);
+    Eigen::MatrixXd get_robot_arm_jacobian(const std::vector<double> q_in, bool left_or_right, std::string link_name); ///< Overloaded to provide easy access.
     Eigen::MatrixXd get_robot_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right);
     Eigen::MatrixXd get_robot_arm_hand_jacobian(std::string target_link_name, Eigen::Vector3d ref_point_pos, int finger_id, bool left_or_right);
     Eigen::Vector3d get_global_link_transform(std::string target_link_name); // this is the transform of specified link under the current configuration (this->current_state_)
 
 
     // for use in g2o tracking constraint(get robot jacobian directly, for more efficient tracking of wrist and elbow trajectories)
-    Eigen::MatrixXd get_robot_arm_jacobian(const std::vector<double> q_in, std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right);
+    // Eigen::MatrixXd get_robot_arm_jacobian(const std::vector<double> q_in, std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right);
     Eigen::MatrixXd get_arm_jacobian(const std::vector<double> q_in, std::string target_link_name, Eigen::Vector3d ref_point_pos, bool left_or_right);
 
     Eigen::Vector3d get_link_pos(const std::vector<double> q_in, std::string target_link_name);

@@ -110,6 +110,10 @@ class CollisionConstraint : public BaseBinaryEdge<6, my_constraint_struct, DualA
     double d_hand_check = 0.002; ///< Distance threshold under which to check collision, note that d_check must be strictly greater than d_safe. 
     double d_hand_safe = 1e-6;   ///< Safety margin for hand part. A small value close to 0 is fine since link51 and link111 are really close to each other under initial collision-free state.
 
+    // Scale factors for different scenerios
+    double non_finger_col_scale = 1.0;
+    double finger_col_scale = 100.0;
+
     // Time of contact (stored to reduce number of queries)
     double time_of_contact;
 
@@ -136,13 +140,15 @@ void CollisionConstraint::computeError()
   count_unary++;  
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
 
+  // initialization
+  _error = Matrix<double, 6, 1>::Zero();
+
   // get the current joint value
   // _vertices is a VertexContainer type, a std::vector<Vertex*>
   const DualArmDualHandVertex *v0 = static_cast<const DualArmDualHandVertex*>(_vertices[0]);
   const DualArmDualHandVertex *v1 = static_cast<const DualArmDualHandVertex*>(_vertices[1]);
   const Matrix<double, JOINT_DOF, 1> x0 = v0->estimate(); 
   const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
-  // Matrix<double, JOINT_DOF, 1> x_col;
 
   // Dense collision checking
   this->time_of_contact = dense_collision_checking(x0, x1, this->x_colliding, this->num_checks);
@@ -162,11 +168,13 @@ void CollisionConstraint::computeError()
     
     // Check collision, get contact information
     double min_distance;
+    double potential_scale; // the amount beyond the margin of safety
     // 1 - check arms first
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
     min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(x, "dual_arms", d_arm_check); 
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
     std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+    potential_scale = std::pow(std::max(d_arm_safe - min_distance, 0.0), 2) / std::pow(d_arm_safe, 2);
     total_col += t_spent.count();
     count_col++;
     // 2 - check hands if arms are in safety region  
@@ -178,6 +186,7 @@ void CollisionConstraint::computeError()
       t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
       total_col += t_spent.count();
       count_col++;
+      potential_scale = std::pow(std::max(d_hand_safe - min_distance, 0.0), 2) / std::pow(d_hand_safe, 2);
     }
 
     // Set error vector (note that in the direction where cost rises) for colliding links
@@ -191,6 +200,10 @@ void CollisionConstraint::computeError()
     _error.block(0, 0, 3, 1) = (group_id_1 == -1 ? 0.0 : 1.0) * contact_normal; // distance_result.normal points from link_names[0] to link_names[1]
     _error.block(3, 0, 3, 1) = (group_id_2 == -1 ? 0.0 : -1.0) * contact_normal; // distance_result.normal points from link_names[0] to link_names[1]
 
+    // 1 - apply the first weighting factor accounting for margin of safety, i.e. potential field, and the second factor manually set up
+    _error = potential_scale * non_finger_col_scale * _error;
+
+
     // if same-hand collision, then the error vector should be distance vector
     if ((group_id_1 == 2 && group_id_2 == 2) || (group_id_1 == 3 && group_id_2 == 3) )
     {  
@@ -200,7 +213,11 @@ void CollisionConstraint::computeError()
                                                                           dual_arm_dual_hand_collision_ptr);
       _error.block(0, 0, 3, 1) = distance_vector; 
       _error.block(3, 0, 3, 1) = distance_vector;
+
+      // 2 - apply the first weighting factor accounting for safety margin, and the second weighting factor manually set up; for same-hand collision situation
+      _error = potential_scale * finger_col_scale * _error;
     }
+
 
   }
 
@@ -241,7 +258,7 @@ void CollisionConstraint::linearizeOplus()
 
   // epsilons
   double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
-  double hand_speed = 100; 
+  double hand_speed = this->finger_col_scale; //100; 
 
   // Get colliding joint angles
   Matrix<double, JOINT_DOF, 1> x = x_col;

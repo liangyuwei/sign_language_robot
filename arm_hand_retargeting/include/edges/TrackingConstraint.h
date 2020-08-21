@@ -103,29 +103,6 @@ class TrackingConstraint : public BaseBinaryEdge<20, double, DMPStartsGoalsVerte
     MatrixXd output_dmp_jacobian();
     Matrix<double, 20, JOINT_DOF> output_q_jacobian();
 
-    // for debugging every parts' jacobians
-    // double cur_wrist_pos_cost;
-    // double cur_wrist_ori_cost;
-    // double cur_elbow_pos_cost;
-    // double cur_finger_pos_cost; 
-    // Matrix<double, 14, 1> wrist_pos_jacobian_for_q_arm;
-    // Matrix<double, 14, 1> wrist_ori_jacobian_for_q_arm;
-    // Matrix<double, 14, 1> elbow_pos_jacobian_for_q_arm;
-    // Matrix<double, 24, 1> finger_pos_jacobian_for_q_finger;
-    // Matrix<double, 7, 1> cur_wrist_pos_jacobian_for_q_arm;
-    // Matrix<double, 7, 1> cur_wrist_ori_jacobian_for_q_arm;
-    // Matrix<double, 7, 1> cur_elbow_pos_jacobian_for_q_arm;
-
-    // Matrix<double, DMPPOINTS_DOF, 1> wrist_pos_jacobian_for_dmp;
-    // Matrix<double, DMPPOINTS_DOF, 1> wrist_ori_jacobian_for_dmp;
-    // Matrix<double, DMPPOINTS_DOF, 1> elbow_pos_jacobian_for_dmp;    
-    // Matrix<double, DMPPOINTS_DOF, 1> finger_pos_jacobian_for_dmp;
-
-    // double cur_wrist_pos_cost_total;
-    // double cur_wrist_ori_cost_total;
-    // double cur_elbow_pos_cost_total;
-    // double cur_finger_pos_cost_total; // for all path points; used in computeError()
-
     /// Re-implement numeric differentiation
     virtual void linearizeOplus();
 
@@ -176,6 +153,9 @@ class TrackingConstraint : public BaseBinaryEdge<20, double, DMPStartsGoalsVerte
     // For storing jacobian information 
     Matrix<double, 20, DMPPOINTS_DOF> jacobians_for_dmp;
     Matrix<double, 20, JOINT_DOF> jacobians_for_q;
+
+    // internal variables for storing robot jacobians for left and right wrists as well as elbows
+    MatrixXd J_lw, J_le, J_rw, J_re;
 };
 
 
@@ -507,10 +487,10 @@ void TrackingConstraint::linearizeOplus()
   // (1) - jacobians for arms
   std::chrono::steady_clock::time_point t00 = std::chrono::steady_clock::now();      
   // get jacobians from robotstate.... or liweijie's result...
-  MatrixXd l_wrist_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(LEFT_WRIST_LINK, Vector3d::Zero(), true);
-  MatrixXd r_wrist_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(RIGHT_WRIST_LINK, Vector3d::Zero(), false);
-  MatrixXd l_elbow_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(LEFT_ELBOW_LINK, Vector3d::Zero(), true);
-  MatrixXd r_elbow_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(RIGHT_ELBOW_LINK, Vector3d::Zero(), false);
+  MatrixXd l_wrist_jacobian = this->J_lw;
+  MatrixXd r_wrist_jacobian = this->J_rw;
+  MatrixXd l_elbow_jacobian = this->J_le;
+  MatrixXd r_elbow_jacobian = this->J_re;
   _jacobianOplusXj.block(0, 0, 6, 7) = l_wrist_jacobian;  // l wrist pos(3) + l wrist ori(3)
   _jacobianOplusXj.block(6, 0, 3, 7) = l_elbow_jacobian.topRows(3); // first three rows // l elbow pos(3)
   _jacobianOplusXj.block(9, 7, 6, 7) = r_wrist_jacobian;  // r wrist pos(3) + r wrist ori(3)
@@ -547,8 +527,6 @@ void TrackingConstraint::linearizeOplus()
     // reset delta
     delta_q_finger[d] = 0.0;
   }
-
-  // std::cout << "debug: jacobian for finger = " << _jacobianOplusXj.block(18, 14, 2, 24) << std::endl;
 
   // 3 - Save jacobians for q vertices
   this->jacobians_for_q = _jacobianOplusXj;
@@ -1263,10 +1241,6 @@ void TrackingConstraint::computeError()
   // Iterate through all path points to compute costs
   double cost = 0;
   double total_cost = 0;
-  // this->cur_wrist_pos_cost_total = 0;
-  // this->cur_wrist_ori_cost_total = 0;
-  // this->cur_elbow_pos_cost_total = 0;
-  // this->cur_finger_pos_cost_total = 0;  
 
   // get the current joint value
   const DualArmDualHandVertex *qv = static_cast<const DualArmDualHandVertex*>(_vertices[1]);
@@ -1347,8 +1321,39 @@ void TrackingConstraint::computeError()
   _error = err_vec;  
 
   // apply scale
-  double scale = 0.01;
-  _error = scale * _error;
+  double wrist_scale = 0.01;
+  double elbow_scale = 0.01 * 0.01; // assign smaller scale to elbows to relax it
+  _error.block(0, 0, 6, 1) = wrist_scale * _error.block(0, 0, 6, 1);  // lw
+  _error.block(6, 0, 3, 1) = elbow_scale * _error.block(6, 0, 3, 1);  // le
+  _error.block(9, 0, 6, 1) = wrist_scale * _error.block(9, 0, 6, 1);  // rw
+  _error.block(15, 0, 3, 1) = elbow_scale * _error.block(15, 0, 3, 1);  // re
+
+  // Apply nullspace method here
+  // get the corresponding Cartesian differential movements
+  Matrix<double, 6, 1> dx_lw = _error.block(0, 0, 6, 1);  // pos + ori parts
+  Vector3d dx_le = _error.block(6, 0, 3, 1); // only the pos part
+  Matrix<double, 6, 1> dx_rw = _error.block(9, 0, 6, 1);  // pos + ori parts
+  Vector3d dx_re = _error.block(15, 0, 3, 1); // only the pos part  
+  // compute jacobians for wrist and positon, and adjust _error to accomplish nullspace control
+  std::vector<double> q_in;
+  for (unsigned int j = 0; j < JOINT_DOF; j++)
+    q_in.push_back(x[j]);
+  this->J_lw = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(q_in, true, LEFT_WRIST_LINK);
+  this->J_le = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(q_in, true, LEFT_ELBOW_LINK);
+  this->J_rw = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(q_in, false, RIGHT_WRIST_LINK);
+  this->J_re = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian(q_in, false, RIGHT_ELBOW_LINK);
+  // prepare necessary entities
+  JacobiSVD<MatrixXd> svd_lw(J_lw, ComputeThinU | ComputeThinV); // svd.singularValues()/.matrixU()/.matrixV()
+  JacobiSVD<MatrixXd> svd_rw(J_rw, ComputeThinU | ComputeThinV); // svd.singularValues()/.matrixU()/.matrixV()
+  Matrix<double, 7, 1> dq_lw = svd_lw.solve(dx_lw);
+  Matrix<double, 7, 1> dq_rw = svd_rw.solve(dx_rw);
+  // adjust the error vector according to nullspace control method
+  Vector3d dx_le_new = dx_le - J_le.topRows(3) * dq_lw; // take only the first three rows
+  Vector3d dx_re_new = dx_re - J_re.topRows(3) * dq_rw; // take only the first three rows
+  // assign new error to _error
+  _error.block(6, 0, 3, 1) = dx_le_new;
+  _error.block(15, 0, 3, 1) = dx_re_new;
+
 
   // change direction (control and optimization have different directions)
   _error = -_error;

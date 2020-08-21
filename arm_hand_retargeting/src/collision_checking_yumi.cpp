@@ -255,6 +255,49 @@ Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_jacobian(std::string tar
 }
 
 
+/**
+ * @brief Get robot arm jacobian at wrist or elbow position. 
+ * 
+ * Overloaded to provide easy access.
+ * @param[in]   q_in              The joint state under which to compute jacobians for.
+ * @param[in]   left_or_right     choose left of right.
+ * @param[in]   link_name         Select the link to derive jacobian for.
+ * @param[out]  jacobian          The jacobian of the requested link, with the size of 6 x DOF.
+ */
+Eigen::MatrixXd DualArmDualHandCollision::get_robot_arm_jacobian(const std::vector<double> q_in, bool left_or_right, std::string link_name)
+{
+  // Prep
+  Eigen::MatrixXd jacobian;
+  bool result;
+
+  // Update the current robot state
+  set_joint_values_yumi(q_in);
+
+  // See which groups to compute robot jacobian for
+  if (left_or_right) // left arm + left hand
+  {
+    result = this->current_state_.getJacobian(this->left_arm_group_, 
+                                              this->current_state_.getLinkModel(link_name),
+                                              Eigen::Vector3d::Zero(), jacobian);
+  }
+  else
+  {
+    result = this->current_state_.getJacobian(this->right_arm_group_, 
+                                              this->current_state_.getLinkModel(link_name),
+                                              Eigen::Vector3d::Zero(), jacobian);
+  }
+
+  // Check the results
+  if (!result)
+  {
+    std::cout << "Failed to compute robot jacobian for " << link_name << " at ref_point_pos = 0 0 0" << std::endl;
+    exit(-1);
+  }
+
+  return jacobian;
+}
+
+
 /* Calculate robot jacobians for left arm or right arm
  * Note that q_in is just joint angles for left/right arm, no need to set all
  */
