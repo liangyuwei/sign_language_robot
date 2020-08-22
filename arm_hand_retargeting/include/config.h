@@ -21,6 +21,7 @@ double K_COL;                   ///< Coefficient for collision cost.
 double K_WRIST_ORI;             ///< Coefficient for wrist orientaion cost.
 double K_WRIST_POS;             ///< Coefficient for wrist position cost.
 double K_ELBOW_POS;             ///< Coefficient for elbow position cost.
+double K_ARM_TRACK;             ///< Coefficient for wrist and elbow tracking (nullspace control)
 double K_FINGER;                ///< Coefficient for finger position cost.
 double K_SMOOTHNESS;            ///< Coefficient for smoothness cost.
 

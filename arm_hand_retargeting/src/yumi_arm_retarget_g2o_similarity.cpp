@@ -606,40 +606,33 @@ int main(int argc, char *argv[])
   // Sets of selectable coefficients
   // 1 - K_COL
   Matrix<double, 35, 1> K_COL_set; 
-  double k_col_init = 0.1;
+  double k_col_init = 1.0;//0.1;
   for (unsigned int s = 0; s < 35; s++)
   {
     K_COL_set[s] = k_col_init;
     k_col_init = k_col_init * 1.5;
   }
   // 2 - K_SMOOTHNESS
-  double k_smoothness_init = 0.1;
+  double k_smoothness_init = 1.0;
   Matrix<double, 15, 1> K_SMOOTHNESS_set; //K_SMOOTHNESS_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
   for (unsigned int s = 0; s < 15; s++)
   {
     K_SMOOTHNESS_set[s] = k_smoothness_init;
     k_smoothness_init = k_smoothness_init * 1.5;
   }
-  // 3 - K_WRIST_POS, K_WRIST_ORI and K_ELBOW_POS
-  Matrix<double, 10, 1> K_WRIST_POS_set; K_WRIST_POS_set << 0.1, 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0;
-  Matrix<double, 10, 1> K_WRIST_ORI_set; K_WRIST_ORI_set << 0.1, 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0;
-  Matrix<double, 10, 1> K_ELBOW_POS_set; K_ELBOW_POS_set << 0.1, 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0;
+  // 3 - K_ARM_TRACK
+  Matrix<double, 10, 1> K_ARM_TRACK_set; K_ARM_TRACK_set << 1.0, 3.0, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0, 25.0;
   // Display for conclusion
   std::cout << ">>>> Selectable coefficients: ";
   std::cout << "K_COL = " << K_COL_set.transpose() << std::endl;
   std::cout << "K_SMOOTHNESS = " << K_SMOOTHNESS_set.transpose() << std::endl;
-  std::cout << "K_WRIST_POS = " << K_WRIST_POS_set.transpose() << std::endl;
-  std::cout << "K_WRIST_ORI = " << K_WRIST_ORI_set.transpose() << std::endl;
-  std::cout << "K_ELBOW_POS = " << K_ELBOW_POS_set.transpose() << std::endl;
+  std::cout << "K_ARM_TRACK = " << K_ARM_TRACK_set.transpose() << std::endl;
   
 
   // ID for indexing the coefficients
   unsigned int id_k_col = 0;
   unsigned int id_k_smoothness = 0;
-  unsigned int id_k_wrist_pos = 0;
-  unsigned int id_k_wrist_ori = 0;
-  unsigned int id_k_elbow_pos = 0;
-
+  unsigned int id_k_arm_track = 0;
 
   // Constraints bounds, used as termination condition
   double eps = 1e-6; // numeric error
@@ -954,7 +947,7 @@ int main(int argc, char *argv[])
       std::chrono::steady_clock::time_point t0_outer_loop = std::chrono::steady_clock::now();
 
       // Report condition
-      std::cout << ">>>> Outer loop: adjust K_WRIST_POS, K_WRIST_ORI and K_ELBOW_POS." << std::endl;
+      std::cout << ">>>> Outer loop: adjust K_ARM_TRACK." << std::endl;
 
       // Evaluate cost before optimization,
       // elbow pos
@@ -984,19 +977,12 @@ int main(int argc, char *argv[])
         // Set and assign coefficients
         K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
         K_SMOOTHNESS = K_SMOOTHNESS_set[(id_k_smoothness <= K_SMOOTHNESS_set.size()-1 ? id_k_smoothness : K_SMOOTHNESS_set.size()-1)];
-        K_WRIST_POS = K_WRIST_POS_set[(id_k_wrist_pos <= K_WRIST_POS_set.size()-1 ? id_k_wrist_pos : K_WRIST_POS_set.size()-1)];
-        K_WRIST_ORI = K_WRIST_ORI_set[(id_k_wrist_ori <= K_WRIST_ORI_set.size()-1 ? id_k_wrist_ori : K_WRIST_ORI_set.size()-1)];
-        K_ELBOW_POS = K_ELBOW_POS_set[(id_k_elbow_pos <= K_ELBOW_POS_set.size()-1 ? id_k_elbow_pos : K_ELBOW_POS_set.size()-1)];
+        K_ARM_TRACK = K_ARM_TRACK_set[(id_k_arm_track <= K_ARM_TRACK_set.size()-1 ? id_k_arm_track : K_ARM_TRACK_set.size()-1)];
         K_FINGER = 1.0;
         set_edges_coefficients(collision_edges, K_COL * Matrix<double, 6, 1>::Ones());
         set_edges_coefficients(smoothness_edges, K_SMOOTHNESS * Matrix<double, 1, 1>::Identity());
         Matrix<double, 20, 1> K_TRACK;
-        K_TRACK.block(0, 0, 3, 1) = K_WRIST_POS * Vector3d::Ones(); 
-        K_TRACK.block(3, 0, 3, 1) = K_WRIST_ORI * Vector3d::Ones(); 
-        K_TRACK.block(6, 0, 3, 1) = K_ELBOW_POS * Vector3d::Ones();
-        K_TRACK.block(9, 0, 3, 1) = K_WRIST_POS * Vector3d::Ones(); 
-        K_TRACK.block(12, 0, 3, 1) = K_WRIST_ORI * Vector3d::Ones(); 
-        K_TRACK.block(15, 0, 3, 1) = K_ELBOW_POS * Vector3d::Ones();
+        K_TRACK.block(0, 0, 18, 1) = K_ARM_TRACK * Matrix<double, 18, 1>::Ones();
         K_TRACK.block(18, 0, 2, 1) = K_FINGER * Vector2d::Ones();
         set_edges_coefficients(tracking_edges, K_TRACK);
 
@@ -1022,11 +1008,12 @@ int main(int argc, char *argv[])
         // Report current condition
         std::cout << ">>>> Inner loop: adjust K_COL and K_SMOOTHNESS." << std::endl;
         std::cout << "Current coefficients: K_COL = " << K_COL << ", K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
-        std::cout << "Costs before optimization: col_cost = " << col_cost_before_optim 
+        std::cout << "Costs before inner loop optimization: col_cost = " << col_cost_before_optim 
                   << ", smoothness_cost = " << smoothness_cost_before_optim << std::endl;
-        std::cout << "Current coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
-        std::cout << "Current coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
-        std::cout << "Current coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
+        std::cout << "Costs before outer loop optimization: wrist_pos_cost = " << wrist_pos_cost_before_optim 
+                  << ", wrist_ori_cost = " << wrist_ori_cost_before_optim 
+                  << ", elbow_pos_cost = " << elbow_pos_cost_before_optim;
+        std::cout << "Current coefficient: K_ARM_TRACK = " << K_ARM_TRACK << std::endl;
 
  
         // optimize for a few iterations
@@ -1093,6 +1080,7 @@ int main(int argc, char *argv[])
         print_debug_output("l_elbow_pos_cost", l_elbow_pos_cost);
         print_debug_output("r_elbow_pos_cost", r_elbow_pos_cost);
         print_debug_output("finger_cost", finger_cost);
+ 
  
         // Store jacobians results
         std::cout << ">> Jacobians <<" << std::endl;        
@@ -1203,6 +1191,13 @@ int main(int argc, char *argv[])
         std::cout << "last q = " << (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(NUM_DATAPOINTS)))->estimate().transpose() << std::endl;
         */
 
+        // debug
+        
+        std::cout << "Costs after outer loop optimization: wrist_pos_cost = " << wrist_pos_cost_after_optim 
+                  << ", wrist_ori_cost = " << wrist_ori_cost_after_optim 
+                  << ", elbow_pos_cost = " << elbow_pos_cost_after_optim;
+
+
         // debug: time usage:
         std::cout << ">> Time usage for tracking:" << std::endl;
         std::cout << "Trajectory generation " << count_traj 
@@ -1240,9 +1235,9 @@ int main(int argc, char *argv[])
         double tmp_dist = std::max(wrist_pos_cost_after_optim - wrist_pos_cost_bound, 0.0) / wrist_pos_cost_bound +
                           std::max(wrist_ori_cost_after_optim - wrist_ori_cost_bound, 0.0) / wrist_ori_cost_bound +
                           std::max(elbow_pos_cost_after_optim - elbow_pos_cost_bound, 0.0) / elbow_pos_cost_bound; // normalize 
-        if (wrist_pos_cost_after_optim <= wrist_pos_cost_bound && 
-            wrist_ori_cost_after_optim <= wrist_ori_cost_bound &&
-            elbow_pos_cost_after_optim < best_elbow_pos_cost) // wrist costs mush be within bounds, and choose the one with the smallest elbow pos cost
+        if ( (wrist_pos_cost_after_optim <= wrist_pos_cost_bound) && 
+             (wrist_ori_cost_after_optim <= wrist_ori_cost_bound) &&
+             (elbow_pos_cost_after_optim < best_elbow_pos_cost) ) // wrist costs mush be within bounds, and choose the one with the smallest elbow pos cost
         {
           std::cout << "Found a result better than the best ever! Recording..." << std::endl;
           // record the costs
@@ -1266,84 +1261,46 @@ int main(int argc, char *argv[])
       }
 
 
-      // Select different combinations of K_WRIST_POS, K_WRIST_ORI and K_ELBOW_POS
-      if (wrist_pos_cost_after_optim > wrist_pos_cost_bound && id_k_wrist_pos <= K_WRIST_POS_set.size() - 1)
+      // Select different combinations of K_ARM_TRACK
+      if ( ( (wrist_pos_cost_after_optim > wrist_pos_cost_bound) ||
+             (wrist_ori_cost_after_optim > wrist_ori_cost_bound) ||
+             (elbow_pos_cost_after_optim > elbow_pos_cost_bound) ) && 
+             (id_k_arm_track <= K_ARM_TRACK_set.size() - 1) )
       {
-        if (wrist_pos_cost_before_optim - wrist_pos_cost_after_optim <= ftol) // require the update to be higher than a tolerance
+        if ( (wrist_pos_cost_before_optim - wrist_pos_cost_after_optim <= ftol) ||
+             (wrist_ori_cost_before_optim - wrist_ori_cost_after_optim <= ftol) || 
+             (elbow_pos_cost_before_optim - elbow_pos_cost_after_optim <= ftol) ) // require the update to be higher than a tolerance
         {
-          if (id_k_wrist_pos < K_WRIST_POS_set.size() - 1)
-            std::cout << "Coefficient: K_WRIST_POS = " << K_WRIST_POS_set[id_k_wrist_pos] << " ----> " << K_WRIST_POS_set[id_k_wrist_pos+1] << std::endl;
+          if (id_k_arm_track < K_ARM_TRACK_set.size() - 1)
+            std::cout << "Coefficient: K_ARM_TRACK = " << K_ARM_TRACK_set[id_k_arm_track] << " ----> " << K_ARM_TRACK_set[id_k_arm_track+1] << std::endl;
           else
-            std::cout << "Coefficient: K_WRIST_POS = " << K_WRIST_POS_set[id_k_wrist_pos] << " (Reached the end) " << std::endl;
-          id_k_wrist_pos++;
+            std::cout << "Coefficient: K_ARM_TRACK = " << K_ARM_TRACK_set[id_k_arm_track] << " (Reached the end) " << std::endl;
+          id_k_arm_track++;
         }
         else
         {
-          std::cout << "Coefficient: K_WRIST_POS = " << K_WRIST_POS_set[id_k_wrist_pos] << std::endl;
+          std::cout << "Coefficient: K_ARM_TRACK = " << K_ARM_TRACK_set[id_k_arm_track] << std::endl;
         }
         std::cout << "Cost: wrist_pos_cost = " << wrist_pos_cost_before_optim << " ----> " << wrist_pos_cost_after_optim 
                                                 << "(" << (wrist_pos_cost_before_optim > wrist_pos_cost_after_optim ? "-" : "+")
                                                 << std::abs(wrist_pos_cost_before_optim - wrist_pos_cost_after_optim) << ")" 
                                                 << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
-      }
-      else
-      {
-        std::cout << "Coefficient: K_WRIST_POS = " << K_WRIST_POS << std::endl;
-        std::cout << "Cost: wrist_pos_cost = " << wrist_pos_cost_after_optim << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
-      }
-
-      // Adjust K_WRIST_ORI
-      if (wrist_ori_cost_after_optim > wrist_ori_cost_bound && id_k_wrist_ori <= K_WRIST_ORI_set.size() - 1)
-      {
-        if (wrist_ori_cost_before_optim - wrist_ori_cost_after_optim <= ftol) // require the update to be higher than a tolerance
-        {
-          if (id_k_wrist_ori < K_WRIST_ORI_set.size() - 1)
-            std::cout << "Coefficient: K_WRIST_ORI = " << K_WRIST_ORI_set[id_k_wrist_ori] << " ----> " << K_WRIST_ORI_set[id_k_wrist_ori+1] << std::endl;
-          else
-            std::cout << "Coefficient: K_WRIST_ORI = " << K_WRIST_ORI_set[id_k_wrist_ori] << " (Reached the end) " << std::endl;        
-          id_k_wrist_ori++;
-        }
-        else                                                           
-        {
-          std::cout << "Coefficient: K_WRIST_ORI = " << K_WRIST_ORI_set[id_k_wrist_ori] << std::endl;
-        }
         std::cout << "Cost: wrist_ori_cost = " << wrist_ori_cost_before_optim << " ----> " << wrist_ori_cost_after_optim 
                                                 << "(" << (wrist_ori_cost_before_optim > wrist_ori_cost_after_optim ? "-" : "+")
                                                 << std::abs(wrist_ori_cost_before_optim - wrist_ori_cost_after_optim) << ")" 
                                                 << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
-      }
-      else 
-      {
-        std::cout << "Coefficient: K_WRIST_ORI = " << K_WRIST_ORI << std::endl;
-        std::cout << "Cost: wrist_ori_cost = " << wrist_ori_cost_after_optim << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
-      }
-
-      // Adjust K_ELBOW_POS
-      if (elbow_pos_cost_after_optim > elbow_pos_cost_bound && id_k_elbow_pos <= K_ELBOW_POS_set.size() - 1)
-      {
-        if (elbow_pos_cost_before_optim - elbow_pos_cost_after_optim <= ftol) // require the update to be higher than a tolerance
-        {
-          if (id_k_elbow_pos < K_ELBOW_POS_set.size() - 1)
-            std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS_set[id_k_elbow_pos] << " ----> " << K_ELBOW_POS_set[id_k_elbow_pos+1] << std::endl;            
-          else
-            std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS_set[id_k_elbow_pos] << " (Reached the end) " << std::endl;            
-          id_k_elbow_pos++;
-        }
-        else
-        {
-          std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS_set[id_k_elbow_pos] << std::endl;
-        }
         std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_before_optim << " ----> " << elbow_pos_cost_after_optim 
                                                     << "(" << (elbow_pos_cost_before_optim > elbow_pos_cost_after_optim ? "-" : "+")
                                                     << std::abs(elbow_pos_cost_before_optim - elbow_pos_cost_after_optim) << ")" 
-                                                    << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
+                                                    << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;                                                
       }
       else
       {
-        std::cout << "Coefficient: K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
+        std::cout << "Coefficient: K_ARM_TRACK = " << K_ARM_TRACK << std::endl;
+        std::cout << "Cost: wrist_pos_cost = " << wrist_pos_cost_after_optim << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
+        std::cout << "Cost: wrist_ori_cost = " << wrist_ori_cost_after_optim << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
         std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_after_optim << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
       }
-
     
 
       std::chrono::steady_clock::time_point t1_outer_loop = std::chrono::steady_clock::now();
@@ -1354,9 +1311,10 @@ int main(int argc, char *argv[])
       std::cout << "Time used for current outer loop is: " << t_spent_outer_loop_cur.count() << " s." << std::endl;
 
                 
-    }while( (id_k_wrist_pos <= (K_WRIST_POS_set.size() - 1) && wrist_pos_cost_after_optim > wrist_pos_cost_bound) ||
-            (id_k_wrist_ori <= (K_WRIST_ORI_set.size() - 1) && wrist_ori_cost_after_optim > wrist_ori_cost_bound) ||
-            (id_k_elbow_pos <= (K_ELBOW_POS_set.size() - 1) && elbow_pos_cost_after_optim > elbow_pos_cost_bound) ); // Wrist Pos Loop
+    }while( (id_k_arm_track <= (K_ARM_TRACK_set.size() - 1)) && 
+            (wrist_pos_cost_after_optim > wrist_pos_cost_bound) && 
+            (wrist_ori_cost_after_optim > wrist_ori_cost_bound) &&
+            (elbow_pos_cost_after_optim > elbow_pos_cost_bound) );
 
     std::cout << ">>>> End of Outer loop" << std::endl << std::endl;
 
@@ -1385,9 +1343,7 @@ int main(int argc, char *argv[])
     // final weights, useless in that we perform multiple runs with different combinations of coefficients and store the best results 
     std::cout << "Final weights: K_COL = " << K_COL 
               << ", K_SMOOTHNESS = " << K_SMOOTHNESS 
-              // << ", K_POS_LIMIT = " << K_POS_LIMIT 
-              << ", K_WRIST_POS = " << K_WRIST_POS
-              << ", K_ELBOW_POS = " << K_ELBOW_POS
+              << ", K_ARM_TRACK = " << K_ARM_TRACK
               << ", with col_cost = " << col_cost_after_optim
               << ", smoothness_cost = " << smoothness_cost_after_optim
               << ", wrist_pos_cost = " << wrist_pos_cost_after_optim 
@@ -1503,9 +1459,7 @@ int main(int argc, char *argv[])
 
     // 3 - optimize DMP for a number of iterations
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", DMP stage: "<< std::endl;
-    K_WRIST_ORI = 0.1;  // actually useless since orientation data are specified independent of DMP !!! (the jacobian test checks it out!!)
-    K_WRIST_POS = 0.1; 
-    K_ELBOW_POS = 0.1; 
+    K_ARM_TRACK = 0.1;
     K_FINGER = 0.1;  // actually useless since finger data are specified independent of DMP !!!
     K_DMPSTARTSGOALS = 0.1;//0.5;//1.0;//2.0;
     K_DMPSCALEMARGIN = 0.1; //0.5;//1.0;//2.0;
@@ -1537,12 +1491,7 @@ int main(int argc, char *argv[])
       set_edges_coefficients(smoothness_edges, K_SMOOTHNESS * Matrix<double, 1, 1>::Identity());
       // tracking
       Matrix<double, 20, 1> K_TRACK;
-      K_TRACK.block(0, 0, 3, 1) = K_WRIST_POS * Vector3d::Ones(); 
-      K_TRACK.block(3, 0, 3, 1) = K_WRIST_ORI * Vector3d::Ones(); 
-      K_TRACK.block(6, 0, 3, 1) = K_ELBOW_POS * Vector3d::Ones();
-      K_TRACK.block(9, 0, 3, 1) = K_WRIST_POS * Vector3d::Ones(); 
-      K_TRACK.block(12, 0, 3, 1) = K_WRIST_ORI * Vector3d::Ones(); 
-      K_TRACK.block(15, 0, 3, 1) = K_ELBOW_POS * Vector3d::Ones();
+      K_TRACK.block(0, 0, 18, 1) = K_ARM_TRACK * Matrix<double, 18, 1>::Ones();
       K_TRACK.block(18, 0, 2, 1) = K_FINGER * Vector2d::Ones();
       set_edges_coefficients(tracking_edges, K_TRACK);
 

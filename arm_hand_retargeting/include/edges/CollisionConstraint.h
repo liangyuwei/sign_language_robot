@@ -267,7 +267,10 @@ void CollisionConstraint::linearizeOplus()
   // get group belonging information: 0 - left_arm, 1 - right_arm, 2 - left_hand, 3 - right_hand, -1 - others
   int group_id_1 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[0]);
   int group_id_2 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[1]);
-  
+  // std::cout << "debug: min_dist = " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+  if (group_id_1 == -1 && group_id_2 == -1) // no collision, return
+    return;
+
   // prep
   std::string link_name_1 = dual_arm_dual_hand_collision_ptr->link_names[0];
   std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
