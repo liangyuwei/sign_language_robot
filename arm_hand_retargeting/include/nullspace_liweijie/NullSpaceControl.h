@@ -144,8 +144,9 @@ class NullSpaceControl
                     // dql = Jl_plus*dxl;
                     // dqr = Jr_plus*dxr;
                     // (2) Based on task priority
-                    dql = Jl_plus*dxl + Nl * Jel_plus * (dxel - Jel*Jl_plus*dxl);
-                    dqr = Jr_plus*dxr + Nr * Jer_plus * (dxer - Jer*Jr_plus*dxr);
+                    double elbow_scale = 0.01;// * 0.01 * 0.1; // scale down the importance of elbow tracking, yet it's still not good as LM - 2020/08/23, LYW
+                    dql = Jl_plus*dxl + elbow_scale * Nl * Jel_plus * (dxel - Jel*Jl_plus*dxl);
+                    dqr = Jr_plus*dxr + elbow_scale * Nr * Jer_plus * (dxer - Jer*Jr_plus*dxr);
                     // 5. Update q
                     ql = ql + dql;
                     qr = qr + dqr;

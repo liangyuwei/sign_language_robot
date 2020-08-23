@@ -462,6 +462,7 @@ int main(int argc, char *argv[])
   Matrix<double, JOINT_DOF, 1> q_initial = Matrix<double, JOINT_DOF, 1>::Zero();
   q_initial.block(0, 0, 14, 1) << -1.5, -1.5, 1.5, 0.0, 0.0, 0.0, 0.0, 1.5, -1.5, -1.5, 0.0, 0.0, 0.0, 0.0; 
   // std::cout << "debug: new initial q = " << q_initial.transpose() << std::endl;
+  std::vector<Matrix<double, JOINT_DOF, 1>> q_initial_initial;
   for (unsigned int it = 0; it < NUM_DATAPOINTS; ++it)
   {
     // Set finger joint values directly using linear mapping
@@ -484,6 +485,8 @@ int main(int argc, char *argv[])
     v_list[it]->setId(1+it); // set a unique id
     optimizer.addVertex(v_list[it]);
 
+    // Store the result (with finger joints already mapped)
+    q_initial_initial.push_back(q_initial);
     
     // Add tracking edge
     tracking_edges[it] = new TrackingConstraint(trajectory_generator_ptr, 
@@ -931,12 +934,12 @@ int main(int argc, char *argv[])
       tmp_finger_pos_cost += tracking_edges[s]->return_finger_cost(true, true);
     // collision 
     double tmp_col_cost = 0.0;
-    for (unsigned int t = 0; t < collision_edges.size(); t++)
-      tmp_col_cost += collision_edges[t]->return_col_cost(); 
+    // for (unsigned int t = 0; t < collision_edges.size(); t++)
+    //   tmp_col_cost += collision_edges[t]->return_col_cost(); 
     // smoothness
     double tmp_smoothness_cost = 0.0;
-    for (unsigned int t = 0; t < smoothness_edges.size(); t++)
-      tmp_smoothness_cost += smoothness_edges[t]->return_smoothness_cost();
+    // for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+    //   tmp_smoothness_cost += smoothness_edges[t]->return_smoothness_cost();
     // time usage
     std::chrono::steady_clock::time_point t1_nullspace = std::chrono::steady_clock::now();
     std::chrono::duration<double> t_spent_nullspace = std::chrono::duration_cast<std::chrono::duration<double>>(t1_nullspace - t0_nullspace);
@@ -1073,9 +1076,14 @@ int main(int argc, char *argv[])
       wrist_ori_cost_before_optim = 0.0;
       for (unsigned s = 0; s < tracking_edges.size(); s++)
         wrist_ori_cost_before_optim += tracking_edges[s]->return_wrist_ori_cost(true, true);  
+      // finger
+      finger_cost_before_optim = 0.0;
+      for (unsigned s = 0; s < tracking_edges.size(); s++)
+        finger_cost_before_optim += tracking_edges[s]->return_finger_cost(true, true);  
 
-      // Reset/Use initial trajector computed by collision fix / TRAC-IK
-      // for (unsigned int id = 0; id < NUM_DATAPOINTS; id++)
+      // Reset/Use initial trajector computed by collision fix / TRAC-IK / Original Initial
+      for (unsigned int id = 0; id < NUM_DATAPOINTS; id++)
+        (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_initial[id]);  //(q_initial);//
         // (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_trac_ik[id]); // assign to the current q vertex
         // (dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+id)))->setEstimate(q_initial_collision_fix[id]); // assign to the current q vertices
 
@@ -1129,6 +1137,7 @@ int main(int argc, char *argv[])
         std::cout << "Costs before outer loop optimization: wrist_pos_cost = " << wrist_pos_cost_before_optim 
                   << ", wrist_ori_cost = " << wrist_ori_cost_before_optim 
                   << ", elbow_pos_cost = " << elbow_pos_cost_before_optim << std::endl;
+        std::cout << "Costs before outer loop optimization: finger_cost = " << finger_cost_before_optim << std::endl;
         std::cout << "Current coefficient: K_ARM_TRACK = " << K_ARM_TRACK << std::endl;
 
  
@@ -1239,6 +1248,10 @@ int main(int argc, char *argv[])
         elbow_pos_cost_after_optim = 0.0;
         for (unsigned s = 0; s < tracking_edges.size(); s++)
           elbow_pos_cost_after_optim += tracking_edges[s]->return_elbow_pos_cost(true, true);
+        // finger
+        finger_cost_after_optim = 0.0;
+        for (unsigned s = 0; s < tracking_edges.size(); s++)
+          finger_cost_after_optim += tracking_edges[s]->return_finger_cost(true, true);  
         // collision counts
         col_cost_after_optim = 0.0;
         /*
@@ -1323,6 +1336,7 @@ int main(int argc, char *argv[])
         std::cout << "Costs after outer loop optimization: wrist_pos_cost = " << wrist_pos_cost_after_optim 
                   << ", wrist_ori_cost = " << wrist_ori_cost_after_optim 
                   << ", elbow_pos_cost = " << elbow_pos_cost_after_optim << std::endl;
+        std::cout << "Costs after outer loop optimization: finger_cost = " << finger_cost_after_optim << std::endl;
 
 
         // debug: time usage:

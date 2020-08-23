@@ -341,8 +341,7 @@ Matrix<double, 20, JOINT_DOF> TrackingConstraint::output_q_jacobian()
 void TrackingConstraint::linearizeOplus()
 {
   double dmp_eps = 0.001; // better be small enough so that gradients on different dimensions won't diverge too much
-  double q_arm_eps = 0.5 * M_PI / 180; //2.0 * M_PI / 180; //0.5; // may need tests // in radius!!!
-  double q_finger_eps = 1.0 * M_PI / 180; //2.0 * M_PI / 180; // in radius
+  double q_finger_eps = 1.0 * M_PI / 180; // in radius
   Matrix<double, 20, 1> e_plus, e_minus;
 
   // 1 - For DMP starts and goals
@@ -517,12 +516,12 @@ void TrackingConstraint::linearizeOplus()
     // left hand
     e_finger_plus = compute_finger_cost(q_cur_finger_l+delta_q_finger, true, fdata);
     e_finger_minus = compute_finger_cost(q_cur_finger_l-delta_q_finger, true, fdata);
-    _jacobianOplusXj(18, d+14) = (e_finger_plus - e_finger_minus) / (2 * q_finger_eps);
+    _jacobianOplusXj(18, d+14) = (e_finger_plus - e_finger_minus) / (2 * q_finger_eps) + 1e-6; // add a small nonzero term in case it's zero?
 
     // right hand
     e_finger_plus = compute_finger_cost(q_cur_finger_r+delta_q_finger, false, fdata);  
     e_finger_minus = compute_finger_cost(q_cur_finger_r-delta_q_finger, false, fdata);  
-    _jacobianOplusXj(19, d+26) = (e_finger_plus - e_finger_minus) / (2 * q_finger_eps);
+    _jacobianOplusXj(19, d+26) = (e_finger_plus - e_finger_minus) / (2 * q_finger_eps) + 1e-6; // add a small nonzero term
 
     // reset delta
     delta_q_finger[d] = 0.0;
@@ -598,9 +597,9 @@ Vector3d TrackingConstraint::compute_wrist_ori_error(KDL::ChainFkSolverPos_recur
   // when R1 deviates from R2 too much, the result would not be skew-symmetric any more, and the result of doing so remains to be seen...
   Matrix3d skew_symmetric = (wrist_ori_human * wrist_ori_cur.transpose() - Matrix3d::Identity());
   Vector3d wrist_ori_err_vec;
-  wrist_ori_err_vec[0] = -1 * skew_symmetric(1, 2);
-  wrist_ori_err_vec[1] = skew_symmetric(0, 2);
-  wrist_ori_err_vec[2] = -1 * skew_symmetric(0, 1);
+  wrist_ori_err_vec[0] = (skew_symmetric(2, 1) - skew_symmetric(1, 2)) / 2.0;
+  wrist_ori_err_vec[1] = (skew_symmetric(0, 2) - skew_symmetric(2, 0)) / 2.0;
+  wrist_ori_err_vec[2] = (skew_symmetric(1, 0) - skew_symmetric(0, 1)) / 2.0;
 
   // Compute cost function
   double wrist_ori_cost = std::fabs( std::acos( std::min(((wrist_ori_human * wrist_ori_cur.transpose()).trace() - 1.0) / 2.0, 1.0) ) );
@@ -692,7 +691,8 @@ double TrackingConstraint::compute_finger_cost(Matrix<double, 12, 1> q_finger_ro
   q_finger_robot_goal[11] = linear_map(q_finger_human[1], human_finger_start[1], human_finger_final[1], robot_finger_start[11], robot_finger_final[11]); 
 
   // Compute cost
-  double finger_cost = (q_finger_robot_goal - q_finger_robot).norm();
+  double finger_scale = 0.005; //0.01; //0.05;//0.1; //0.5; //1.0;
+  double finger_cost = finger_scale * (q_finger_robot_goal - q_finger_robot).norm();
 
   // store for debug
   // this->cur_finger_pos_cost = finger_cost;
@@ -1322,16 +1322,15 @@ void TrackingConstraint::computeError()
 
   // apply scale before nullspace modification (must be before nullspace modification, otherwise the property would be broken)
   // double uniform_scale = 1.0;//0.1;//0.5;//1.0; 
-  double wrist_scale = 1.0;
-  double elbow_scale = 1.0;//0.01;//0.5;
+  double wrist_scale = 1.0; //0.05; //0.1; //0.5; //1.0;
+  double elbow_scale = 1.0; //0.05; //0.1; //0.5; //1.0;
   _error.block(0, 0, 6, 1) = wrist_scale * _error.block(0, 0, 6, 1);
   _error.block(6, 0, 3, 1) = elbow_scale * _error.block(6, 0, 3, 1);
   _error.block(9, 0, 6, 1) = wrist_scale * _error.block(9, 0, 6, 1);
   _error.block(15, 0, 3, 1) = elbow_scale * _error.block(15, 0, 3, 1);
-  // _error = uniform_scale * _error;
 
 
-  // Apply nullspace method here
+  // Adjust wrist and elbow error to implement nullspace control method here
   // get the corresponding Cartesian differential movements
   Matrix<double, 6, 1> dx_lw = _error.block(0, 0, 6, 1);  // pos + ori parts
   Vector3d dx_le = _error.block(6, 0, 3, 1); // only the pos part
@@ -1357,6 +1356,10 @@ void TrackingConstraint::computeError()
   _error.block(6, 0, 3, 1) = dx_le_new;
   _error.block(15, 0, 3, 1) = dx_re_new;
 
+  // lower the importance of elbows 
+  double elbow_ratio = 0.5;//0.1;//0.01; //0.1; //0.2;//1.0;//0.5;//0.1;//0.01;//1.0; //0.01;
+  _error.block(6, 0, 3, 1) = elbow_ratio * _error.block(6, 0, 3, 1);
+  _error.block(15, 0, 3, 1) = elbow_ratio * _error.block(15, 0, 3, 1);
 
   // change direction (control and optimization have different directions)
   _error = -_error;
