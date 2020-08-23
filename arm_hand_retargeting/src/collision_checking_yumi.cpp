@@ -1638,20 +1638,20 @@ int main(int argc, char **argv)
   arm_or_hand = true;
   left_or_right = true;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_7_l", Eigen::Vector3d::Zero(), left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_4_l", Eigen::Vector3d::Zero(), left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  std::cout << ">> Left Arm, yumi_link_7_l" << std::endl << "jacobian = " << robot_jacobian << std::endl;
+  std::cout << ">> Left Arm, yumi_link_4_l" << std::endl << "jacobian = " << robot_jacobian << std::endl;
   std::cout << "Time used for computing robot jacobian: " << t0_1.count() << std::endl;
   // 2
   arm_hand_together = false; 
   arm_or_hand = true;
   left_or_right = false;
   t0 = std::chrono::steady_clock::now();
-  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_7_r", Eigen::Vector3d::Zero(), left_or_right);
+  robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_jacobian("yumi_link_4_r", Eigen::Vector3d::Zero(), left_or_right);
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-  std::cout << ">> Right Arm, yumi_link_7_r" << std::endl << "jacobian = " << robot_jacobian << std::endl;
+  std::cout << ">> Right Arm, yumi_link_4_r" << std::endl << "jacobian = " << robot_jacobian << std::endl;
   std::cout << "Time used for computing robot jacobian: " << t0_1.count() << " s." << std::endl;
   // 3 
   arm_hand_together = false; 

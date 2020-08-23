@@ -1323,7 +1323,7 @@ void TrackingConstraint::computeError()
   // apply scale before nullspace modification (must be before nullspace modification, otherwise the property would be broken)
   // double uniform_scale = 1.0;//0.1;//0.5;//1.0; 
   double wrist_scale = 1.0;
-  double elbow_scale = 0.1;//0.5;
+  double elbow_scale = 1.0;//0.01;//0.5;
   _error.block(0, 0, 6, 1) = wrist_scale * _error.block(0, 0, 6, 1);
   _error.block(6, 0, 3, 1) = elbow_scale * _error.block(6, 0, 3, 1);
   _error.block(9, 0, 6, 1) = wrist_scale * _error.block(9, 0, 6, 1);

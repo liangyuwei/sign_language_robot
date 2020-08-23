@@ -52,6 +52,9 @@
 // For TRAC-IK
 #include <trac_ik/trac_ik.hpp>
 
+// For nullspace control
+#include "nullspace_liweijie/NullSpaceControl.h"
+
 // For file write and read
 #include "tools/h5_io.h"
 

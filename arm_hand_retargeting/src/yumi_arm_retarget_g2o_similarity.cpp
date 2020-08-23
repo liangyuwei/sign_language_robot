@@ -772,7 +772,7 @@ int main(int argc, char *argv[])
       Quaterniond q_l(trajectory_generator_ptr->l_wrist_quat_traj(p, 0), 
                       trajectory_generator_ptr->l_wrist_quat_traj(p, 1),
                       trajectory_generator_ptr->l_wrist_quat_traj(p, 2),
-                      trajectory_generator_ptr->l_wrist_quat_traj(p, 3));
+                      trajectory_generator_ptr->l_wrist_quat_traj(p, 3)); // (w,x,y,z)
       Matrix3d lw_ori_goal = q_l.toRotationMatrix();
       Quaterniond q_r(trajectory_generator_ptr->r_wrist_quat_traj(p, 0), 
                       trajectory_generator_ptr->r_wrist_quat_traj(p, 1),
@@ -858,6 +858,113 @@ int main(int argc, char *argv[])
       best_q[s] = vertex_tmp->estimate();
     }
     */
+
+
+    // way 2 - Use Nullspace control for pre-processing, solve IK for each path point, one by one  
+    std::chrono::steady_clock::time_point t0_nullspace = std::chrono::steady_clock::now();
+    // get the reference trajectories
+    std::vector<std::vector<double>> l_hd_pos_traj, r_hd_pos_traj, l_fr_pos_traj, r_fr_pos_traj;
+    std::vector<double> l_hd_pos(3), r_hd_pos(3), l_fr_pos(3), r_fr_pos(3);
+    std::vector<std::vector<double>> l_hd_quat_traj, r_hd_quat_traj;
+    std::vector<double> l_hd_quat(4), r_hd_quat(4); // w, x, y, z
+    for (unsigned int s = 0; s < result.y_lw.cols(); s++)
+    {
+      // 1 - Position Part
+      // l wrist
+      l_hd_pos[0] = result.y_lw(0, s); l_hd_pos[1] = result.y_lw(1, s); l_hd_pos[2] = result.y_lw(2, s); 
+      // l elbow
+      l_fr_pos[0] = result.y_le(0, s); l_fr_pos[1] = result.y_le(1, s); l_fr_pos[2] = result.y_le(2, s); 
+      // r wrist
+      r_hd_pos[0] = result.y_rw(0, s); r_hd_pos[1] = result.y_rw(1, s); r_hd_pos[2] = result.y_rw(2, s); 
+      // r elbow
+      r_fr_pos[0] = result.y_re(0, s); r_fr_pos[1] = result.y_re(1, s); r_fr_pos[2] = result.y_re(2, s); 
+      // store
+      l_hd_pos_traj.push_back(l_hd_pos); l_fr_pos_traj.push_back(l_fr_pos);
+      r_hd_pos_traj.push_back(r_hd_pos); r_fr_pos_traj.push_back(r_fr_pos);
+      // 2 - Orientation Part
+      // l hand
+      l_hd_quat[0] = trajectory_generator_ptr->l_wrist_quat_traj(s, 0);
+      l_hd_quat[1] = trajectory_generator_ptr->l_wrist_quat_traj(s, 1);
+      l_hd_quat[2] = trajectory_generator_ptr->l_wrist_quat_traj(s, 2);
+      l_hd_quat[3] = trajectory_generator_ptr->l_wrist_quat_traj(s, 3);
+      // r hand
+      r_hd_quat[0] = trajectory_generator_ptr->r_wrist_quat_traj(s, 0);
+      r_hd_quat[1] = trajectory_generator_ptr->r_wrist_quat_traj(s, 1);
+      r_hd_quat[2] = trajectory_generator_ptr->r_wrist_quat_traj(s, 2);
+      r_hd_quat[3] = trajectory_generator_ptr->r_wrist_quat_traj(s, 3);
+      // store
+      l_hd_quat_traj.push_back(l_hd_quat);
+      r_hd_quat_traj.push_back(r_hd_quat);
+    }
+    Matrix<double, 7, 1> ql_in = q_initial.block(0, 0, 7, 1);
+    Matrix<double, 7, 1> qr_in = q_initial.block(7, 0, 7, 1);
+    // initialize a nullspace control object and call nullspace control to track the reference trajectoreis
+    NullSpaceControl null_space_control;
+    std::vector<Matrix<double, 14, 1>> q_initial_nullspace;
+    q_initial_nullspace = null_space_control.solve_joint_trajectories(l_hd_pos_traj, r_hd_pos_traj, l_hd_quat_traj, 
+                                                                      r_hd_quat_traj, l_fr_pos_traj, r_fr_pos_traj,
+                                                                      ql_in, qr_in);
+    // assign to q vertices
+    for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+    {
+      DualArmDualHandVertex* q_vertex = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s));
+      Matrix<double, JOINT_DOF, 1> x_whole = q_vertex->estimate();
+      x_whole.block(0, 0, 14, 1) = q_initial_nullspace[s];
+      q_vertex->setEstimate(x_whole);
+    }
+    // record statistics
+    // wrist pos
+    double tmp_wrist_pos_cost = 0.0;
+    for (unsigned s = 0; s < tracking_edges.size(); s++)
+      tmp_wrist_pos_cost += tracking_edges[s]->return_wrist_pos_cost(true, true);
+    // wrist ori
+    double tmp_wrist_ori_cost = 0.0;
+    for (unsigned s = 0; s < tracking_edges.size(); s++)
+      tmp_wrist_ori_cost += tracking_edges[s]->return_wrist_ori_cost(true, true);        
+    // elbow pos
+    double tmp_elbow_pos_cost = 0.0;
+    for (unsigned s = 0; s < tracking_edges.size(); s++)
+      tmp_elbow_pos_cost += tracking_edges[s]->return_elbow_pos_cost(true, true);
+    // finger cost
+    double tmp_finger_pos_cost = 0.0;
+    for (unsigned s = 0; s < tracking_edges.size(); s++)
+      tmp_finger_pos_cost += tracking_edges[s]->return_finger_cost(true, true);
+    // collision 
+    double tmp_col_cost = 0.0;
+    for (unsigned int t = 0; t < collision_edges.size(); t++)
+      tmp_col_cost += collision_edges[t]->return_col_cost(); 
+    // smoothness
+    double tmp_smoothness_cost = 0.0;
+    for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+      tmp_smoothness_cost += smoothness_edges[t]->return_smoothness_cost();
+    // time usage
+    std::chrono::steady_clock::time_point t1_nullspace = std::chrono::steady_clock::now();
+    std::chrono::duration<double> t_spent_nullspace = std::chrono::duration_cast<std::chrono::duration<double>>(t1_nullspace - t0_nullspace);
+    // report
+    std::cout << ">>>> Nullspace Control done!" << std::endl;
+    std::cout << "Cost: wrist_pos_cost = " << tmp_wrist_pos_cost << std::endl;
+    std::cout << "Cost: wrist_ori_cost = " << tmp_wrist_ori_cost << std::endl;
+    std::cout << "Cost: elbow_pos_cost = " << tmp_elbow_pos_cost << std::endl;
+    std::cout << "Cost: finger_pos_cost(irrelevant) = " << tmp_finger_pos_cost << std::endl;
+    std::cout << "Cost: col_cost = " << tmp_col_cost << std::endl;
+    std::cout << "Cost: smoothness_cost = " << tmp_smoothness_cost << std::endl;
+    std::cout << "Total time spent: " << t_spent_nullspace.count() << " s." << std::endl;
+    // store Nullspace result as the best for now
+    std::cout << "Storing Nullspace control result (as the best) for later comparison..." << std::endl;
+    best_dist = std::max(tmp_wrist_pos_cost - wrist_pos_cost_bound, 0.0) / wrist_pos_cost_bound +
+                std::max(tmp_wrist_ori_cost - wrist_ori_cost_bound, 0.0) / wrist_ori_cost_bound +
+                std::max(tmp_elbow_pos_cost - elbow_pos_cost_bound, 0.0) / elbow_pos_cost_bound; 
+    best_wrist_pos_cost = tmp_wrist_pos_cost;
+    best_wrist_ori_cost = tmp_wrist_ori_cost;
+    best_elbow_pos_cost = tmp_elbow_pos_cost;
+    best_col_cost = tmp_col_cost;
+    best_smoothness_cost = tmp_smoothness_cost;
+    // record the q values (including fingers)
+    for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+    {
+      DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
+      best_q[s] = vertex_tmp->estimate();
+    }
 
 
     // Solve collision 
@@ -1282,6 +1389,7 @@ int main(int argc, char *argv[])
 
 
       // Select different combinations of K_ARM_TRACK
+      /*
       if ( ( (wrist_pos_cost_after_optim > wrist_pos_cost_bound) ||
              (wrist_ori_cost_after_optim > wrist_ori_cost_bound) ||
              (elbow_pos_cost_after_optim > elbow_pos_cost_bound) ) && 
@@ -1315,12 +1423,13 @@ int main(int argc, char *argv[])
                                                     << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;                                                
       }
       else
-      {
+      {*/
         std::cout << "Coefficient: K_ARM_TRACK = " << K_ARM_TRACK << std::endl;
         std::cout << "Cost: wrist_pos_cost = " << wrist_pos_cost_after_optim << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
         std::cout << "Cost: wrist_ori_cost = " << wrist_ori_cost_after_optim << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
         std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_after_optim << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;
-      }
+      // }
+      
     
 
       std::chrono::steady_clock::time_point t1_outer_loop = std::chrono::steady_clock::now();
