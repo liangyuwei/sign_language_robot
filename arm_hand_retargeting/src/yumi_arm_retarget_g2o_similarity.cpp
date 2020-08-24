@@ -516,17 +516,17 @@ int main(int argc, char *argv[])
   collision_edges[0]->setInformation(Eigen::Matrix<double, 6, 6>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
   optimizer.addEdge(collision_edges[0]);
   */
-  /*
+  
   for (unsigned int it = 0; it < NUM_DATAPOINTS - 1; ++it)
   {
     // add collision edge
-    collision_edges[it+1] = new CollisionConstraint(dual_arm_dual_hand_collision_ptr, num_col_checks);
-    collision_edges[it+1]->setId(it+NUM_DATAPOINTS+1); // the first one with id=2 is already included
-    collision_edges[it+1]->setVertex(0, optimizer.vertex(1+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
-    collision_edges[it+1]->setVertex(1, optimizer.vertex(2+it)); 
-    collision_edges[it+1]->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
-    collision_edges[it+1]->setInformation(Eigen::Matrix<double, 6, 6>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
-    optimizer.addEdge(collision_edges[it+1]);
+    // collision_edges[it+1] = new CollisionConstraint(dual_arm_dual_hand_collision_ptr, num_col_checks);
+    // collision_edges[it+1]->setId(it+NUM_DATAPOINTS+1); // the first one with id=2 is already included
+    // collision_edges[it+1]->setVertex(0, optimizer.vertex(1+it)); //(0, v_list[it]); // set the 0th vertex on the edge to point to v_list[it]
+    // collision_edges[it+1]->setVertex(1, optimizer.vertex(2+it)); 
+    // collision_edges[it+1]->setMeasurement(constraint_data); // set _measurement attribute (by deep copy), can be used to pass in user data, e.g. my_constraint_struct
+    // collision_edges[it+1]->setInformation(Eigen::Matrix<double, 6, 6>::Identity()); // information matrix, inverse of covariance.. importance // Information type correct
+    // optimizer.addEdge(collision_edges[it+1]);
     
     // Add smoothness edge
     
@@ -538,7 +538,7 @@ int main(int argc, char *argv[])
     optimizer.addEdge(smoothness_edges[it]);
     
   }
-  */
+  
 
   // DMP related constraints
   std::cout << ">>>> Adding constraints for DMP starts and goals" << std::endl;
@@ -644,7 +644,7 @@ int main(int argc, char *argv[])
   // Constraints bounds, used as termination condition
   double eps = 1e-6; // numeric error
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
-  double smoothness_bound = std::sqrt(std::pow(3.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
+  double smoothness_bound = std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
 
   double dmp_orien_cost_bound = eps; // 0.0, on account of numeric error //0.0; // better be 0, margin is already set in it!!!
   double dmp_scale_cost_bound = eps; // 0.0, on account of numeric error 0.0; // better be 0
@@ -938,8 +938,8 @@ int main(int argc, char *argv[])
     //   tmp_col_cost += collision_edges[t]->return_col_cost(); 
     // smoothness
     double tmp_smoothness_cost = 0.0;
-    // for (unsigned int t = 0; t < smoothness_edges.size(); t++)
-    //   tmp_smoothness_cost += smoothness_edges[t]->return_smoothness_cost();
+    for (unsigned int t = 0; t < smoothness_edges.size(); t++)
+      tmp_smoothness_cost += smoothness_edges[t]->return_smoothness_cost();
     // time usage
     std::chrono::steady_clock::time_point t1_nullspace = std::chrono::steady_clock::now();
     std::chrono::duration<double> t_spent_nullspace = std::chrono::duration_cast<std::chrono::duration<double>>(t1_nullspace - t0_nullspace);
@@ -1095,12 +1095,13 @@ int main(int argc, char *argv[])
 
         // Set and assign coefficients
         K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
-        K_SMOOTHNESS = K_SMOOTHNESS_set[(id_k_smoothness <= K_SMOOTHNESS_set.size()-1 ? id_k_smoothness : K_SMOOTHNESS_set.size()-1)];
+        // K_SMOOTHNESS = K_SMOOTHNESS_set[(id_k_smoothness <= K_SMOOTHNESS_set.size()-1 ? id_k_smoothness : K_SMOOTHNESS_set.size()-1)];
+        K_SMOOTHNESS = 1.0;
         // K_ARM_TRACK = K_ARM_TRACK_set[(id_k_arm_track <= K_ARM_TRACK_set.size()-1 ? id_k_arm_track : K_ARM_TRACK_set.size()-1)];
         K_ARM_TRACK = 1.0; // fix the tracking coefficients
         K_FINGER = 1.0;
         // set_edges_coefficients(collision_edges, K_COL * Matrix<double, 6, 1>::Ones());
-        // set_edges_coefficients(smoothness_edges, K_SMOOTHNESS * Matrix<double, 1, 1>::Identity());
+        set_edges_coefficients(smoothness_edges, K_SMOOTHNESS * Matrix<double, 1, 1>::Identity());
         Matrix<double, 20, 1> K_TRACK;
         K_TRACK.block(0, 0, 18, 1) = K_ARM_TRACK * Matrix<double, 18, 1>::Ones();
         K_TRACK.block(18, 0, 2, 1) = K_FINGER * Vector2d::Ones();
@@ -1123,11 +1124,10 @@ int main(int argc, char *argv[])
           col_cost_before_optim += collision_edges[t]->return_col_cost();
         */
         // smoothness
-        /*
         smoothness_cost_before_optim = 0.0;
         for (unsigned int t = 0; t < smoothness_edges.size(); t++)
           smoothness_cost_before_optim += smoothness_edges[t]->return_smoothness_cost();
-        */
+
 
         // Report current condition
         std::cout << ">>>> Inner loop: adjust K_COL and K_SMOOTHNESS." << std::endl;
@@ -1157,13 +1157,11 @@ int main(int argc, char *argv[])
         print_debug_output("col_cost", col_cost);
         */
         // smoothness
-        /*
         std::vector<double> smoothness_cost;
         for (unsigned int t = 0; t < smoothness_edges.size(); t++)
           smoothness_cost.push_back(smoothness_edges[t]->return_smoothness_cost()); // store
         smoothness_cost_history.push_back(smoothness_cost);  
         print_debug_output("smoothness_cost", smoothness_cost);
-        */
         // tracking   
         std::vector<double> wrist_pos_cost, l_wrist_pos_cost, r_wrist_pos_cost;
         std::vector<double> wrist_ori_cost, l_wrist_ori_cost, r_wrist_ori_cost;
@@ -1224,7 +1222,6 @@ int main(int argc, char *argv[])
         std::cout << std::endl << std::endl;    
         */
         // output jacobians of Smoothness edge for q vertices
-        /*
         std::cout << "Norms of smoothness_q_jacobian = ";
         Matrix<double, 2, JOINT_DOF> smoothness_q_jacobian;
         for (unsigned int n = 0; n < NUM_DATAPOINTS-1; n++)
@@ -1233,7 +1230,6 @@ int main(int argc, char *argv[])
           std::cout << smoothness_q_jacobian.norm() << " ";
         }
         std::cout << std::endl << std::endl;  
-        */
 
         // Evaluate costs after optimization, for loop termination checks
         // wrist pos
@@ -1259,11 +1255,9 @@ int main(int argc, char *argv[])
           col_cost_after_optim += collision_edges[t]->return_col_cost();
           */
         // smoothness
-        /*
         smoothness_cost_after_optim = 0.0;
         for (unsigned int t = 0; t < smoothness_edges.size(); t++)
           smoothness_cost_after_optim += smoothness_edges[t]->return_smoothness_cost();
-        */
 
         // Adjust K_COL
         if (col_cost_after_optim > col_cost_bound && id_k_col <= K_COL_set.size() - 1 ) 
@@ -1292,7 +1286,6 @@ int main(int argc, char *argv[])
         }
 
         // Adjust K_SMOOTHNESS
-        /*
         if (smoothness_cost_after_optim > smoothness_bound && id_k_smoothness <= K_SMOOTHNESS_set.size() - 1) 
         {
           if (smoothness_cost_before_optim - smoothness_cost_after_optim <= ftol) // if not descending or not descending fast enough, increase the K
@@ -1317,7 +1310,6 @@ int main(int argc, char *argv[])
           std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
           std::cout << "Cost: smoothness_cost = " << smoothness_cost_after_optim << " (bound: " << smoothness_bound << ")" << std::endl;
         }
-        */
 
         // Checking collision situation
         /*
@@ -1631,7 +1623,7 @@ int main(int argc, char *argv[])
       dmp_edge->setInformation(K_DMP_CONSTRAINTS);
       // others
       // set_edges_coefficients(collision_edges, K_COL * Matrix<double, 6, 1>::Ones());
-      // set_edges_coefficients(smoothness_edges, K_SMOOTHNESS * Matrix<double, 1, 1>::Identity());
+      set_edges_coefficients(smoothness_edges, K_SMOOTHNESS * Matrix<double, 1, 1>::Identity());
       // tracking
       Matrix<double, 20, 1> K_TRACK;
       K_TRACK.block(0, 0, 18, 1) = K_ARM_TRACK * Matrix<double, 18, 1>::Ones();
@@ -1815,18 +1807,7 @@ int main(int argc, char *argv[])
     //   std::cout << c << " "; // display
     // }
     std::cout << "\nTotal col_cost = " << cur_col_cost_check << std::endl;
-    // pos_limit
-    // std::cout << "Current pos_limit_cost = ";
-    // double cur_pos_limit_cost_check = 0.0;
-    // for (unsigned int t = 0; t < unary_edges.size(); t++)
-    // {
-    //   double p = unary_edges[t]->return_pos_limit_cost();
-    //   cur_pos_limit_cost_check += p; // check
-    //   std::cout << p << " "; // display      
-    // }
-    // std::cout << "\nTotal pos_limit_cost = " << cur_pos_limit_cost_check << std::endl;    
     // smoothness
-    /*
     std::cout << "Current smoothness_cost = ";
     double cur_smoothness_cost_check = 0.0;
     for (unsigned int t = 0; t < smoothness_edges.size(); t++)
@@ -1836,7 +1817,6 @@ int main(int argc, char *argv[])
       std::cout << s << " "; // display
     }
     std::cout << "\nTotal smoothness_cost = " << cur_smoothness_cost_check << std::endl;
-    */
 
     // if(cur_col_cost_check < col_cost_bound && cur_pos_limit_cost_check < pos_limit_bound && cur_smoothness_cost_check < smoothness_bound) 
     if(cur_col_cost_check < col_cost_bound )//&& cur_smoothness_cost_check < smoothness_bound) 

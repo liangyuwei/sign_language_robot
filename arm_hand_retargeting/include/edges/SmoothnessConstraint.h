@@ -36,9 +36,6 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
   public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     
-    // set up bounds ?
-    double margin_of_smoothness = 0.0;//std::sqrt(std::pow(1.0 * M_PI / 180.0, 2) * JOINT_DOF); // 1 degree offset for each dim
-
     /// Used by g2o internal call
     void computeError();
 
@@ -59,6 +56,16 @@ class SmoothnessConstraint : public BaseBinaryEdge<1, double, DualArmDualHandVer
     virtual bool read( std::istream& in ) {return true;}
     virtual bool write( std::ostream& out ) const {return true;}
 
+  private:
+    double smoothness_scale = 0.01; //1.0; //0.5; //0.1; //0.5; //1.0;//0.1;// 0.01;//0.05; //0.1; //0.5; //1.0;
+    
+    // set up bounds for each DOF
+    double margin_of_smoothness_arm = 5.0 * M_PI / 180.0;
+    double margin_of_smoothness_finger = 5.0 * M_PI / 180.0;
+
+    // bounds for the whole joint angle block
+    double margin_of_smoothness = std::sqrt(std::pow(3.0 * M_PI / 180.0, 2) * JOINT_DOF); //0.0;//std::sqrt(std::pow(1.0 * M_PI / 180.0, 2) * JOINT_DOF); // 1 degree offset for each dim
+
 };
 
 
@@ -78,7 +85,19 @@ void SmoothnessConstraint::computeError()
   const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
   // Compute smoothness cost
-  _error(0, 0) = max( (x0 - x1).norm() - margin_of_smoothness, 0.0);
+  // _error(0, 0) = smoothness_scale * max( (x0 - x1).norm() - margin_of_smoothness, 0.0) / margin_of_smoothness;
+  const Matrix<double, JOINT_DOF, 1> dx = (x1-x0).cwiseAbs();
+  _error(0, 0) = 0.0;
+  for (unsigned d = 0; d < 14; d++)
+  {
+    _error(0, 0) += pow(max(dx[d] - margin_of_smoothness_arm, 0.0), 2);
+  }
+  for (unsigned d = 14; d < JOINT_DOF; d++)
+  {
+    _error(0, 0) += pow(max(dx[d] - margin_of_smoothness_finger, 0.0), 2);
+  }  
+  _error(0, 0) = smoothness_scale * _error(0, 0);
+  // _error(0, 0) = sqrt(_error(0, 0));
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
@@ -87,7 +106,7 @@ void SmoothnessConstraint::computeError()
 
 
 /**
- * Use l1 penalty for smoothness cost.
+ * Use l1 penalty for smoothness cost. No coefficient or scale applied to get the actual state.
  */
 double SmoothnessConstraint::return_smoothness_cost()
 {
@@ -97,7 +116,7 @@ double SmoothnessConstraint::return_smoothness_cost()
   const Matrix<double, JOINT_DOF, 1> x0 = v0->estimate(); 
   const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
-  return std::max( (x0 - x1).norm() - margin_of_smoothness, 0.0);
+  return (x0 - x1).norm(); //std::max( (x0 - x1).norm() - margin_of_smoothness, 0.0);
 }
 
 
