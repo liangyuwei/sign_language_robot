@@ -156,6 +156,10 @@ class TrackingConstraint : public BaseBinaryEdge<20, double, DMPStartsGoalsVerte
 
     // internal variables for storing robot jacobians for left and right wrists as well as elbows
     MatrixXd J_lw, J_le, J_rw, J_re;
+
+    /// Scaling factor for tracking jacobians for DMP
+    double dmp_jacobian_scale = 0.01; //0.005; //0.01; //0.1; //1.0;
+
 };
 
 
@@ -376,10 +380,14 @@ void TrackingConstraint::linearizeOplus()
       delta_x[n] = 0.0;
 
       // set and store jacobians 
-      _jacobianOplusXi.col(n) = (e_plus - e_minus) / (2*dmp_eps); // for DMP starts and goals
+      _jacobianOplusXi.col(n) = dmp_jacobian_scale * (e_plus - e_minus) / (2*dmp_eps); // for DMP starts and goals
      
       // store jacobians
-      this->jacobians_for_dmp.col(n) = (e_plus - e_minus) / (2*dmp_eps);
+      this->jacobians_for_dmp.col(n) = _jacobianOplusXi.col(n);
+
+      // debug
+      // std::cout << "debug: jacobians for dmp = " << this->jacobians_for_dmp.col(n).transpose() << std::endl;
+
     }
 
     // reset vertex value

@@ -100,6 +100,11 @@ class DMPConstraints : public BaseUnaryEdge<3, my_constraint_struct, DMPStartsGo
     double compute_orien_cost(Matrix<double, DMPPOINTS_DOF, 1> x);        ///< Compute orientation constraint value.
     double compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x);        ///< Compute scale constraint value.
     double compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> x);   ///< Compute relative change constraint value.
+
+    // Scaling factors relating to three costs
+    double k_orien = 0.01; //0.1; //1.0;
+    double k_scale = 0.005; //0.01; //0.1; //1.0;
+    double k_rel_change = 1.0;
 };
 
 
@@ -145,6 +150,13 @@ void DMPConstraints::computeError()
   // Get new DMP starts and goals
   const DMPStartsGoalsVertex *v = dynamic_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected
   Matrix<double, DMPPOINTS_DOF, 1> x = v->estimate();
+
+  // Skip if fixed
+  if (v->fixed())
+  {
+    _error = Matrix<double, 3, 1>::Zero();
+    return; 
+  }
 
   // set error
   Vector3d err_vec;
@@ -256,6 +268,9 @@ double DMPConstraints::compute_orien_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
                                  std::max(rew_theta - max_theta, 0.0) +
                                  std::max(rw_theta - max_theta, 0.0), 2);*/
 
+  // apply scaling
+  orien_cost = k_orien * orien_cost;
+
   return orien_cost;
 }
 
@@ -317,6 +332,9 @@ double DMPConstraints::compute_scale_cost(Matrix<double, DMPPOINTS_DOF, 1> x)
                       std::pow(std::max(margin-max_margin, 0.0), 2); // l2 penalty
                       */
 
+  // apply scaling
+  scale_cost = k_scale * scale_cost;
+
   return scale_cost;
 
 }
@@ -355,6 +373,9 @@ double DMPConstraints::compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> 
                            std::max(lew_goal_change - ew_margin, 0.0) +
                            std::max(rew_start_change - ew_margin, 0.0) +
                            std::max(rew_goal_change - ew_margin, 0.0); // l1 penalty
+
+  // apply scaling
+  rel_change_cost = k_rel_change * rel_change_cost;
 
   return rel_change_cost;
 }

@@ -84,6 +84,13 @@ void SmoothnessConstraint::computeError()
   const Matrix<double, JOINT_DOF, 1> x0 = v0->estimate(); 
   const Matrix<double, JOINT_DOF, 1> x1 = v1->estimate(); 
 
+  // Skip if q vertices are fixed
+  if(v0->fixed() && v1->fixed())
+  {
+    _error(0, 0) = 0.0;
+    return;
+  }
+
   // Compute smoothness cost
   // _error(0, 0) = smoothness_scale * max( (x0 - x1).norm() - margin_of_smoothness, 0.0) / margin_of_smoothness;
   const Matrix<double, JOINT_DOF, 1> dx = (x1-x0).cwiseAbs();
