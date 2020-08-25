@@ -604,7 +604,7 @@ int main(int argc, char *argv[])
 
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   
-  unsigned int num_rounds = 1;//20;//1;//10;//20;//200;
+  unsigned int num_rounds = 10; //1;//20;//1;//10;//20;//200;
   unsigned int dmp_per_iterations = 10;//5;//10;
   unsigned int q_trk_per_iterations = 20;//50;//20;//10;//20;//50;//300;//10;//20; //50;
   unsigned int max_round; // record for ease
@@ -678,6 +678,15 @@ int main(int argc, char *argv[])
     // Fix DMP starts and goals
     std::cout << "Fix DMP starts and goals." << std::endl;
     dmp_vertex->setFixed(true);
+    // Remove Unnecessary DMP edge
+    /*
+    std::cout << "optimizing graph before removing DMP edge: " << optimizer.vertices().size() << " vertices, " 
+                                                               << optimizer.edges().size() << " edges." << std::endl;
+    optimizer.removeEdge(dmp_edge);
+    optimizer.initializeOptimization();
+    std::cout << "optimizing graph after removing DMP edge: " << optimizer.vertices().size() << " vertices, " 
+                                      << optimizer.edges().size() << " edges." << std::endl;
+    */
 
     // Generate desired trajectories using DMP and pass into TrackingConstraint edge
     Matrix<double, DMPPOINTS_DOF, 1> x = dmp_vertex->estimate();
@@ -1490,7 +1499,16 @@ int main(int argc, char *argv[])
     // reset
     std::cout << "Re-activate DMP vertex." << std::endl;
     dmp_vertex->setFixed(false);
+    // Add DMP edge
+    /*
+    std::cout << "optimizing graph before adding DMP edge: " << optimizer.vertices().size() << " vertices, " 
+                                                             << optimizer.edges().size() << " edges." << std::endl;
 
+    optimizer.addEdge(dmp_edge);
+    optimizer.initializeOptimization();
+    std::cout << "optimizing graph after adding DMP edge: " << optimizer.vertices().size() << " vertices, " 
+                                      << optimizer.edges().size() << " edges." << std::endl;
+    */
 
     // Store actually executed trajectories via FK provided by TrackingConstraint()
     store_actual_trajs(tracking_edges, out_file_name, in_group_name, n);
@@ -1603,8 +1621,8 @@ int main(int argc, char *argv[])
 
     // 3 - optimize DMP for a number of iterations
     std::cout << ">>>> Round " << (n+1) << "/" << num_rounds << ", DMP stage: "<< std::endl;
-    K_ARM_TRACK = 0.005; //0.01; //0.1;
-    K_FINGER = 0.005; //0.01; //0.1;  // actually useless since finger data are specified independent of DMP !!!
+    K_ARM_TRACK = 0.001; //0.005; //0.01; //0.1;
+    K_FINGER = 0.001; //0.005; //0.01; //0.1;  // actually useless since finger data are specified independent of DMP !!!
     K_DMPSTARTSGOALS = 1.0; //0.1;//0.5;//1.0;//2.0;
     K_DMPSCALEMARGIN = 1.0; //0.1; //0.5;//1.0;//2.0;
     K_DMPRELCHANGE = 1.0; //0.1; //2.0;//1.0; // relax a little to allow small variance
@@ -1616,6 +1634,18 @@ int main(int argc, char *argv[])
       DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+m));
       vertex_tmp->setFixed(true);
     }
+    // Remove Unnecessary q related edge
+    /*
+    std::cout << "optimizing graph before removing q related edges: " << optimizer.vertices().size() << " vertices, " 
+                                                                      << optimizer.edges().size() << " edges." << std::endl;
+    for (unsigned int r = 0; r < collision_edges.size(); r++)
+      optimizer.removeEdge(collision_edges[r]);
+    for (unsigned int r = 0; r < smoothness_edges.size(); r++)
+      optimizer.removeEdge(smoothness_edges[r]);
+    optimizer.initializeOptimization();
+    std::cout << "optimizing graph after removing q related edges: " << optimizer.vertices().size() << " vertices, " 
+                                                                     << optimizer.edges().size() << " edges." << std::endl;
+    */
 
     double tmp_dmp_orien_cost;
     double tmp_dmp_scale_cost;
@@ -1856,7 +1886,20 @@ int main(int argc, char *argv[])
       DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+m));
       vertex_tmp->setFixed(false);
     }
+    // Add back q related edges
+    /*
+    std::cout << "optimizing graph before adding q related edges: " << optimizer.vertices().size() << " vertices, " 
+                                                                    << optimizer.edges().size() << " edges." << std::endl;
+    for (unsigned int r = 0; r < collision_edges.size(); r++)
+      optimizer.addEdge(collision_edges[r]);
+    for (unsigned int r = 0; r < smoothness_edges.size(); r++)
+      optimizer.addEdge(smoothness_edges[r]);
+    optimizer.initializeOptimization();
+    std::cout << "optimizing graph after adding q related edges: " << optimizer.vertices().size() << " vertices, " 
+                                                                   << optimizer.edges().size() << " edges." << std::endl;
+    */
 
+   
     // record for ease
     max_round = n;
 
@@ -1891,7 +1934,7 @@ int main(int argc, char *argv[])
     }
     */
 
-  }
+  }    
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
