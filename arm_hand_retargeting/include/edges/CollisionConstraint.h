@@ -891,9 +891,11 @@ std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> CollisionConstraint::resolve_pa
   double col_eps = 3.0 * M_PI / 180.0; // in radius
 
   // Iterate to resolve collision
+  std::cout << ">> Processing the initial point 0 ..." << std::endl;
+  q_cur[0] = resolve_point_collisions(q_cur[0], q_cur[0], col_eps, 1);  // set num_intervals to 1 to only check for x0 itself
   for (unsigned int n = 0; n < q_cur.size() - 1; n++)
   {
-    std::cout << ">> Processing point " << (n+1) << "/" << q_cur.size() << " ..." << std::endl;
+    std::cout << ">> Processing transition between point " << n << " and " << (n+1) << " ..." << std::endl;
     q_cur[n+1] = resolve_point_collisions(q_cur[n], q_cur[n+1], col_eps, num_intervals);    
   }
 
@@ -942,6 +944,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
         xx[i] = x[i];
 
       // Check arms first, if ok, then hands. i.e. ensure arms safety before checking hands
+      // double potential_scale = 0.0; // used for arm part
       std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
       double min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(xx, "dual_arms", d_arm_check); 
       std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
@@ -969,13 +972,15 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
       // Compute updates and apply it until collision is resolved
       unsigned int cur_iter = 0;
       unsigned int max_iter = 500; // maximum iteration used to resolve the collision state
-      double scale = 0.001; //1.0; // scale for [dx,dy,dz,dp,dq,dw] Cartesian updates; shouldn't be too large
-      double hand_scale = 1.0; // should be set appropriately
+
+      double scale = 0.1; // scaling for [dx,dy,dz,dp,dq,dw] Cartesian updates; shouldn't be too large. 
+      double hand_scale = 10.0; //1.0; //finger_col_scale; //1.0; // should be set appropriately
+      
       while(e_cur > 0.0 && cur_iter < max_iter) // in collision state or within safety of margin; and within the maximum number of iterations
       {
         // Initialize updates
         Matrix<double, 1, JOINT_DOF> dx = Matrix<double, 1, JOINT_DOF>::Zero();
-
+      
         // Get collision information
         int group_id_1 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[0]);
         int group_id_2 = dual_arm_dual_hand_collision_ptr->check_link_belonging(dual_arm_dual_hand_collision_ptr->link_names[1]);
@@ -1389,25 +1394,28 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
         // Update the q joint values
         x1 = x1 + dx.transpose(); // update the latter point to resolve the collision of interpolated point
         std::cout << "dx = " << dx << std::endl;
-        x = (x1 - x0) * t_contact + x0; // obtain the interpolated state using time of contact
 
         // cope with position limit bounds
         double amount_out_of_bound = 0.0;
         for (unsigned int i = 0; i < JOINT_DOF; i++)
         {
-          double tmp = std::min(std::max(x[i], _measurement.q_pos_lb[i]), _measurement.q_pos_ub[i]);
-          amount_out_of_bound += std::fabs(x[i] - tmp);
-          x[i] = tmp;//std::min(std::max(x[i], _measurement.q_pos_lb[i]), _measurement.q_pos_ub[i]);
+          double tmp = std::min(std::max(x1[i], _measurement.q_pos_lb[i]), _measurement.q_pos_ub[i]);
+          amount_out_of_bound += std::fabs(x1[i] - tmp);
+          x1[i] = tmp;//std::min(std::max(x[i], _measurement.q_pos_lb[i]), _measurement.q_pos_ub[i]);
         }
         std::cout << "amount of out-of-bounds = " << amount_out_of_bound << std::endl;
 
+
+        // obtain the interpolated state using time of contact
+        x = (x1 - x0) * t_contact + x0; 
         // convert interpolated state back to std::vector<double> 
         for (unsigned int i = 0; i < JOINT_DOF; i++)
           xx[i] = x[i];
 
+
         // Check again, see if collision-free and within safety of margin
         std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
-        double min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(xx, "dual_arms", d_arm_check); 
+        min_distance = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(xx, "dual_arms", d_arm_check); 
         std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
         std::chrono::duration<double> t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
         total_col += t_spent.count();
@@ -1500,7 +1508,7 @@ double CollisionConstraint::dense_collision_checking(Eigen::Matrix<double, JOINT
 
 
 /**
- * Compute the minimum distance between the specified two links. 
+ * Compute the minimum distance between the specified two links. (Used only for reactive collision avoidance, not used in optimization)
  * When the specified two links are not colliding, the distance is manually set to safety margin. \n
  * This is because the dual_hand part contains multiple fingers ("manipulators"), and we only want to
  * know about the collision state of the specified two links.
@@ -1516,8 +1524,10 @@ double CollisionConstraint::compute_dual_hands_collision_cost(Matrix<double, JOI
   double min_distance;
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   min_distance = dual_arm_dual_hand_collision_ptr->compute_two_links_distance(x, link_name_1, link_name_2, d_hand_check);
-  if (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 ||
-      dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_2) 
+  if ( (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 &&
+        dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_1) || 
+       (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_2 &&
+        dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_2))  // in case order is different
     min_distance = d_hand_safe; // if collision pair is changed, then the collision between the original two links is resolved !!!
 
   // std::cout << "debug: Possible collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] 
@@ -1557,8 +1567,10 @@ Vector3d CollisionConstraint::compute_dual_hands_collision_error_vector(Matrix<d
   double min_distance;
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   min_distance = dual_arm_dual_hand_collision_ptr->compute_two_links_distance(x, link_name_1, link_name_2, d_hand_check);
-  if (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 ||
-      dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_2) 
+  if ( (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_1 &&
+        dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_1) || 
+       (dual_arm_dual_hand_collision_ptr->link_names[0] != link_name_2 &&
+        dual_arm_dual_hand_collision_ptr->link_names[1] != link_name_2))  // in case order is different
     min_distance = d_hand_safe; // if collision pair is changed, then the collision between the original two links is resolved !!!
 
   // std::cout << "debug: Possible collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] 

@@ -747,7 +747,7 @@ int main(int argc, char *argv[])
   
 
     // way 1 - Use TRAC-IK, solve IK for each path point, one by one  
-    /*
+    
     std::chrono::steady_clock::time_point t0_wrist_trac_ik_loop = std::chrono::steady_clock::now();
     // the results are set as initial state for later use
     std::vector<Eigen::Matrix<double, JOINT_DOF, 1> > q_initial_trac_ik(NUM_DATAPOINTS);
@@ -874,10 +874,11 @@ int main(int argc, char *argv[])
       DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
       best_q[s] = vertex_tmp->estimate();
     }
-    */
+    
 
 
     // way 2 - Use Nullspace control for pre-processing, solve IK for each path point, one by one  
+    /*
     std::chrono::steady_clock::time_point t0_nullspace = std::chrono::steady_clock::now();
     // get the reference trajectories
     std::vector<std::vector<double>> l_hd_pos_traj, r_hd_pos_traj, l_fr_pos_traj, r_fr_pos_traj;
@@ -982,10 +983,10 @@ int main(int argc, char *argv[])
       DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
       best_q[s] = vertex_tmp->estimate();
     }
+    */
 
 
     // Solve collision 
-    /*
     std::chrono::steady_clock::time_point t0_col_fix = std::chrono::steady_clock::now();  
     finger_cost_before_optim = 0.0;
     for (unsigned s = 0; s < tracking_edges.size(); s++)
@@ -1061,7 +1062,19 @@ int main(int argc, char *argv[])
       best_q[s] = vertex_tmp->estimate();
       q_initial_collision_fix[s] = vertex_tmp->estimate();
     }
-    */
+
+    // save intermediate results for debug 
+    std::vector<std::vector<double> > q_collision_fix_results;
+    std::vector<double> q_vec_tmp(JOINT_DOF);
+    for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+    {
+      DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+n));
+      Matrix<double, JOINT_DOF, 1> q_tmp = vertex_tmp->estimate();
+      for (unsigned int d = 0; d < JOINT_DOF; d++)
+        q_vec_tmp[d] = q_tmp[d];
+      q_collision_fix_results.push_back(q_vec_tmp);
+    }  
+    write_h5(out_file_name, in_group_name, "arm_traj_collision_fix", q_collision_fix_results);
 
 
     // Start q optimization, using different combinations of coefficients
