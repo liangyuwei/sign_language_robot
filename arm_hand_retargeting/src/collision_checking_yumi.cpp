@@ -816,11 +816,12 @@ double DualArmDualHandCollision::compute_self_distance(const std::vector<double>
   this->distance_result_.clear();
 
   // for debug
+  /*
   bool debug = this->kinematic_model_->hasJointModelGroup("");
   std::cout << "debug: Group \"\" " << (debug ? "does" : "does not") << " exist in kinematic state!" << std::endl;
   std::cout << "debug: Number of active components: " 
             << ((this->distance_request_.active_components_only) ? this->distance_request_.active_components_only->size() : 0) << std::endl;
-
+  */
 
 
   // Construct a CollisionRobotFCL for calling distanceSelf function
@@ -881,8 +882,8 @@ double DualArmDualHandCollision::compute_self_distance_test(const std::vector<do
 
 
   // for debug
-  // Note that, enableGroup() assigns to .active_components_only all the links that get updated when the state of the specified group is changed, and thus including links that are ***outside*** of this group!!!
   /*
+  // Note that, enableGroup() assigns to .active_components_only all the links that get updated when the state of the specified group is changed, and thus including links that are ***outside*** of this group!!!
   bool debug = this->kinematic_model_->hasJointModelGroup(group_name);
   std::cout << "debug: Group " << group_name << " " << (debug ? "does" : "does not") << " exist in kinematic state!" << std::endl;
   std::cout << "debug: Number of active components: " 
@@ -922,7 +923,7 @@ double DualArmDualHandCollision::compute_self_distance_test(const std::vector<do
   // a normalized vector pointing from link_names[0] to link_names[1]
   std::cout << "Normal vector is v = " << this->distance_result_.minimum_distance.normal.transpose() << std::endl; 
   */
-  
+
   // Store data for later possible processing
   this->min_distance = this->distance_result_.minimum_distance.distance;
   this->nearest_points[0] = this->distance_result_.minimum_distance.nearest_points[0];
@@ -1280,7 +1281,7 @@ int main(int argc, char **argv)
   dual_arm_dual_hand_collision_ptr->remove_collision_objects();
   std::cout << "Time used: " << t0_1.count() << " s." << std::endl;
 
-
+  /*
   std::cout << ">>>> Collision Checking with the environment (Test 3) <<<<" << std::endl;
   dual_arm_dual_hand_collision_ptr->apply_collision_objects();
   t0 = std::chrono::steady_clock::now();
@@ -1290,7 +1291,7 @@ int main(int argc, char **argv)
   std::cout << "The robot under self-collision-free state(with a collision object) is " << (result == 1.0 ? "in" : "not in") << " collision with the environment." << std::endl;
   dual_arm_dual_hand_collision_ptr->remove_collision_objects();
   std::cout << "Time used: " << t0_1.count() << " s." << std::endl;
-
+  */
 
   // Full collision checking
   std::cout << ">>>> Full Collision Checking (Test 1) <<<<" << std::endl;
@@ -1310,7 +1311,7 @@ int main(int argc, char **argv)
   std::cout << "The robot under collision-free state(no collision object) is " << (result == 1.0 ? "in" : "not in") << " collision." << std::endl;
   std::cout << "Time used: " << t0_1.count() << " s." << std::endl;
 
-
+  /*
   std::cout << ">>>> Full Collision Checking (Test 3) <<<<" << std::endl;
   dual_arm_dual_hand_collision_ptr->apply_collision_objects();
   t0 = std::chrono::steady_clock::now();
@@ -1320,7 +1321,7 @@ int main(int argc, char **argv)
   std::cout << "The robot under collision-free state (with a collision object) is " << (result == 1.0 ? "in" : "not in") << " collision." << std::endl;
   dual_arm_dual_hand_collision_ptr->remove_collision_objects();
   std::cout << "Time used: " << t0_1.count() << " s." << std::endl;
-
+  */
 
   // Self-distance computation
   std::cout << ">>>> Distance computation (Self) (Test 1) <<<<" << std::endl;
@@ -1342,6 +1343,7 @@ int main(int argc, char **argv)
 
 
   // Distance to the collision objects
+  /*
   std::cout << ">>>> Distance computation (With the Environment) (Test 1) <<<<" << std::endl;
   dual_arm_dual_hand_collision_ptr->apply_collision_objects();
   t0 = std::chrono::steady_clock::now();
@@ -1360,7 +1362,7 @@ int main(int argc, char **argv)
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance of the robot under self-colliding-free state(no collision objects) is " << result << std::endl;
   std::cout << "Time used: " << t0_1.count() << " s." << std::endl << std::endl;
-
+  */
 
   // Full distance computation
   // no such API to our knowledge for now
@@ -1621,7 +1623,15 @@ int main(int argc, char **argv)
   t1 = std::chrono::steady_clock::now();
   t0_1 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
   std::cout << "Minimum distance = " << result3 << std::endl;
-  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl;  
+  std::cout << "Time used for computing distance: " << t0_1.count() << std::endl << std::endl;  
+
+
+  std::cout << ">>>> Check out the minimum distance of hand links under initial state" << std::endl;
+  double min_dist_check = dual_arm_dual_hand_collision_ptr->compute_self_distance_test(noncolliding_joint_values,
+                                                                                       "dual_hands",
+                                                                                       0.02);
+  std::cout << "Minimum distance = " << min_dist_check << std::endl << std::endl;
+
 
   // Test getting robot jacobian
   Eigen::MatrixXd robot_jacobian;

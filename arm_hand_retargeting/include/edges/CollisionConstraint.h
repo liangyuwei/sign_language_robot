@@ -112,7 +112,7 @@ class CollisionConstraint : public BaseBinaryEdge<6, my_constraint_struct, DualA
 
     // Scale factors for different scenerios
     double non_finger_col_scale = 1.0; 
-    double finger_col_scale = 400.0;//1.0; //10.0; //100.0; // only this matters when involved in same-hand collision
+    double finger_col_scale = 400; //175; //150.0; //200.0; //100.0; //1.0; //40.0; //400.0; //1.0; // only this matters when involved in same-hand collision
 
     // Time of contact (stored to reduce number of queries)
     double time_of_contact;
@@ -190,7 +190,6 @@ void CollisionConstraint::computeError()
       t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
       total_col += t_spent.count();
       count_col++;
-      // potential_scale = std::pow(std::max(d_hand_safe - min_distance, 0.0), 2) / std::pow(d_hand_safe, 2);
     }
 
     // Set error vector (note that in the direction where cost rises) for colliding links
@@ -217,14 +216,11 @@ void CollisionConstraint::computeError()
                                                                           dual_arm_dual_hand_collision_ptr);
       _error.block(0, 0, 3, 1) = distance_vector; 
       _error.block(3, 0, 3, 1) = distance_vector;
-
-      // 2 - apply weighting factor accounting for same-hand collision situation
-      // we use numerical differentiation for same-hand collision, thus do not require potential_scale which is for reactive collision avoidance
-      // _error = finger_col_scale * _error;
     }
 
   }
 
+  // std::cout << "debug: _error = " << _error.transpose() << std::endl;
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   std::chrono::duration<double> t_01 = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
@@ -261,8 +257,7 @@ void CollisionConstraint::linearizeOplus()
   Matrix<double, JOINT_DOF, 1> x_col = this->x_colliding;
 
   // epsilons
-  double col_eps = 3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
-  double hand_speed = 1.0;// no need for scaling here anymore    //potential_scale * this->finger_col_scale; //100; 
+  double col_eps = 1.0 * M_PI / 180.0; //2.0 * M_PI / 180.0;  //3.0 * M_PI / 180.0; //0.05; // in radius, approximately 3 deg
 
   // Get colliding joint angles
   Matrix<double, JOINT_DOF, 1> x = x_col;
@@ -358,7 +353,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(0, 22+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); 
+          _jacobianOplusXj.block(0, 22+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); 
           // reset
           delta_x[22+d+s] = 0.0;
         }
@@ -371,7 +366,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(0, 14+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); //
+          _jacobianOplusXj.block(0, 14+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); //
           // reset
           delta_x[14+d+s] = 0.0;
         }
@@ -384,7 +379,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(0, 16+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); //
+          _jacobianOplusXj.block(0, 16+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); //
           // reset
           delta_x[16+d+s] = 0.0;
         }
@@ -397,7 +392,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(0, 18+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); //
+          _jacobianOplusXj.block(0, 18+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); //
           // reset
           delta_x[18+d+s] = 0.0;
         }
@@ -410,7 +405,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(0, 20+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); //
+          _jacobianOplusXj.block(0, 20+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); //
           // reset
           delta_x[20+d+s] = 0.0;
         }
@@ -445,7 +440,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(3, 22+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); //
+          _jacobianOplusXj.block(3, 22+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); //
           // reset
           delta_x[22+d+s] = 0.0;
         }
@@ -458,7 +453,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(3, 14+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); //
+          _jacobianOplusXj.block(3, 14+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); //
           // reset
           delta_x[14+d+s] = 0.0;
         }
@@ -471,7 +466,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(3, 16+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); //;
+          _jacobianOplusXj.block(3, 16+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); //;
           // reset
           delta_x[16+d+s] = 0.0;
         }
@@ -484,7 +479,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(3, 18+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); // 
+          _jacobianOplusXj.block(3, 18+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); // 
           // reset
           delta_x[18+d+s] = 0.0;
         }
@@ -497,7 +492,7 @@ void CollisionConstraint::linearizeOplus()
           // compute
           e_up = compute_dual_hands_collision_error_vector(x+delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           e_down = compute_dual_hands_collision_error_vector(x-delta_x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
-          _jacobianOplusXj.block(3, 20+d+s, 3, 1) = hand_speed * (e_up - e_down) / (2*col_eps); //
+          _jacobianOplusXj.block(3, 20+d+s, 3, 1) = (e_up - e_down) / (2*col_eps); //
           // reset
           delta_x[20+d+s] = 0.0;
         }
@@ -988,8 +983,8 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
         std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
 
         // Info
-        std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
-        std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+        // std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
+        // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
 
         // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
         Eigen::Vector3d link_pos_1 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_1);
@@ -1584,9 +1579,20 @@ Vector3d CollisionConstraint::compute_dual_hands_collision_error_vector(Matrix<d
 
   // Get the offset distance to the margin of safety
   double cost = std::max(d_hand_safe - min_distance, 0.0);
+  // double cost;
+  // if (d_hand_safe <= min_distance)
+  //   cost = 0.0;
+  // else
+    // cost = std::pow(d_hand_safe - min_distance, 2);
+    // cost = (1 / min_distance - 1 / d_hand_safe); 
 
-  // Get distance vector
+  // 1 - way 1: Get distance vector
   Vector3d contact_normal = (dual_arm_dual_hand_collision_ptr->normal).cwiseAbs();
+
+  // 2 - way 2: Get cost and assign to three elements
+  // Vector3d contact_normal = Vector3d::Ones();
+
+  // std::cout << "debug: distance vector for dual_hands = " << cost * finger_col_scale * contact_normal.transpose() << std::endl;
 
   // Project distance onto each axis
   return cost * finger_col_scale * contact_normal;

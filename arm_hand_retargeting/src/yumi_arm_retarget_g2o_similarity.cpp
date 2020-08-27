@@ -604,7 +604,7 @@ int main(int argc, char *argv[])
 
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   
-  unsigned int num_rounds = 10; //1;//20;//1;//10;//20;//200;
+  unsigned int num_rounds = 1; //1;//20;//1;//10;//20;//200;
   unsigned int dmp_per_iterations = 10;//5;//10;
   unsigned int q_trk_per_iterations = 20;//50;//20;//10;//20;//50;//300;//10;//20; //50;
   unsigned int max_round; // record for ease
@@ -747,7 +747,7 @@ int main(int argc, char *argv[])
   
 
     // way 1 - Use TRAC-IK, solve IK for each path point, one by one  
-    
+    /*
     std::chrono::steady_clock::time_point t0_wrist_trac_ik_loop = std::chrono::steady_clock::now();
     // the results are set as initial state for later use
     std::vector<Eigen::Matrix<double, JOINT_DOF, 1> > q_initial_trac_ik(NUM_DATAPOINTS);
@@ -874,11 +874,10 @@ int main(int argc, char *argv[])
       DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
       best_q[s] = vertex_tmp->estimate();
     }
-    
+    */
 
 
     // way 2 - Use Nullspace control for pre-processing, solve IK for each path point, one by one  
-    /*
     std::chrono::steady_clock::time_point t0_nullspace = std::chrono::steady_clock::now();
     // get the reference trajectories
     std::vector<std::vector<double>> l_hd_pos_traj, r_hd_pos_traj, l_fr_pos_traj, r_fr_pos_traj;
@@ -983,10 +982,10 @@ int main(int argc, char *argv[])
       DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
       best_q[s] = vertex_tmp->estimate();
     }
-    */
 
 
     // Solve collision 
+    /*
     std::chrono::steady_clock::time_point t0_col_fix = std::chrono::steady_clock::now();  
     finger_cost_before_optim = 0.0;
     for (unsigned s = 0; s < tracking_edges.size(); s++)
@@ -1075,7 +1074,7 @@ int main(int argc, char *argv[])
       q_collision_fix_results.push_back(q_vec_tmp);
     }  
     write_h5(out_file_name, in_group_name, "arm_traj_collision_fix", q_collision_fix_results);
-
+    */
 
     // Start q optimization, using different combinations of coefficients
     double t_spent_inner_loop = 0.0;
@@ -1086,6 +1085,9 @@ int main(int argc, char *argv[])
     do // Outer loop, resolve collision, pos limit and smoothness first
     {
       */
+   
+      do // Inner loop
+      {
       count_outer_loop++;
       std::chrono::steady_clock::time_point t0_outer_loop = std::chrono::steady_clock::now();
 
@@ -1117,14 +1119,14 @@ int main(int argc, char *argv[])
       for (unsigned s = 0; s < tracking_edges.size(); s++)
         finger_cost_before_optim += tracking_edges[s]->return_finger_cost(true, true);  
 
-      do // Inner loop
-      {
+
         std::chrono::steady_clock::time_point t0_inner_loop = std::chrono::steady_clock::now();
         count_inner_loop++;
 
+
         // Set and assign coefficients
-        // K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
-        K_COL = 1.0;
+        K_COL = K_COL_set[(id_k_col <= K_COL_set.size()-1 ? id_k_col : K_COL_set.size()-1)];
+        // K_COL = 1.0;
         // K_SMOOTHNESS = K_SMOOTHNESS_set[(id_k_smoothness <= K_SMOOTHNESS_set.size()-1 ? id_k_smoothness : K_SMOOTHNESS_set.size()-1)];
         K_SMOOTHNESS = 1.0;
         // K_ARM_TRACK = K_ARM_TRACK_set[(id_k_arm_track <= K_ARM_TRACK_set.size()-1 ? id_k_arm_track : K_ARM_TRACK_set.size()-1)];
@@ -1172,6 +1174,33 @@ int main(int argc, char *argv[])
         // optimize for a few iterations
         std::cout << "Optimizing q..." << std::endl;
         unsigned int q_iter = optimizer.optimize(q_trk_per_iterations); 
+
+
+        // resolve collision, just in case...
+        std::cout << "resolve the collision state of the optimized joint trajectories..." << std::endl;
+        std::vector<Matrix<double, JOINT_DOF, 1>> tmp_q(NUM_DATAPOINTS);
+        for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+        {
+          DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
+          tmp_q[s] = vertex_tmp->estimate();
+        }        
+        tmp_q = collision_edges[0]->resolve_path_collisions(tmp_q);
+        for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+        {
+          DualArmDualHandVertex* vertex_tmp = dynamic_cast<DualArmDualHandVertex*>(optimizer.vertex(1+s)); // get q vertex
+          vertex_tmp->setEstimate(tmp_q[s]);
+        }        
+        // store the result for display
+        // save intermediate results for debug 
+        std::vector<std::vector<double> > tmp_q_store_store;
+        std::vector<double> tmp_q_store(JOINT_DOF);
+        for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+        {
+          for (unsigned int d = 0; d < JOINT_DOF; d++)
+            tmp_q_store[d] = tmp_q[s][d];
+          tmp_q_store_store.push_back(tmp_q_store);
+        }  
+        write_h5(out_file_name, in_group_name, "arm_traj_collision_fix_" + std::to_string(id_k_smoothness), tmp_q_store_store);
 
 
         // Store cost results
@@ -1282,6 +1311,7 @@ int main(int argc, char *argv[])
           smoothness_cost_after_optim += smoothness_edges[t]->return_smoothness_cost();
 
         // Adjust K_COL
+        /*
         if (col_cost_after_optim > col_cost_bound && id_k_col <= K_COL_set.size() - 1 ) 
         { 
           if (col_cost_before_optim - col_cost_after_optim <= 2.0) // if it's not descending or not descending fast enough, increase the coefficient
@@ -1295,17 +1325,18 @@ int main(int argc, char *argv[])
           else
           {
             std::cout << "Coefficient: K_COL = " << K_COL_set[id_k_col] << std::endl;
-          }
+          }*/
           std::cout << "Cost: col_cost = " << col_cost_before_optim << " ----> " << col_cost_after_optim 
                                           << "(" << (col_cost_before_optim > col_cost_after_optim ? "-" : "+")
                                           << std::abs(col_cost_before_optim - col_cost_after_optim) << ")" 
                                           << " (bound: " << col_cost_bound << ")" << std::endl;
-        }
+        /*}
         else
         {
           std::cout << "Coefficient: K_COL = " << K_COL << std::endl;
           std::cout << "Cost: col_cost = " << col_cost_after_optim << " (bound: " << col_cost_bound << ")" << std::endl;
-        }
+        }*/
+
 
         // Adjust K_SMOOTHNESS
         if (smoothness_cost_after_optim > smoothness_bound && id_k_smoothness <= K_SMOOTHNESS_set.size() - 1) 
@@ -1332,6 +1363,7 @@ int main(int argc, char *argv[])
           std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS << std::endl;
           std::cout << "Cost: smoothness_cost = " << smoothness_cost_after_optim << " (bound: " << smoothness_bound << ")" << std::endl;
         }
+
 
         // Checking collision situation
         /*
@@ -1374,8 +1406,6 @@ int main(int argc, char *argv[])
         std::cout << "> Time Usage:" << std::endl;
         std::cout << "Time used for current inner loop is: " << t_spent_inner_loop_cur.count() << " s." << std::endl;
         
-      }while( (id_k_col <= (K_COL_set.size()-1) && col_cost_after_optim > col_cost_bound) || 
-              (id_k_smoothness <= (K_SMOOTHNESS_set.size()-1) && smoothness_cost_after_optim > smoothness_bound) );
       
       std::cout << ">>>> End of Inner loop" << std::endl << std::endl;
 
@@ -1467,6 +1497,8 @@ int main(int argc, char *argv[])
       std::cout << "> Time Usage:" << std::endl;
       std::cout << "Time used for current outer loop is: " << t_spent_outer_loop_cur.count() << " s." << std::endl;
 
+      }while( //(id_k_col <= (K_COL_set.size()-1) && col_cost_after_optim > col_cost_bound) || 
+              (id_k_smoothness <= (K_SMOOTHNESS_set.size()-1) && smoothness_cost_after_optim > smoothness_bound) );
                 
     /*
     }while( //(id_k_arm_track <= (K_ARM_TRACK_set.size() - 1)) ||

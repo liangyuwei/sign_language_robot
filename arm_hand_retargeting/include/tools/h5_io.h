@@ -213,7 +213,7 @@ void write_h5(std::string out_file_name, std::string in_group_name, std::string 
 
 
 /**
- * Store 2-dim data and display the result. std::vector input version.
+ * Store 2-dim data and display the result. std::vector<std::vector<double>> input version.
  * 
  * Overloaded to provide easy access.
  */

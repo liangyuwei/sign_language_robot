@@ -43,21 +43,21 @@ if __name__ == '__main__':
 
   ### Set up parameters
   # left or right
-  lr = 'l' # 'r'
+  lr = 'r' # 'r'
 
   # find finger-related info from bag name
   finger_name = 'thumb' #['thumb', 'index', 'middle', 'ring', 'little']
   
   # ID for the calibrated joint, according to WiseGlove setup
-  id = 1
+  id = 2
   
   # Actual angle (ground truth), in degree
   angle = 90
   
   # export information from bag file
   group_name = lr + '_' + finger_name + '_s' + str(id) + '_' + str(angle)
-  bag_name = 'test_seq_' + group_name #'test_seq_l_thumb_s1_90' # no suffix is required
-  h5_name = 'glove_calib_data-20200825'
+  bag_name = group_name # 'test_seq_' + #'test_seq_l_thumb_s1_90' # no suffix is required
+  h5_name = 'glove_calib_data-20200827' #'glove_calib_data-20200825'
 
   # extract necessary info for learning
   group_name = bag_name
