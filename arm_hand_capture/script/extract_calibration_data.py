@@ -43,7 +43,7 @@ if __name__ == '__main__':
 
   ### Set up parameters
   # left or right
-  lr = 'r' # 'r'
+  lr = 'l' # 'r'
 
   # find finger-related info from bag name
   finger_name = 'thumb' #['thumb', 'index', 'middle', 'ring', 'little']

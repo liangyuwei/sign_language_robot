@@ -190,6 +190,8 @@ void CollisionConstraint::computeError()
       t_spent = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
       total_col += t_spent.count();
       count_col++;
+      // in case of collision between two hands (detection is with dual_hands, while avoidance processing is with arm-hand, using the reactive collision avoidance method)
+      potential_scale = std::pow(std::max(d_arm_safe - min_distance, 0.0), 2) / std::pow(d_arm_safe, 2);
     }
 
     // Set error vector (note that in the direction where cost rises) for colliding links
