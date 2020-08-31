@@ -885,7 +885,7 @@ Eigen::MatrixXd CollisionConstraint::compute_col_q_update(Eigen::MatrixXd jacobi
 std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> CollisionConstraint::resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur, unsigned int num_intervals)
 {
   // Prep
-  double col_eps = 3.0 * M_PI / 180.0; // in radius
+  double col_eps = 1.0 * M_PI / 180.0; //3.0 * M_PI / 180.0; // in radius
 
   // Iterate to resolve collision
   std::cout << ">> Processing the initial point 0 ..." << std::endl;
@@ -915,6 +915,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
 {
   // Prep
   double e_cur;
+  double stopping_eps = 1e-8; // with the existence of safety margin, a few relaxation on the stopping criterion wouldn't affect the collision avoidance ability
   Eigen::Matrix<double, JOINT_DOF, 1> delta_x = Eigen::Matrix<double, JOINT_DOF, 1>::Zero();
 
   // Perform dense discrete collision checking on the linearly interpolated line between x0 and x1
@@ -923,8 +924,13 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
   // Iterate to check, and resolve collision state, until everything is ok
   bool no_collision = false;
   Eigen::Matrix<double, JOINT_DOF, 1> x_col;
-  while (!no_collision)
+  unsigned int max_checks = 5; //3; //500;
+  unsigned int num_checks = 0;
+  while (!no_collision && num_checks < max_checks)
   {
+    num_checks++;
+    std::cout << "Num of check: " << num_checks << "/" << max_checks << std::endl;
+
     // Check if any possible collision state
     double t_contact = dense_collision_checking(x0, x1, x_col, num_intervals);
     no_collision = (t_contact < 0.0); // if no time of contact, then no intermediate collision!
@@ -971,7 +977,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
       unsigned int max_iter = 500; // maximum iteration used to resolve the collision state
 
       double scale = 0.1; // scaling for [dx,dy,dz,dp,dq,dw] Cartesian updates; shouldn't be too large. 
-      double hand_scale = 10.0; //1.0; //finger_col_scale; //1.0; // should be set appropriately
+      double hand_scale = 10.0;// 20.0; //10.0; //50.0; //20.0; //10.0; //1.0; //finger_col_scale; //1.0; // should be set appropriately
       
       while(e_cur > 0.0 && cur_iter < max_iter) // in collision state or within safety of margin; and within the maximum number of iterations
       {
@@ -985,8 +991,8 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
         std::string link_name_2 = dual_arm_dual_hand_collision_ptr->link_names[1];
 
         // Info
-        // std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
-        // std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
+        std::cout << "debug: Possible collision between " << link_name_1 << " and " << link_name_2 << std::endl;
+        std::cout << "debug: minimum distance is: " << dual_arm_dual_hand_collision_ptr->min_distance << std::endl;
 
         // calculate global location of nearest/colliding links (reference position is independent of base frame, so don't worry)
         Eigen::Vector3d link_pos_1 = dual_arm_dual_hand_collision_ptr->get_global_link_transform(link_name_1);
@@ -1035,6 +1041,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
           // assign jacobians for collision cost
           unsigned int d = left_or_right ? 0 : 12;
           double e_up, e_down;
+          double e_cur = hand_scale * compute_dual_hands_collision_cost(x, link_name_1, link_name_2, dual_arm_dual_hand_collision_ptr);
           // first link
           switch (finger_id_1)
           {
@@ -1110,6 +1117,14 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
               exit(-1);
               break;
           }
+
+          // compute updates using jacobians!!! J^T * J = -b = - J^T * e... the dx we used above is actually -J, which may not be reasonable
+          // Matrix<double, 1, JOINT_DOF> J_1 = dx; 
+          // JacobiSVD<MatrixXd> svd_1(J_1.transpose()*J_1, ComputeThinU | ComputeThinV); // svd.singularValues()/.matrixU()/.matrixV()
+          // Matrix<double, JOINT_DOF, 1> dx_1 = -J_1.transpose()*e_cur;
+          // Matrix<double, JOINT_DOF, 1> dq_1 = svd_1.solve(dx_1);
+          // std::cout << "debug: dq_1 for the first link = " << dq_1.transpose() << std::endl;
+          // std::cout << "debug: J_1 for the first link = " << J_1 << std::endl;
 
           // second link
           switch (finger_id_2)
@@ -1187,8 +1202,18 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
               break;
           }
 
+          // compute updates using jacobians!!! J^T * J = -b = - J^T * e... the dx we used above is actually -J, which may not be reasonable
+          // Matrix<double, 1, JOINT_DOF> J_2 = dx - J_1; 
+          // JacobiSVD<MatrixXd> svd_2(J_2.transpose()*J_2, ComputeThinU | ComputeThinV); // svd.singularValues()/.matrixU()/.matrixV()
+          // Matrix<double, JOINT_DOF, 1> dx_2 = -J_2.transpose()*e_cur;
+          // Matrix<double, JOINT_DOF, 1> dq_2 = svd_2.solve(dx_2);
+          // std::cout << "debug: dq_2 for the first link = " << dq_2.transpose() << std::endl;
+          // std::cout << "debug: J_2 for the first link = " << J_2 << std::endl;
+
           // update in the direction opposite to gradient !!!
           dx = -dx;
+          // dx = (dq_1 + dq_2).transpose();
+          
 
         }
         else if (group_id_1 == -1 || group_id_2 == -1) // one of the object doesn't belong to arms or hands, update only one arm+hand
@@ -1440,7 +1465,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
         cur_iter++;
 
         // Check terminate condition
-        if (e_cur <= 0.0)
+        if (e_cur <= stopping_eps)// 0.0) // simply relax the stopping criterion a few, wouldn't affect the safety margin
           break;
 
       } // END of while
@@ -1448,7 +1473,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
       std::cout << "Collision fix took " << cur_iter << "/" << max_iter << " rounds." << std::endl;
 
       // Check the results
-      if (e_cur <= 0.0)
+      if (e_cur <= stopping_eps) //0.0) // a small positive value might be enought... since we already have safety margin
         std::cout << "Successfully resolve this collision!!!" << std::endl;
       else
         std::cerr << "Failed to resolve collision state of this path point... " << std::endl;
