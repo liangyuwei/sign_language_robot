@@ -3,6 +3,7 @@ import struct
 #import numpy 
 #import string
 #import binascii
+from time import sleep
 
 global hand_id
 hand_id = 1
@@ -1150,6 +1151,18 @@ def setdefaultpower(power1,power2,power3,power4,power5,power6):
 #串口设置
 ser=serial.Serial('/dev/ttyUSB0',115200)
 ser.isOpen()
+
+setpos(0,0,0,0,0,0)
+
+sleep(1)
+
+setspeed(1000,1000,1000,1000,1000,1000)
+
+sleep(1)
+
+setpos(1000,1000,1000,1000,1000,1000)
+
+
 
 
 

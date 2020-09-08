@@ -72,8 +72,8 @@ class CollisionConstraint : public BaseBinaryEdge<6, my_constraint_struct, DualA
     Eigen::MatrixXd compute_col_q_update(Eigen::MatrixXd jacobian, Eigen::Vector3d dx, double speed);
 
     // Resolve colliding state by directly operating on joint values
-    std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur, unsigned int num_intervals=100);
-    Eigen::Matrix<double, JOINT_DOF, 1> resolve_point_collisions(Eigen::Matrix<double, JOINT_DOF, 1> x0, Eigen::Matrix<double, JOINT_DOF, 1> x1, double col_eps, unsigned int num_intervals); // called in resolve_path_collisions() to resolve colliding state for each path point
+    std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur, unsigned int num_intervals, double arm_update_scale, double hand_update_scale);
+    Eigen::Matrix<double, JOINT_DOF, 1> resolve_point_collisions(Eigen::Matrix<double, JOINT_DOF, 1> x0, Eigen::Matrix<double, JOINT_DOF, 1> x1, double col_eps, unsigned int num_intervals, double arm_update_scale, double hand_update_scale); // called in resolve_path_collisions() to resolve colliding state for each path point
     double dense_collision_checking(Eigen::Matrix<double, JOINT_DOF, 1> x0, Eigen::Matrix<double, JOINT_DOF, 1> x1, Eigen::Matrix<double, JOINT_DOF, 1> &x_col, unsigned int num_intervals);
 
     /// Read from disk, leave blank
@@ -112,7 +112,8 @@ class CollisionConstraint : public BaseBinaryEdge<6, my_constraint_struct, DualA
 
     // Scale factors for different scenerios
     double non_finger_col_scale = 0.01; //0.05; //0.1; //0.5; //1.0; 
-    double finger_col_scale = 400; //175; //150.0; //200.0; //100.0; //1.0; //40.0; //400.0; //1.0; // only this matters when involved in same-hand collision
+    double finger_col_scale = 200; //400; // only this matters when involved in same-hand collision
+    // 400 is too large for gun_2 motion
 
     // Time of contact (stored to reduce number of queries)
     double time_of_contact;
@@ -544,7 +545,7 @@ void CollisionConstraint::linearizeOplus()
       // compute robot jacobians
       bool left_or_right = (group_id == 2);
       int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name, left_or_right);
-      if (finger_id != -1) // if not palm group !!!
+      // if (finger_id != -1) // if not palm group !!!
         jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name, ref_point_pos, finger_id, left_or_right);  
 
       // assign jacobians
@@ -639,6 +640,8 @@ void CollisionConstraint::linearizeOplus()
       }
 
       // hand part
+      // skip hand part
+      /*
       unsigned int d_hand = left_or_right_1 ? 0 : 12;
       switch (finger_id)
       {
@@ -672,6 +675,7 @@ void CollisionConstraint::linearizeOplus()
         std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
         double a;
       }
+      */
 
     }
     else // 0 or 1, arm, should calculate robot jacobian for arm group
@@ -722,6 +726,8 @@ void CollisionConstraint::linearizeOplus()
       }
 
       // hand part
+      // skip hand part
+      /*
       unsigned int d_hand = left_or_right_2 ? 0 : 12;
       switch (finger_id)
       {
@@ -755,6 +761,7 @@ void CollisionConstraint::linearizeOplus()
         std::cout << "debug: jacobian = " << _jacobianOplusXj << std::endl;
         double a;
       }
+      */
 
     }
     else // 0 or 1, arm, should calculate robot jacobian for arm group
@@ -882,18 +889,19 @@ Eigen::MatrixXd CollisionConstraint::compute_col_q_update(Eigen::MatrixXd jacobi
  * @param[in]     num_intervals     Number of intervals of interpolation for dense discrete collision checking between adjacent path points. 
  * Indicates the density of discrete collision checking. Note that a large value would cost more computation.
  */
-std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> CollisionConstraint::resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur, unsigned int num_intervals)
+std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> CollisionConstraint::resolve_path_collisions(std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> q_cur, unsigned int num_intervals,
+                                                                                              double arm_update_scale, double hand_update_scale)
 {
   // Prep
   double col_eps = 1.0 * M_PI / 180.0; //3.0 * M_PI / 180.0; // in radius
 
   // Iterate to resolve collision
   std::cout << ">> Processing the initial point 0 ..." << std::endl;
-  q_cur[0] = resolve_point_collisions(q_cur[0], q_cur[0], col_eps, 1);  // set num_intervals to 1 to only check for x0 itself
+  q_cur[0] = resolve_point_collisions(q_cur[0], q_cur[0], col_eps, 1, arm_update_scale, hand_update_scale);  // set num_intervals to 1 to only check for x0 itself
   for (unsigned int n = 0; n < q_cur.size() - 1; n++)
   {
     std::cout << ">> Processing transition between point " << n << " and " << (n+1) << " ..." << std::endl;
-    q_cur[n+1] = resolve_point_collisions(q_cur[n], q_cur[n+1], col_eps, num_intervals);    
+    q_cur[n+1] = resolve_point_collisions(q_cur[n], q_cur[n+1], col_eps, num_intervals, arm_update_scale, hand_update_scale);    
   }
 
   return q_cur;
@@ -911,7 +919,8 @@ std::vector<Eigen::Matrix<double, JOINT_DOF, 1>> CollisionConstraint::resolve_pa
  * @param[in]   num_intervals   Number of intervals of interpolation for dense discrete collision checking. Indicates the density of binary collision checking. 
  * @param[out]  x1_mod(actually x1)          The modified next path point, which would be equal to input x1 if no collision detected on the linearly interpolated line between x0 and x1.
  */
-Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collisions(Eigen::Matrix<double, JOINT_DOF, 1> x0, Eigen::Matrix<double, JOINT_DOF, 1> x1, double col_eps, unsigned int num_intervals)
+Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collisions(Eigen::Matrix<double, JOINT_DOF, 1> x0, Eigen::Matrix<double, JOINT_DOF, 1> x1, double col_eps, unsigned int num_intervals, 
+                                                                                  double arm_update_scale, double hand_update_scale)
 {
   // Prep
   double e_cur;
@@ -924,7 +933,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
   // Iterate to check, and resolve collision state, until everything is ok
   bool no_collision = false;
   Eigen::Matrix<double, JOINT_DOF, 1> x_col;
-  unsigned int max_checks = 5; //3; //500;
+  unsigned int max_checks = 3; //5; //5; //3; //500;
   unsigned int num_checks = 0;
   while (!no_collision && num_checks < max_checks)
   {
@@ -976,8 +985,9 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
       unsigned int cur_iter = 0;
       unsigned int max_iter = 500; // maximum iteration used to resolve the collision state
 
-      double scale = 0.1; // scaling for [dx,dy,dz,dp,dq,dw] Cartesian updates; shouldn't be too large. 
-      double hand_scale = 10.0;// 20.0; //10.0; //50.0; //20.0; //10.0; //1.0; //finger_col_scale; //1.0; // should be set appropriately
+      // scale small enough to proceed slowly, in case of jumps...
+      double scale = arm_update_scale;//0.1; //0.01; //0.1; // scaling for [dx,dy,dz,dp,dq,dw] Cartesian updates; shouldn't be too large. 
+      double hand_scale = hand_update_scale;//100.0; //10.0;
       
       while(e_cur > 0.0 && cur_iter < max_iter) // in collision state or within safety of margin; and within the maximum number of iterations
       {
@@ -1001,6 +1011,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
         Eigen::Vector3d ref_point_pos_2 = dual_arm_dual_hand_collision_ptr->nearest_points[1] - link_pos_2;    
 
         // Compute updates under different situation
+        // 1 - arm-arm collision
         if ((group_id_1 == 0 && group_id_2 == 0) || (group_id_1 == 0 && group_id_2 == 1) || (group_id_1 == 1 && group_id_2 == 0) || (group_id_1 == 1 && group_id_2 == 1) ) // collision between arm and arm (could be the same), update only q_arm
         {
           // determine left or right
@@ -1031,6 +1042,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
           std::cout << "2 - jacobian = " << dx << std::endl;
 
         }
+        // 2 - same-hand collision
         else if ((group_id_1 == 2 && group_id_2 == 2) || (group_id_1 == 3 && group_id_2 == 3) ) // collision between hand and hand (the same one), update only q_finger
         {
           // prep
@@ -1216,6 +1228,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
           
 
         }
+        // 3 - environment collision
         else if (group_id_1 == -1 || group_id_2 == -1) // one of the object doesn't belong to arms or hands, update only one arm+hand
         {
           // just in case
@@ -1238,12 +1251,12 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
             // compute robot jacobians
             bool left_or_right = (group_id == 2);
             int finger_id = dual_arm_dual_hand_collision_ptr->check_finger_belonging(link_name, left_or_right);
-            if (finger_id != -1) // if not palm group !!!
-            {
+            // if (finger_id != -1) // if not palm group !!!
+            // {
               jacobian = dual_arm_dual_hand_collision_ptr->get_robot_arm_hand_jacobian(link_name, ref_point_pos, finger_id, left_or_right);
               double direction = (group_id_1 == -1) ? 1.0 : -1.0;
               dq_col_update = this->compute_col_q_update(jacobian, direction * dual_arm_dual_hand_collision_ptr->normal, scale);
-            }
+            // }
 
             // arm part updates
             unsigned int d_arm = left_or_right ? 0 : 7;
@@ -1292,6 +1305,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
           }  
 
         }
+        // 4 - arm-hand, or hand-hand
         else // all the other conditions, update both q_arm and q_finger ()
         {
           // prep
@@ -1313,10 +1327,12 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
             dx.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
             
             // hand part updates
+            // skip hand part
+            /*
             unsigned int d_hand = left_or_right_1 ? 0 : 12;
             switch (finger_id)
             {
-              case 0: // thummb
+              case 0: // thumb
                 dx.block(0, 22 + d_hand, 1, 4) += dq_col_update.block(7, 0, 4, 1).transpose();
                 break;
               case 1: //index
@@ -1339,6 +1355,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
                 exit(-1);
                 break;
             }
+            */
           }
           else // 0 or 1, arm, should calculate robot jacobian for arm group
           {
@@ -1370,6 +1387,8 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
             dx.block(0, 0+d_arm, 1, 7) += dq_col_update.block(0, 0, 7, 1).transpose();
 
             // hand part updates
+            // skip hand part
+            /*
             unsigned int d_hand = left_or_right_2 ? 0 : 12;
             switch (finger_id)
             {
@@ -1396,6 +1415,7 @@ Eigen::Matrix<double, JOINT_DOF, 1> CollisionConstraint::resolve_point_collision
                 exit(-1);
                 break;
             }
+            */
           }
           else // 0 or 1, arm, should calculate robot jacobian for arm group
           {

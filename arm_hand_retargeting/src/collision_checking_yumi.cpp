@@ -628,7 +628,6 @@ double DualArmDualHandCollision::check_arm_self_collision(const std::vector<doub
 
   this->collision_result_.clear();
 
-
   // Get the PlanningScene maintained by move_group (getting PlanningScene from move_group might not be necessary for self-collision checking...)
   //planning_scene::PlanningScenePtr move_group_planning_scene = this->get_move_group_planning_scene();
 

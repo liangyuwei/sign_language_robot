@@ -365,7 +365,7 @@ double DMPConstraints::compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> 
   double rew_goal_change = (rew_new_goal.transpose() - this->rew_goal).norm();
 
   // set error
-  double lrw_margin = 0.0;//0.02;//0.01; // within 1 cm (a bad result displays 0.05 offset, calculated in MATLAB) // relax a few
+  double lrw_margin = 0.02; //0.0;//0.02;//0.01; // within 1 cm (a bad result displays 0.05 offset, calculated in MATLAB) // relax a few
   double ew_margin = 0.05; //0.02; // relative change between elbow and wrist, allow for robot with different configuration to track
   double rel_change_cost = std::max(lrw_start_change - lrw_margin, 0.0) +
                            std::max(lrw_goal_change - lrw_margin, 0.0) +
