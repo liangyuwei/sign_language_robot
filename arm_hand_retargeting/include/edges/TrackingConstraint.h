@@ -158,7 +158,7 @@ class TrackingConstraint : public BaseBinaryEdge<20, double, DMPStartsGoalsVerte
     MatrixXd J_lw, J_le, J_rw, J_re;
 
     /// Scaling factor for tracking jacobians for DMP
-    double dmp_jacobian_scale = 0.01; //0.005; //0.01; //0.1; //1.0;
+    double dmp_jacobian_scale = 0.0; // do not use tracking constraint to update DMP... since the error term is actually modified nullspace formulation
 
 };
 
@@ -344,7 +344,7 @@ Matrix<double, 20, JOINT_DOF> TrackingConstraint::output_q_jacobian()
  */
 void TrackingConstraint::linearizeOplus()
 {
-  double dmp_eps = 0.001; // better be small enough so that gradients on different dimensions won't diverge too much
+  double dmp_eps = 0.005; // better be small enough so that gradients on different dimensions won't diverge too much
   double q_finger_eps = 1.0 * M_PI / 180; // in radius
   Matrix<double, 20, 1> e_plus, e_minus;
 

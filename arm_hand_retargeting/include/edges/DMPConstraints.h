@@ -365,14 +365,21 @@ double DMPConstraints::compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> 
   double rew_goal_change = (rew_new_goal.transpose() - this->rew_goal).norm();
 
   // set error
-  double lrw_margin = 0.02;//0.02;//0.01; // within 1 cm (a bad result displays 0.05 offset, calculated in MATLAB) // relax a few
-  double ew_margin = 0.05; //0.02; // relative change between elbow and wrist, allow for robot with different configuration to track
+  double lrw_margin = 0.02; // within 1 cm (a bad result displays 0.05 offset, calculated in MATLAB) // relax a few
+  double ew_margin = 0.05; //0.1; //0.05; // relative change between elbow and wrist, allow for robot with different configuration to track
   double rel_change_cost = std::max(lrw_start_change - lrw_margin, 0.0) +
                            std::max(lrw_goal_change - lrw_margin, 0.0) +
                            std::max(lew_start_change - ew_margin, 0.0) +
                            std::max(lew_goal_change - ew_margin, 0.0) +
                            std::max(rew_start_change - ew_margin, 0.0) +
                            std::max(rew_goal_change - ew_margin, 0.0); // l1 penalty
+
+  // Print info for debug
+  // std::cout << "> DMP rel change cost <" << std::endl;
+  // std::cout << "debug: lrw_goal_change = " << lrw_goal_change << ", lrw_start_change = " << lrw_start_change << std::endl;
+  // std::cout << "debug: lew_goal_change = " << lew_goal_change << ", lew_start_change = " << lew_start_change << std::endl;
+  // std::cout << "debug: rew_goal_change = " << rew_goal_change << ", rew_start_change = " << rew_start_change << std::endl << std::endl;
+
 
   // apply scaling
   rel_change_cost = k_rel_change * rel_change_cost;
@@ -387,7 +394,7 @@ double DMPConstraints::compute_rel_change_cost(Matrix<double, DMPPOINTS_DOF, 1> 
 void DMPConstraints::linearizeOplus()
 {
   // Prep
-  double dmp_eps = 0.01;//0.005;//0.02;
+  double dmp_eps = 0.005; //0.01;//0.005;//0.02;
 
   // Get new DMP starts and goals
   const DMPStartsGoalsVertex *v = dynamic_cast<const DMPStartsGoalsVertex*>(_vertices[0]); // the last vertex connected

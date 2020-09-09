@@ -90,7 +90,7 @@ using namespace H5;
 std::string in_file_name = "test_imi_data_YuMi.h5";           
 std::string in_group_name = "fengren_1";
 std::string out_file_name = "mocap_ik_results_YuMi_g2o.h5";
-
+bool test_dmp_optim = false;
 
 /*!
  * This function sets elbow ID and wrist ID in constraint_data, and returns the KDL_FK solver.
