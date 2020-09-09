@@ -618,18 +618,18 @@ int main(int argc, char *argv[])
 
   // Start optimization and store cost history
   std::cout << ">>>> Start optimization of the whole graph" << std::endl;
-
+ 
   std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
   
   unsigned int num_rounds = 5; //3; // 20; //3; //1; //1;//20;//1;//10;//20;//200;
   unsigned int dmp_per_iterations = 20; //10;//5;//10;
-  unsigned int q_trk_per_iterations = 20; //200; //20;//50;//20;//10;//20;//50;//300;//10;//20; //50;
+  unsigned int q_trk_per_iterations = 20; //20;//50;//20;//10;//20;//50;//300;//10;//20; //50;
   unsigned int max_round; // record for ease
 
   // Maximum of coefficients for DMP related constraints
-  double K_DMPSTARTSGOALS_MAX = 3.0; //5.0; //10.0; //2.0;
-  double K_DMPSCALEMARGIN_MAX = 3.0; //5.0; //10.0; //2.0;
-  double K_DMPRELCHANGE_MAX = 3.0; //5.0; //10.0; //2.0;
+  double K_DMPSTARTSGOALS_MAX = 2.0; //5.0; //10.0; //2.0;
+  double K_DMPSCALEMARGIN_MAX = 2.0; //5.0; //10.0; //2.0;
+  double K_DMPRELCHANGE_MAX = 2.0; //5.0; //10.0; //2.0;
 
   
   // Sets of selectable coefficients
@@ -643,8 +643,8 @@ int main(int argc, char *argv[])
   }
   // 2 - K_SMOOTHNESS
   double k_smoothness_init = 1.0;
-  Matrix<double, 15, 1> K_SMOOTHNESS_set; //K_SMOOTHNESS_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
-  for (unsigned int s = 0; s < 15; s++)
+  Matrix<double, 10, 1> K_SMOOTHNESS_set; //K_SMOOTHNESS_set << 0.1, 1.0, 2.5, 5.0, 7.5, 10.0, 12.5, 15.0, 17.5, 20.0; //0.1, 0.5, 1.0, 2.5, 5.0, 10.0;
+  for (unsigned int s = 0; s < 10; s++)
   {
     K_SMOOTHNESS_set[s] = k_smoothness_init;
     k_smoothness_init = k_smoothness_init * 1.5;
@@ -668,9 +668,9 @@ int main(int argc, char *argv[])
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
   double smoothness_bound = std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); //std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
 
-  double dmp_orien_cost_bound = 1e-3; //5e-4; //1e-4; //1e-5; //eps; // 0.0, on account of numeric error //0.0; // better be 0, margin is already set in it!!!
-  double dmp_scale_cost_bound = 1e-3; //5e-4; //1e-4; //1e-5; //eps; // 0.0, on account of numeric error 0.0; // better be 0
-  double dmp_rel_change_cost_bound = 0.002; //0.005; //0.01; //eps; // 0.0, on account of numeric error//0.0; // better be 0
+  double dmp_orien_cost_bound = eps; // 0.0, on account of numeric error //0.0; // better be 0, margin is already set in it!!!
+  double dmp_scale_cost_bound = eps; // 0.0, on account of numeric error 0.0; // better be 0
+  double dmp_rel_change_cost_bound = eps; // 0.0, on account of numeric error//0.0; // better be 0
 
   double wrist_pos_cost_bound = std::sqrt( (std::pow(0.05, 2) * 3) ) * NUM_DATAPOINTS * 2; //std::sqrt( (std::pow(0.02, 2) * 3) ) * NUM_DATAPOINTS * 2; // 2 cm allowable error; note that for dual-arm, there are NUM_DATAPOINTS * 2 elbow position goals
   double elbow_pos_cost_bound = std::sqrt( (std::pow(0.15, 2) * 3) ) * NUM_DATAPOINTS * 2; //std::sqrt( (std::pow(0.03, 2) * 3) ) * NUM_DATAPOINTS * 2; // 3 cm allowable error;
@@ -1176,8 +1176,8 @@ int main(int argc, char *argv[])
         tmp_q[s] = vertex_tmp->estimate();
       }        
       //
-      unsigned int num_intervals = 100;
-      double arm_update_scale = 0.01; //0.1; //???
+      unsigned int num_intervals = 50; //100;
+      double arm_update_scale = 0.01; //0.1; 
       double hand_update_scale = 200.0; //100.0; 
       tmp_q = collision_edges[0]->resolve_path_collisions(tmp_q, num_intervals, arm_update_scale, hand_update_scale);
       //
@@ -1418,7 +1418,6 @@ int main(int argc, char *argv[])
 
       // Check if better than current best
       // Check if the best result from wrist pos+ori loop satisfies the bounds
-      /*
       std::cout << ">>>> Evaluating feasibility of the processed paths..." << std::endl;
       if (col_cost_after_optim <= col_cost_bound)
       {
@@ -1449,27 +1448,21 @@ int main(int argc, char *argv[])
           // record finger movements as the initial state of next round (because most of the time collision is caused by finger collision)
           for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
             q_initial_initial[s].block(14, 0, 24, 1) = best_q[s].block(14, 0, 24, 1);
-            
         }
-        /*
       }
       else
       {
         std::cout << "Non-feasible paths, continue to next round, or modify the sets of coefficients !!!" << std::endl;
       }
-      */
 
-      // std::cout << "Coefficient: K_ARM_TRACK = " << K_ARM_TRACK << std::endl;
-      // std::cout << "Cost: wrist_pos_cost = " << wrist_pos_cost_after_optim << " (bound: " << wrist_pos_cost_bound << ")" << std::endl;
-      // std::cout << "Cost: wrist_ori_cost = " << wrist_ori_cost_after_optim << " (bound: " << wrist_ori_cost_bound << ")" << std::endl;
-      // std::cout << "Cost: elbow_pos_cost = " << elbow_pos_cost_after_optim << " (bound: " << elbow_pos_cost_bound << ")" << std::endl;    
-
-
-      // std::cout << "> Time Usage:" << std::endl;
-      // std::cout << "Time used for current loop is: " << t_spent_outer_loop_cur.count() << " s." << std::endl;
 
     }while( //(id_k_col <= (K_COL_set.size()-1) && col_cost_after_optim > col_cost_bound) || 
             (id_k_smoothness <= (K_SMOOTHNESS_set.size()-1) && smoothness_cost_after_optim > smoothness_bound) );
+
+
+    // Store the current round's actually executed trajectories via FK provided by TrackingConstraint()
+    // note that it should be stored before best_q is assigned...
+    store_actual_trajs(tracking_edges, out_file_name, in_group_name, n);
 
 
     // Display the best result, and assign to q vertces
@@ -1505,10 +1498,6 @@ int main(int argc, char *argv[])
     // reset
     std::cout << "Re-activate DMP vertex." << std::endl;
     dmp_vertex->setFixed(false);
-
-
-    // Store actually executed trajectories via FK provided by TrackingConstraint()
-    store_actual_trajs(tracking_edges, out_file_name, in_group_name, n);
 
 
     // store statistics of the best result
