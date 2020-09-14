@@ -647,6 +647,7 @@ int main(int argc, char *argv[])
   unsigned int q_trk_per_iterations = 20; //20;//50;//20;//10;//20;//50;//300;//10;//20; //50;
   unsigned int max_round; // record for ease
 
+
   // Maximum of coefficients for DMP related constraints
   double K_DMPSTARTSGOALS_MAX = 10.0; 
   double K_DMPSCALEMARGIN_MAX = 10.0; 
@@ -702,6 +703,7 @@ int main(int argc, char *argv[])
 
   // for storing the best tracking result
   std::vector<Eigen::Matrix<double, JOINT_DOF, 1> > best_q(NUM_DATAPOINTS);    
+  unsigned int best_round = 0; // record the round index number corresponding to best_q
   double best_elbow_pos_cost = 10000;
   double best_wrist_pos_cost = 10000;
   double best_wrist_ori_cost = 10000;
@@ -1475,6 +1477,9 @@ int main(int argc, char *argv[])
             best_q[s] = vertex_tmp->estimate();
           } 
 
+          // record the current round index number, for later extraction of the current DMP starts and goals
+          best_round = n;
+
           // record finger movements as the initial state of next round (because most of the time collision is caused by finger collision)
           for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
             q_initial_initial[s].block(14, 0, 24, 1) = best_q[s].block(14, 0, 24, 1);
@@ -1916,7 +1921,7 @@ int main(int argc, char *argv[])
 
   // Store number of rounds reached for ease of debug
   write_h5(out_file_name, in_group_name, "max_round", (double)max_round);
-
+  write_h5(out_file_name, in_group_name, "best_round", (double)best_round);
 
   // Store the cost history
   std::cout << ">>>> Storing the cost history..." << std::endl;
