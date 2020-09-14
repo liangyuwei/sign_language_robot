@@ -1,5 +1,8 @@
 #include "tools/collision_checking_yumi.h"
 
+#include "tools/h5_io.h"
+#include "config.h"
+
 /**
  * Add a box to the scene (for debug collision checking with the environment)
  */
@@ -608,7 +611,7 @@ double DualArmDualHandCollision::check_self_collision(const std::vector<double> 
   }
 */
 
-  // Return the rsult
+  // Return the result
   double result = (this->collision_result_.collision ? 1 : -1); // 1 for colliding, -1 for free
   this->collision_result_.clear(); // should clear the results, in case the result object is used again!!!
   return result; // set to 1 if in collision
@@ -1726,6 +1729,59 @@ int main(int argc, char **argv)
   finger_id = -1;// - palm // 0;  
   robot_jacobian = dual_arm_dual_hand_collision_ptr->get_robot_hand_jacobian("Link111", Eigen::Vector3d::Zero(), finger_id, left_or_right);
   std::cout << "debug: jacobian of Link111 = \n" << robot_jacobian << std::endl;
+
+
+
+  // check collision state of a joint trajectory
+  std::cout << ">>>> Performing collision checking on a joint trajectory..." << std::endl;
+  // Test DMP optimization, skip the q optimization of the first round
+  std::string in_file_name = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/test_imi_data_YuMi.h5";           
+  std::string in_group_name = "fengren_1";
+  std::string out_file_name = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/mocap_ik_results_YuMi_g2o_similarity.h5";
+  std::cout << ">> Loading the joint trajectory..." << std::endl;
+  std::vector<Matrix<double, JOINT_DOF, 1> > q_test_dmp_optim(NUM_DATAPOINTS);
+  std::vector<std::vector<double> > q_results_last = read_h5(out_file_name, in_group_name, "arm_traj_1");
+  for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
+  {
+    Matrix<double, JOINT_DOF, 1> q_tmp;
+    for (unsigned int d = 0; d < JOINT_DOF; d++)
+      q_tmp[d] = q_results_last[s][d];
+    q_test_dmp_optim[s] = q_tmp;
+  }
+  // dense collision checking 
+  int num_col_points = 0;
+  unsigned int num_intervals = 100;
+  for (unsigned int i = 0; i < NUM_DATAPOINTS - 1; i++)
+  {
+    // iterate to do dense collision checking
+    unsigned int n = 0;
+    bool no_collision = true;
+    Matrix<double, JOINT_DOF, 1> x0 = q_test_dmp_optim[i];
+    Matrix<double, JOINT_DOF, 1> x1 = q_test_dmp_optim[i+1];
+    while (no_collision && n < num_intervals)
+    {
+      // Get interpolated point 
+      Eigen::Matrix<double, JOINT_DOF, 1> x = (double)(n+1) * (x1 - x0) / num_intervals + x0;
+
+      // Convert data type
+      std::vector<double> xx(JOINT_DOF);
+      for (unsigned int i = 0; i < JOINT_DOF; ++i)
+        xx[i] = x[i];
+
+      // Check
+      double col_result = dual_arm_dual_hand_collision_ptr->check_self_collision(xx);
+      no_collision = (col_result < 0.0);  // col_result 1 for colliding, -1 for collision-free
+      
+      // assign colliding state
+      if (!no_collision)
+        num_col_points++;
+
+      // counter
+      n++;
+    }
+  }
+  std::cout << "Number of transitions between adjacent path points, which contains collision state, is: " << num_col_points << "/" << NUM_DATAPOINTS-1 << std::endl;
+
 
   return 0;
 }

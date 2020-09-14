@@ -648,9 +648,9 @@ int main(int argc, char *argv[])
   unsigned int max_round; // record for ease
 
   // Maximum of coefficients for DMP related constraints
-  double K_DMPSTARTSGOALS_MAX = 2.0; //5.0; //10.0; //2.0;
-  double K_DMPSCALEMARGIN_MAX = 2.0; //5.0; //10.0; //2.0;
-  double K_DMPRELCHANGE_MAX = 2.0; //5.0; //10.0; //2.0;
+  double K_DMPSTARTSGOALS_MAX = 10.0; 
+  double K_DMPSCALEMARGIN_MAX = 10.0; 
+  double K_DMPRELCHANGE_MAX = 10.0; 
 
   
   // Sets of selectable coefficients
@@ -1225,7 +1225,7 @@ int main(int argc, char *argv[])
           tmp_q_store[d] = tmp_q[s][d];
         tmp_q_store_store.push_back(tmp_q_store);
       }  
-      write_h5(out_file_name, in_group_name, "arm_traj_collision_fix_" + std::to_string(count_tracking_loop), tmp_q_store_store);
+      write_h5(out_file_name, in_group_name, "arm_traj_collision_fix_" + std::to_string(n), tmp_q_store_store);
       // check results
       // wrist pos
       tmp_wrist_pos_cost = 0.0;

@@ -111,8 +111,8 @@ class CollisionConstraint : public BaseBinaryEdge<6, my_constraint_struct, DualA
     double d_hand_safe = 1e-6;   ///< Safety margin for hand part. A small value close to 0 is fine since link51 and link111 are really close to each other under initial collision-free state.
 
     // Scale factors for different scenerios
-    double non_finger_col_scale = 0.01; //0.05; //0.1; //0.5; //1.0; 
-    double finger_col_scale = 200; //400; // only this matters when involved in same-hand collision
+    double non_finger_col_scale = 0.1; //0.01; //0.05; //0.1; //0.5; //1.0; 
+    double finger_col_scale = 400; // only this matters when involved in same-hand collision
     // 400 is too large for gun_2 motion
 
     // Time of contact (stored to reduce number of queries)
