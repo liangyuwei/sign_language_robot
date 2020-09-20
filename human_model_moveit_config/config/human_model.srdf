@@ -1,0 +1,61 @@
+<?xml version="1.0" ?>
+<!--This does not replace URDF, and is not an extension of URDF.
+    This is a format for representing semantic information about the robot structure.
+    A URDF file must exist for this robot as well, where the joints and the links that are referenced are defined
+-->
+<robot name="human_model">
+    <!--GROUPS: Representation of a set of joints and links. This can be useful for specifying DOF to plan for, defining arms, end effectors, etc-->
+    <!--LINKS: When a link is specified, the parent joint of that link (if it exists) is automatically included-->
+    <!--JOINTS: When a joint is specified, the child link of that joint (which will always exist) is automatically included-->
+    <!--CHAINS: When a chain is specified, all the links along the chain (including endpoints) are included in the group. Additionally, all the joints that are parents to included links are also included. This means that joints along the chain and the parent joint of the base link are included in the group-->
+    <!--SUBGROUPS: Groups can also be formed by referencing to already defined group names-->
+    <group name="left_arm">
+        <joint name="left_shoulder_1_joint" />
+        <joint name="left_shoulder_2_joint" />
+        <joint name="left_shoulder_3_joint" />
+        <joint name="left_upperarm_fixed_joint" />
+        <joint name="left_elbow_1_joint" />
+        <joint name="left_elbow_2_joint" />
+        <joint name="left_forearm_fixed_joint" />
+        <joint name="left_wrist_1_joint" />
+        <joint name="left_wrist_2_joint" />
+        <joint name="left_hand_fixed_joint" />
+        <joint name="left_hand_tip_fixed_joint" />
+    </group>
+    <group name="right_arm">
+        <joint name="right_shoulder_1_joint" />
+        <joint name="right_shoulder_2_joint" />
+        <joint name="right_shoulder_3_joint" />
+        <joint name="right_upperarm_fixed_joint" />
+        <joint name="right_elbow_1_joint" />
+        <joint name="right_elbow_2_joint" />
+        <joint name="right_forearm_fixed_joint" />
+        <joint name="right_wrist_1_joint" />
+        <joint name="right_wrist_2_joint" />
+        <joint name="right_hand_fixed_joint" />
+        <joint name="right_hand_tip_fixed_joint" />
+    </group>
+    <group name="Empty">
+        <link name="human_base_link" />
+    </group>
+    <group name="dual_arms">
+        <group name="left_arm" />
+        <group name="right_arm" />
+    </group>
+    <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
+    <disable_collisions link1="left_forearm_link" link2="left_hand_link" reason="User" />
+    <disable_collisions link1="left_forearm_link" link2="left_upperarm_link" reason="User" />
+    <disable_collisions link1="left_forearm_link" link2="right_forearm_link" reason="User" />
+    <disable_collisions link1="left_forearm_link" link2="right_hand_link" reason="User" />
+    <disable_collisions link1="left_forearm_link" link2="right_upperarm_link" reason="User" />
+    <disable_collisions link1="left_hand_link" link2="left_upperarm_link" reason="User" />
+    <disable_collisions link1="left_hand_link" link2="right_forearm_link" reason="User" />
+    <disable_collisions link1="left_hand_link" link2="right_hand_link" reason="User" />
+    <disable_collisions link1="left_hand_link" link2="right_upperarm_link" reason="User" />
+    <disable_collisions link1="left_upperarm_link" link2="right_forearm_link" reason="User" />
+    <disable_collisions link1="left_upperarm_link" link2="right_hand_link" reason="User" />
+    <disable_collisions link1="left_upperarm_link" link2="right_upperarm_link" reason="User" />
+    <disable_collisions link1="right_forearm_link" link2="right_hand_link" reason="User" />
+    <disable_collisions link1="right_forearm_link" link2="right_upperarm_link" reason="User" />
+    <disable_collisions link1="right_hand_link" link2="right_upperarm_link" reason="User" />
+</robot>

@@ -1,0 +1,315 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+<!-- The arm should be attached to world frame, 
+     and the shoulder position should be specified by (x,y,z)
+     via three prismatic joints.
+-->
+
+<param name="pi" value="3.14159"/>
+
+<xacro:macro name="arm" params="dir prefix parent 
+                                upperarm_length 
+                                forearm_length 
+                                hand_length 
+                                shoulder_pos_x shoulder_pos_y shoulder_pos_z">
+
+    <!-- Shoulder joints -->
+    <link name="${prefix}_shoulder_1_link">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="1" />
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                    iyy="1.0" iyz="0.0"
+                    izz="1.0" />
+        </inertial>    
+    </link>
+
+    <joint name="${prefix}_shoulder_1_joint" type="revolute">
+        <origin xyz="${shoulder_pos_x} ${shoulder_pos_y} ${shoulder_pos_z}" rpy="0 0 ${(1-dir)/2*pi}" />
+        <axis xyz="0 1 0"/>
+        <parent link="${parent}"/>
+        <child link="${prefix}_shoulder_1_link"/>
+        <!-- <limit lower="-${pi}" upper="${pi/4}" effort="100" velocity="100"/> -->
+        <limit lower="-${pi}" upper="${pi}" effort="100" velocity="100"/>
+    </joint>
+
+    <link name="${prefix}_shoulder_2_link">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="1" />
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                    iyy="1.0" iyz="0.0"
+                    izz="1.0" />
+        </inertial>        
+    </link>
+    <joint name="${prefix}_shoulder_2_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <axis xyz="1 0 0"/>
+        <parent link="${prefix}_shoulder_1_link"/>
+        <child link="${prefix}_shoulder_2_link"/>
+        <limit lower="-${pi/2}" upper="${pi/2}" effort="100" velocity="100"/>
+    </joint>
+
+    <link name="${prefix}_shoulder_3_link"/>
+    <joint name="${prefix}_shoulder_3_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <axis xyz="0 0 1"/>
+        <parent link="${prefix}_shoulder_2_link"/>
+        <child link="${prefix}_shoulder_3_link"/>
+        <!-- <limit lower="-${pi/2}" upper="${pi*2/3}" effort="100" velocity="100"/> -->
+        <limit lower="-${pi*2/3}" upper="${pi*2/3}" effort="100" velocity="100"/>
+    </joint>
+
+    <!-- Upperarm link -->
+    <link name="${prefix}_upperarm_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+            <geometry>
+                <!-- <cylinder radius="${upperarm_radius}" length="${upperarm_length}"/> -->
+                <mesh filename="package://human_model/meshes/upperarm.dae" scale="${upperarm_length} ${upperarm_length} ${upperarm_length}"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+            <geometry>
+                <!-- <cylinder radius="${upperarm_radius}" length="${upperarm_length}"/> -->
+                <mesh filename="package://human_model/meshes/upperarm.dae" scale="${upperarm_length} ${upperarm_length} ${upperarm_length}"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+            <mass value="1" />
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                    iyy="1.0" iyz="0.0"
+                    izz="1.0" />
+        </inertial>
+    </link>
+    <joint name="${prefix}_upperarm_fixed_joint" type="fixed">
+        <origin xyz="0 0 -${upperarm_length/2}" rpy="0 0 0"/>
+        <parent link="${prefix}_shoulder_3_link"/>
+        <child link="${prefix}_upperarm_link"/>
+    </joint>
+
+    <!-- Elbow joints -->
+    <link name="${prefix}_elbow_1_link">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="1" />
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                    iyy="1.0" iyz="0.0"
+                    izz="1.0" />
+        </inertial>    
+    </link>
+    <joint name="${prefix}_elbow_1_joint" type="revolute">
+        <origin xyz="0 0 -${upperarm_length/2}" rpy="0 0 0"/>
+        <axis xyz="1 0 0"/>
+        <parent link="${prefix}_upperarm_link"/>
+        <child link="${prefix}_elbow_1_link"/>
+        <!-- <limit lower="0.0" upper="${pi*2/3}" effort="100" velocity="100"/> -->
+        <limit lower="-${pi*2/3}" upper="${pi*2/3}" effort="100" velocity="100"/>
+    </joint>
+
+    <link name="${prefix}_elbow_2_link">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="1" />
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                    iyy="1.0" iyz="0.0"
+                    izz="1.0" />
+        </inertial>        
+    </link>
+
+
+    <joint name="${prefix}_elbow_2_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <axis xyz="0 0 1"/>
+        <parent link="${prefix}_elbow_1_link"/>
+        <child link="${prefix}_elbow_2_link"/>
+        <!-- <limit lower="-${pi/2}" upper="0.0" effort="100" velocity="100"/> -->
+        <limit lower="-${pi*2/3}" upper="${pi*2/3}" effort="100" velocity="100"/>
+    </joint>
+
+
+    <!-- Forearm link -->
+    <link name="${prefix}_forearm_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+            <geometry>
+                <!-- <cylinder radius="${forearm_radius}" length="${forearm_length}"/> -->
+                <mesh filename="package://human_model/meshes/forearm.dae" scale="${forearm_length} ${forearm_length} ${forearm_length}"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+            <geometry>
+                <!-- <cylinder radius="${forearm_radius}" length="${forearm_length}"/> -->
+                <mesh filename="package://human_model/meshes/forearm.dae" scale="${forearm_length} ${forearm_length} ${forearm_length}"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+            <mass value="1" />
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                    iyy="1.0" iyz="0.0"
+                    izz="1.0" />
+        </inertial>
+    </link>
+    <joint name="${prefix}_forearm_fixed_joint" type="fixed">
+        <origin xyz="0 0 -${forearm_length/2}" rpy="0 0 0"/>
+        <parent link="${prefix}_elbow_2_link"/>
+        <child link="${prefix}_forearm_link"/>
+    </joint>
+
+    <!-- Wrist joints -->
+    <link name="${prefix}_wrist_1_link">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="1" />
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                    iyy="1.0" iyz="0.0"
+                    izz="1.0" />
+        </inertial>        
+    </link>
+    <joint name="${prefix}_wrist_1_joint" type="revolute">
+        <origin xyz="0 0 -${forearm_length/2}" rpy="0 0 0"/>
+        <axis xyz="1 0 0"/>
+        <parent link="${prefix}_forearm_link"/>
+        <child link="${prefix}_wrist_1_link"/>
+        <limit lower="-${pi/2}" upper="${pi/2}" effort="100" velocity="100"/>
+    </joint>
+
+    <link name="${prefix}_wrist_2_link">
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 0"/>
+            <mass value="1" />
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                    iyy="1.0" iyz="0.0"
+                    izz="1.0" />
+        </inertial>        
+    </link>
+    <joint name="${prefix}_wrist_2_joint" type="revolute">
+        <origin xyz="0 0 0" rpy="0 0 0"/>
+        <axis xyz="0 1 0"/>
+        <parent link="${prefix}_wrist_1_link"/>
+        <child link="${prefix}_wrist_2_link"/>
+        <limit lower="-${pi/4}" upper="${pi/4}" effort="100" velocity="100"/>
+    </joint>
+
+    <!-- Hand link -->
+    <link name="${prefix}_hand_link">
+        <visual>
+            <origin xyz="0 0 0" rpy="0 0 ${pi}"/>     
+            <geometry>
+                <!-- <cylinder radius="${hand_radius}" length="${hand_length}"/>                 -->
+                <mesh filename="package://human_model/meshes/hand.dae" scale="${hand_length} ${hand_length} ${hand_length}"/>
+            </geometry>
+        </visual>
+        <collision>
+            <origin xyz="0 0 0" rpy="0 0 ${pi}"/>     
+            <geometry>
+                <!-- <cylinder radius="${hand_radius}" length="${hand_length}"/>                 -->
+                <mesh filename="package://human_model/meshes/hand.dae" scale="${hand_length} ${hand_length} ${hand_length}"/>
+            </geometry>
+        </collision>
+        <inertial>
+            <origin xyz="0 0 0" rpy="0 0 ${pi}"/>
+            <mass value="1" />
+            <inertia ixx="1.0" ixy="0.0" ixz="0.0"
+                    iyy="1.0" iyz="0.0"
+                    izz="1.0" />
+        </inertial>
+    </link>
+    <joint name="${prefix}_hand_fixed_joint" type="fixed">
+        <origin xyz="0 0 -${hand_length/2}" rpy="0 0 0"/>
+        <parent link="${prefix}_wrist_2_link"/>
+        <child link="${prefix}_hand_link"/>        
+    </joint>
+
+    <!-- Virtual hand tip -->
+    <link name="${prefix}_virtual_hand_tip_link"/>
+    <joint name="${prefix}_hand_tip_fixed_joint" type="fixed">
+        <origin xyz="0 0 -${hand_length/2}" rpy="0 0 0"/>
+        <parent link="${prefix}_hand_link"/>
+        <child link="${prefix}_virtual_hand_tip_link"/>
+    </joint>
+
+    <!-- Transmission information -->
+    <!-- Shoulder joints -->
+    <transmission name="${prefix}_shoulder_1_trans">
+        <type>transmission_interface/SimpleTransmission</type>
+        <joint name="${prefix}_shoulder_1_joint">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+        </joint>
+        <actuator name="${prefix}_shoulder_1_actuator">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+          <mechanicalReduction>1</mechanicalReduction>
+        </actuator>
+    </transmission>
+    <transmission name="${prefix}_shoulder_2_trans">
+        <type>transmission_interface/SimpleTransmission</type>
+        <joint name="${prefix}_shoulder_2_joint">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+        </joint>
+        <actuator name="${prefix}_shoulder_2_actuator">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+          <mechanicalReduction>1</mechanicalReduction>
+        </actuator>
+    </transmission>
+    <transmission name="${prefix}_shoulder_3_trans">
+        <type>transmission_interface/SimpleTransmission</type>
+        <joint name="${prefix}_shoulder_3_joint">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+        </joint>
+        <actuator name="${prefix}_shoulder_3_actuator">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+          <mechanicalReduction>1</mechanicalReduction>
+        </actuator>
+    </transmission>
+    <!-- Elbow joints -->
+    <transmission name="${prefix}_elbow_1_trans">
+        <type>transmission_interface/SimpleTransmission</type>
+        <joint name="${prefix}_elbow_1_joint">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+        </joint>
+        <actuator name="${prefix}_elbow_1_actuator">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+          <mechanicalReduction>1</mechanicalReduction>
+        </actuator>
+    </transmission>
+    <transmission name="${prefix}_elbow_2_trans">
+        <type>transmission_interface/SimpleTransmission</type>
+        <joint name="${prefix}_elbow_2_joint">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+        </joint>
+        <actuator name="${prefix}_elbow_2_actuator">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+          <mechanicalReduction>1</mechanicalReduction>
+        </actuator>
+    </transmission>
+    <!-- Wrist joints -->
+    <transmission name="${prefix}_wrist_1_trans">
+        <type>transmission_interface/SimpleTransmission</type>
+        <joint name="${prefix}_wrist_1_joint">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+        </joint>
+        <actuator name="${prefix}_wrist_1_actuator">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+          <mechanicalReduction>1</mechanicalReduction>
+        </actuator>
+    </transmission>
+    <transmission name="${prefix}_wrist_2_trans">
+        <type>transmission_interface/SimpleTransmission</type>
+        <joint name="${prefix}_wrist_2_joint">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+        </joint>
+        <actuator name="${prefix}_wrist_2_actuator">
+          <hardwareInterface>hardware_interface/PositionJointInterface</hardwareInterface>
+          <mechanicalReduction>1</mechanicalReduction>
+        </actuator>
+    </transmission>
+    
+
+</xacro:macro>
+
+</robot>

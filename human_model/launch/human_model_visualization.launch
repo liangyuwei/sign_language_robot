@@ -1,0 +1,33 @@
+<launch>
+
+    <!-- Load robot_description as ros parameter -->
+    <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find human_model)/urdf/human_model.urdf.xacro'" />
+    <!-- <param name="robot_description" textfile="$(find human_model)/urdf/human_model.urdf" /> -->
+
+    
+    <!-- Launch Gazebo and load robot model -->
+    <!-- <include file="$(find gazebo_ros)/launch/empty_world.launch"/>
+    <node name="spawn_human_model_urdf" pkg="gazebo_ros" type="spawn_model" output="screen" args="-param robot_description -urdf -model human_model"/> -->
+
+
+    <!-- State publishers -->
+    <arg name="use_gui" default="false"/>
+    <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+        <param name="use_gui" value="(arg use_gui)"/>
+    </node>
+    <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen"/>
+
+
+    <!-- RVIz -->
+    <arg name="command_args" value="-d $(find human_model)/rviz/human_model.rviz" />
+    <node name="rviz_human_model" pkg="rviz" type="rviz" respawn="false" args="$(arg command_args)" output="screen"/>
+
+
+    <!-- Controllers (requires Gazebo to be launched, otherwise controller_manager service is not advertised.) -->
+    <!-- <rosparam file="$(find human_model)/config/controllers.yaml" command="load"/>
+    <node name="controller_spawner" pkg="controller_manager" type="spawner" 
+                respawn="false" output="screen"
+                args="- -timeout 120 joint_state_controller left_arm_joint_controller right_arm_joint_controller"/> -->
+
+    
+</launch>

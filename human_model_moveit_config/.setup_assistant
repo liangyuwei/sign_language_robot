@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: human_model
+    relative_path: urdf/human_model.urdf.xacro
+    xacro_args: "--inorder "
+  SRDF:
+    relative_path: config/human_model.srdf
+  CONFIG:
+    author_name: Yuwei Liang
+    author_email: lyw.liangyuwei@gmail.com
+    generated_timestamp: 1600503391
