@@ -14,8 +14,8 @@
 
     <!-- Human upperarm, forearm, hand size parameters -->
     <xacro:property name="arm_scale" value="1"/>
-    <xacro:property name="upperarm_length" value="${0.2*arm_scale}"/>
-    <xacro:property name="forearm_length" value="${0.23*arm_scale}"/>
+    <xacro:property name="upperarm_length" value="0.1850"/> <!--"${0.2*arm_scale}"/-->
+    <xacro:property name="forearm_length" value="0.2264" /> <!--"${0.23*arm_scale}"/-->
     <xacro:property name="hand_length" value="${0.12*arm_scale}"/>
     <xacro:property name="shoulder_height" value="1.3"/>
     <xacro:property name="shoulder_width" value="0.54"/>
