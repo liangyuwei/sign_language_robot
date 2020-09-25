@@ -3,6 +3,8 @@
 #include "tools/h5_io.h"
 #include "config.h"
 
+using namespace h5_io;
+
 /**
  * Add a box to the scene (for debug collision checking with the environment)
  */
@@ -1748,7 +1750,26 @@ int main(int argc, char **argv)
       q_tmp[d] = q_results_last[s][d];
     q_test_dmp_optim[s] = q_tmp;
   }
+  // distance information on every path point
+  std::cout << ">> Collision condition on each path point:" << std::endl;
+  for (unsigned int i = 0; i < NUM_DATAPOINTS; i++)
+  {
+    std::cout << "> Path point " << i+1 << "/" << NUM_DATAPOINTS << std::endl;
+    // Dual Arms
+    std::cout << "dual_arms: " << std::endl;
+    dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_results_last[i], "dual_arms", 0.003);
+    std::cout << "Collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] << " and " 
+                                    << dual_arm_dual_hand_collision_ptr->link_names[1] << ", with min_dist = "
+                                    << dual_arm_dual_hand_collision_ptr->min_distance << "." << std::endl;
+    // Dual hands
+    std::cout << "dual_hands: " << std::endl;
+    dual_arm_dual_hand_collision_ptr->compute_self_distance_test(q_results_last[i], "dual_hands", 0.002);
+    std::cout << "Collision between " << dual_arm_dual_hand_collision_ptr->link_names[0] << " and " 
+                                    << dual_arm_dual_hand_collision_ptr->link_names[1] << ", with min_dist = "
+                                    << dual_arm_dual_hand_collision_ptr->min_distance << "." << std::endl;                                    
+  }
   // dense collision checking 
+  std::cout << ">> Iterate to do dense collision checking..." << std::endl;
   int num_col_points = 0;
   unsigned int num_intervals = 100;
   for (unsigned int i = 0; i < NUM_DATAPOINTS - 1; i++)

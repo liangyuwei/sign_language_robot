@@ -271,79 +271,21 @@
         <link name="Link111" />
     </group>
     <!--GROUP STATES: Purpose: Define a named state for a particular group, in terms of joint values. This is useful to define states like 'folded arms'-->
-    <group_state name="left_arm_home" group="left_arm">
-        <joint name="yumi_joint_1_l" value="-2.1652" />
-        <joint name="yumi_joint_2_l" value="-1.9307" />
-        <joint name="yumi_joint_3_l" value="-1.4529" />
-        <joint name="yumi_joint_4_l" value="0.0556" />
-        <joint name="yumi_joint_5_l" value="0" />
-        <joint name="yumi_joint_6_l" value="0" />
-        <joint name="yumi_joint_7_l" value="1.842" />
-    </group_state>
-    <group_state name="right_arm_home" group="right_arm">
-        <joint name="yumi_joint_1_r" value="2.1329" />
-        <joint name="yumi_joint_2_r" value="-1.9845" />
-        <joint name="yumi_joint_3_r" value="-1.4334" />
-        <joint name="yumi_joint_4_r" value="0" />
-        <joint name="yumi_joint_5_r" value="0" />
-        <joint name="yumi_joint_6_r" value="0" />
-        <joint name="yumi_joint_7_r" value="-1.9713" />
-    </group_state>
     <group_state name="dual_arms_home" group="dual_arms">
-        <joint name="yumi_joint_1_l" value="-2.1652" />
-        <joint name="yumi_joint_1_r" value="2.1329" />
-        <joint name="yumi_joint_2_l" value="-1.9307" />
-        <joint name="yumi_joint_2_r" value="-1.9845" />
-        <joint name="yumi_joint_3_l" value="-1.4529" />
-        <joint name="yumi_joint_3_r" value="-1.4334" />
-        <joint name="yumi_joint_4_l" value="0.0556" />
+        <joint name="yumi_joint_1_l" value="-1.5" />
+        <joint name="yumi_joint_1_r" value="1.5" />
+        <joint name="yumi_joint_2_l" value="-1.5" />
+        <joint name="yumi_joint_2_r" value="-1.5" />
+        <joint name="yumi_joint_3_l" value="0" />
+        <joint name="yumi_joint_3_r" value="0" />
+        <joint name="yumi_joint_4_l" value="0" />
         <joint name="yumi_joint_4_r" value="0" />
         <joint name="yumi_joint_5_l" value="0" />
         <joint name="yumi_joint_5_r" value="0" />
         <joint name="yumi_joint_6_l" value="0" />
         <joint name="yumi_joint_6_r" value="0" />
-        <joint name="yumi_joint_7_l" value="1.842" />
-        <joint name="yumi_joint_7_r" value="-1.9713" />
-    </group_state>
-    <group_state name="dual_arms_with_hands_home" group="dual_arms_with_hands">
-        <joint name="Link1" value="0" />
-        <joint name="Link11" value="0" />
-        <joint name="Link2" value="0" />
-        <joint name="Link22" value="0" />
-        <joint name="Link3" value="0" />
-        <joint name="Link33" value="0" />
-        <joint name="Link4" value="0" />
-        <joint name="Link44" value="0" />
-        <joint name="Link5" value="0" />
-        <joint name="Link51" value="0" />
-        <joint name="Link52" value="0" />
-        <joint name="Link53" value="0" />
-        <joint name="link1" value="0" />
-        <joint name="link11" value="0" />
-        <joint name="link2" value="0" />
-        <joint name="link22" value="0" />
-        <joint name="link3" value="0" />
-        <joint name="link33" value="0" />
-        <joint name="link4" value="0" />
-        <joint name="link44" value="0" />
-        <joint name="link5" value="0" />
-        <joint name="link51" value="0" />
-        <joint name="link52" value="0" />
-        <joint name="link53" value="0" />
-        <joint name="yumi_joint_1_l" value="-2.1652" />
-        <joint name="yumi_joint_1_r" value="2.1329" />
-        <joint name="yumi_joint_2_l" value="-1.9307" />
-        <joint name="yumi_joint_2_r" value="-1.9845" />
-        <joint name="yumi_joint_3_l" value="-1.4529" />
-        <joint name="yumi_joint_3_r" value="-1.4334" />
-        <joint name="yumi_joint_4_l" value="0.0556" />
-        <joint name="yumi_joint_4_r" value="0" />
-        <joint name="yumi_joint_5_l" value="0" />
-        <joint name="yumi_joint_5_r" value="0" />
-        <joint name="yumi_joint_6_l" value="0" />
-        <joint name="yumi_joint_6_r" value="0" />
-        <joint name="yumi_joint_7_l" value="1.842" />
-        <joint name="yumi_joint_7_r" value="-1.9713" />
+        <joint name="yumi_joint_7_l" value="1.5" />
+        <joint name="yumi_joint_7_r" value="-1.5" />
     </group_state>
     <!--END EFFECTOR: Purpose: Represent information about an end effector.-->
     <end_effector name="left_hand" parent_link="yumi_link_7_l" group="left_hand" parent_group="left_arm" />
@@ -358,16 +300,6 @@
     <disable_collisions link1="Link1" link2="Link4" reason="Never" />
     <disable_collisions link1="Link1" link2="Link44" reason="Never" />
     <disable_collisions link1="Link1" link2="Link5" reason="Never" />
-    <disable_collisions link1="Link1" link2="Link51" reason="Never" />
-    <disable_collisions link1="Link1" link2="link1" reason="Never" />
-    <disable_collisions link1="Link1" link2="link11" reason="Never" />
-    <disable_collisions link1="Link1" link2="link3" reason="Never" />
-    <disable_collisions link1="Link1" link2="link33" reason="Never" />
-    <disable_collisions link1="Link1" link2="link4" reason="Never" />
-    <disable_collisions link1="Link1" link2="link5" reason="Never" />
-    <disable_collisions link1="Link1" link2="link51" reason="Never" />
-    <disable_collisions link1="Link1" link2="link52" reason="Never" />
-    <disable_collisions link1="Link1" link2="link53" reason="Never" />
     <disable_collisions link1="Link1" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link1" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link1" link2="yumi_link_5_r" reason="Never" />
@@ -380,36 +312,18 @@
     <disable_collisions link1="Link11" link2="Link4" reason="Never" />
     <disable_collisions link1="Link11" link2="Link44" reason="Never" />
     <disable_collisions link1="Link11" link2="Link5" reason="Never" />
-    <disable_collisions link1="Link11" link2="link1" reason="Never" />
-    <disable_collisions link1="Link11" link2="link11" reason="Never" />
-    <disable_collisions link1="Link11" link2="link2" reason="Never" />
-    <disable_collisions link1="Link11" link2="link22" reason="Never" />
-    <disable_collisions link1="Link11" link2="link3" reason="Never" />
-    <disable_collisions link1="Link11" link2="link33" reason="Never" />
-    <disable_collisions link1="Link11" link2="link4" reason="Never" />
-    <disable_collisions link1="Link11" link2="link44" reason="Never" />
-    <disable_collisions link1="Link11" link2="link5" reason="Never" />
-    <disable_collisions link1="Link11" link2="link51" reason="Never" />
-    <disable_collisions link1="Link11" link2="link52" reason="Never" />
     <disable_collisions link1="Link11" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link11" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link11" link2="yumi_link_5_r" reason="Never" />
     <disable_collisions link1="Link11" link2="yumi_link_6_r" reason="Never" />
-    <disable_collisions link1="Link11" link2="yumi_link_7_l" reason="Never" />
     <disable_collisions link1="Link11" link2="yumi_link_7_r" reason="Never" />
     <disable_collisions link1="Link111" link2="Link2" reason="Adjacent" />
     <disable_collisions link1="Link111" link2="Link3" reason="Adjacent" />
     <disable_collisions link1="Link111" link2="Link4" reason="Adjacent" />
-    <disable_collisions link1="Link111" link2="Link44" reason="Never" />
     <disable_collisions link1="Link111" link2="Link5" reason="Adjacent" />
-    <disable_collisions link1="Link111" link2="Link52" reason="Never" />
-    <disable_collisions link1="Link111" link2="Link53" reason="Never" />
-    <disable_collisions link1="Link111" link2="link111" reason="Default" />
     <disable_collisions link1="Link111" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link111" link2="yumi_link_4_r" reason="Never" />
-    <disable_collisions link1="Link111" link2="yumi_link_6_l" reason="Default" />
     <disable_collisions link1="Link111" link2="yumi_link_6_r" reason="Default" />
-    <disable_collisions link1="Link111" link2="yumi_link_7_l" reason="Default" />
     <disable_collisions link1="Link111" link2="yumi_link_7_r" reason="Adjacent" />
     <disable_collisions link1="Link2" link2="Link22" reason="Adjacent" />
     <disable_collisions link1="Link2" link2="Link3" reason="Never" />
@@ -419,16 +333,6 @@
     <disable_collisions link1="Link2" link2="Link5" reason="Never" />
     <disable_collisions link1="Link2" link2="Link51" reason="Never" />
     <disable_collisions link1="Link2" link2="Link52" reason="Never" />
-    <disable_collisions link1="Link2" link2="Link53" reason="Never" />
-    <disable_collisions link1="Link2" link2="link1" reason="Never" />
-    <disable_collisions link1="Link2" link2="link11" reason="Never" />
-    <disable_collisions link1="Link2" link2="link2" reason="Never" />
-    <disable_collisions link1="Link2" link2="link33" reason="Never" />
-    <disable_collisions link1="Link2" link2="link44" reason="Never" />
-    <disable_collisions link1="Link2" link2="link5" reason="Never" />
-    <disable_collisions link1="Link2" link2="link51" reason="Never" />
-    <disable_collisions link1="Link2" link2="link52" reason="Never" />
-    <disable_collisions link1="Link2" link2="link53" reason="Never" />
     <disable_collisions link1="Link2" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link2" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link2" link2="yumi_link_5_r" reason="Never" />
@@ -442,15 +346,6 @@
     <disable_collisions link1="Link22" link2="Link51" reason="Never" />
     <disable_collisions link1="Link22" link2="Link52" reason="Never" />
     <disable_collisions link1="Link22" link2="Link53" reason="Never" />
-    <disable_collisions link1="Link22" link2="link1" reason="Never" />
-    <disable_collisions link1="Link22" link2="link11" reason="Never" />
-    <disable_collisions link1="Link22" link2="link33" reason="Never" />
-    <disable_collisions link1="Link22" link2="link4" reason="Never" />
-    <disable_collisions link1="Link22" link2="link44" reason="Never" />
-    <disable_collisions link1="Link22" link2="link5" reason="Never" />
-    <disable_collisions link1="Link22" link2="link51" reason="Never" />
-    <disable_collisions link1="Link22" link2="link52" reason="Never" />
-    <disable_collisions link1="Link22" link2="link53" reason="Never" />
     <disable_collisions link1="Link22" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link22" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link22" link2="yumi_link_5_r" reason="Never" />
@@ -463,11 +358,6 @@
     <disable_collisions link1="Link3" link2="Link51" reason="Never" />
     <disable_collisions link1="Link3" link2="Link52" reason="Never" />
     <disable_collisions link1="Link3" link2="Link53" reason="Never" />
-    <disable_collisions link1="Link3" link2="link2" reason="Never" />
-    <disable_collisions link1="Link3" link2="link44" reason="Never" />
-    <disable_collisions link1="Link3" link2="link5" reason="Never" />
-    <disable_collisions link1="Link3" link2="link52" reason="Never" />
-    <disable_collisions link1="Link3" link2="link53" reason="Never" />
     <disable_collisions link1="Link3" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link3" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link3" link2="yumi_link_5_r" reason="Never" />
@@ -479,12 +369,6 @@
     <disable_collisions link1="Link33" link2="Link51" reason="Never" />
     <disable_collisions link1="Link33" link2="Link52" reason="Never" />
     <disable_collisions link1="Link33" link2="Link53" reason="Never" />
-    <disable_collisions link1="Link33" link2="link22" reason="Never" />
-    <disable_collisions link1="Link33" link2="link4" reason="Never" />
-    <disable_collisions link1="Link33" link2="link44" reason="Never" />
-    <disable_collisions link1="Link33" link2="link5" reason="Never" />
-    <disable_collisions link1="Link33" link2="link51" reason="Never" />
-    <disable_collisions link1="Link33" link2="link52" reason="Never" />
     <disable_collisions link1="Link33" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link33" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link33" link2="yumi_link_5_r" reason="Never" />
@@ -495,9 +379,6 @@
     <disable_collisions link1="Link4" link2="Link51" reason="Never" />
     <disable_collisions link1="Link4" link2="Link52" reason="Never" />
     <disable_collisions link1="Link4" link2="Link53" reason="Never" />
-    <disable_collisions link1="Link4" link2="link22" reason="Never" />
-    <disable_collisions link1="Link4" link2="link3" reason="Never" />
-    <disable_collisions link1="Link4" link2="link5" reason="Never" />
     <disable_collisions link1="Link4" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link4" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link4" link2="yumi_link_5_r" reason="Never" />
@@ -507,13 +388,6 @@
     <disable_collisions link1="Link44" link2="Link51" reason="Never" />
     <disable_collisions link1="Link44" link2="Link52" reason="Never" />
     <disable_collisions link1="Link44" link2="Link53" reason="Never" />
-    <disable_collisions link1="Link44" link2="link22" reason="Never" />
-    <disable_collisions link1="Link44" link2="link33" reason="Never" />
-    <disable_collisions link1="Link44" link2="link4" reason="Never" />
-    <disable_collisions link1="Link44" link2="link44" reason="Never" />
-    <disable_collisions link1="Link44" link2="link5" reason="Never" />
-    <disable_collisions link1="Link44" link2="link51" reason="Never" />
-    <disable_collisions link1="Link44" link2="link52" reason="Never" />
     <disable_collisions link1="Link44" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link44" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link44" link2="yumi_link_5_r" reason="Never" />
@@ -522,14 +396,7 @@
     <disable_collisions link1="Link5" link2="Link51" reason="Adjacent" />
     <disable_collisions link1="Link5" link2="Link52" reason="Never" />
     <disable_collisions link1="Link5" link2="Link53" reason="Never" />
-    <disable_collisions link1="Link5" link2="link1" reason="Never" />
-    <disable_collisions link1="Link5" link2="link11" reason="Never" />
-    <disable_collisions link1="Link5" link2="link2" reason="Never" />
-    <disable_collisions link1="Link5" link2="link3" reason="Never" />
-    <disable_collisions link1="Link5" link2="link33" reason="Never" />
     <disable_collisions link1="Link5" link2="link4" reason="Never" />
-    <disable_collisions link1="Link5" link2="link44" reason="Never" />
-    <disable_collisions link1="Link5" link2="link52" reason="Never" />
     <disable_collisions link1="Link5" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link5" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link5" link2="yumi_link_5_r" reason="Never" />
@@ -537,34 +404,17 @@
     <disable_collisions link1="Link5" link2="yumi_link_7_r" reason="Never" />
     <disable_collisions link1="Link51" link2="Link52" reason="Adjacent" />
     <disable_collisions link1="Link51" link2="Link53" reason="Never" />
-    <disable_collisions link1="Link51" link2="link1" reason="Never" />
-    <disable_collisions link1="Link51" link2="link22" reason="Never" />
-    <disable_collisions link1="Link51" link2="link33" reason="Never" />
-    <disable_collisions link1="Link51" link2="link4" reason="Never" />
-    <disable_collisions link1="Link51" link2="link44" reason="Never" />
     <disable_collisions link1="Link51" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link51" link2="yumi_link_4_r" reason="Never" />
-    <disable_collisions link1="Link51" link2="yumi_link_5_l" reason="Default" />
     <disable_collisions link1="Link51" link2="yumi_link_5_r" reason="Never" />
     <disable_collisions link1="Link51" link2="yumi_link_6_r" reason="Never" />
     <disable_collisions link1="Link51" link2="yumi_link_7_r" reason="Never" />
     <disable_collisions link1="Link52" link2="Link53" reason="Adjacent" />
-    <disable_collisions link1="Link52" link2="link33" reason="Never" />
-    <disable_collisions link1="Link52" link2="link44" reason="Never" />
-    <disable_collisions link1="Link52" link2="link5" reason="Never" />
-    <disable_collisions link1="Link52" link2="link52" reason="Never" />
-    <disable_collisions link1="Link52" link2="link53" reason="Never" />
     <disable_collisions link1="Link52" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link52" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link52" link2="yumi_link_5_r" reason="Never" />
     <disable_collisions link1="Link52" link2="yumi_link_6_r" reason="Never" />
     <disable_collisions link1="Link52" link2="yumi_link_7_r" reason="Never" />
-    <disable_collisions link1="Link53" link2="link11" reason="Never" />
-    <disable_collisions link1="Link53" link2="link44" reason="Never" />
-    <disable_collisions link1="Link53" link2="link5" reason="Never" />
-    <disable_collisions link1="Link53" link2="link51" reason="Never" />
-    <disable_collisions link1="Link53" link2="link52" reason="Never" />
-    <disable_collisions link1="Link53" link2="link53" reason="Never" />
     <disable_collisions link1="Link53" link2="yumi_link_3_r" reason="Never" />
     <disable_collisions link1="Link53" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="Link53" link2="yumi_link_5_r" reason="Never" />
@@ -579,14 +429,12 @@
     <disable_collisions link1="link1" link2="link4" reason="Never" />
     <disable_collisions link1="link1" link2="link44" reason="Never" />
     <disable_collisions link1="link1" link2="link5" reason="Never" />
-    <disable_collisions link1="link1" link2="link51" reason="Never" />
-    <disable_collisions link1="link1" link2="link52" reason="Never" />
     <disable_collisions link1="link1" link2="yumi_link_3_l" reason="Never" />
     <disable_collisions link1="link1" link2="yumi_link_4_l" reason="Never" />
     <disable_collisions link1="link1" link2="yumi_link_5_l" reason="Never" />
     <disable_collisions link1="link1" link2="yumi_link_6_l" reason="Never" />
     <disable_collisions link1="link1" link2="yumi_link_7_l" reason="Never" />
-    <disable_collisions link1="link11" link2="link111" reason="Never" />
+    <disable_collisions link1="link1" link2="yumi_link_7_r" reason="Never" />
     <disable_collisions link1="link11" link2="link2" reason="Never" />
     <disable_collisions link1="link11" link2="link22" reason="Never" />
     <disable_collisions link1="link11" link2="link3" reason="Never" />
@@ -600,20 +448,13 @@
     <disable_collisions link1="link11" link2="yumi_link_6_l" reason="Never" />
     <disable_collisions link1="link11" link2="yumi_link_7_l" reason="Never" />
     <disable_collisions link1="link111" link2="link2" reason="Adjacent" />
-    <disable_collisions link1="link111" link2="link22" reason="Never" />
     <disable_collisions link1="link111" link2="link3" reason="Adjacent" />
-    <disable_collisions link1="link111" link2="link33" reason="Never" />
     <disable_collisions link1="link111" link2="link4" reason="Adjacent" />
-    <disable_collisions link1="link111" link2="link44" reason="Never" />
     <disable_collisions link1="link111" link2="link5" reason="Adjacent" />
-    <disable_collisions link1="link111" link2="link52" reason="Never" />
-    <disable_collisions link1="link111" link2="link53" reason="Never" />
     <disable_collisions link1="link111" link2="yumi_link_3_l" reason="Never" />
     <disable_collisions link1="link111" link2="yumi_link_4_l" reason="Never" />
     <disable_collisions link1="link111" link2="yumi_link_6_l" reason="Default" />
-    <disable_collisions link1="link111" link2="yumi_link_6_r" reason="Default" />
     <disable_collisions link1="link111" link2="yumi_link_7_l" reason="Adjacent" />
-    <disable_collisions link1="link111" link2="yumi_link_7_r" reason="Default" />
     <disable_collisions link1="link2" link2="link22" reason="Adjacent" />
     <disable_collisions link1="link2" link2="link3" reason="Never" />
     <disable_collisions link1="link2" link2="link33" reason="Never" />
@@ -621,8 +462,6 @@
     <disable_collisions link1="link2" link2="link44" reason="Never" />
     <disable_collisions link1="link2" link2="link5" reason="Never" />
     <disable_collisions link1="link2" link2="link51" reason="Never" />
-    <disable_collisions link1="link2" link2="link52" reason="Never" />
-    <disable_collisions link1="link2" link2="link53" reason="Never" />
     <disable_collisions link1="link2" link2="yumi_link_3_l" reason="Never" />
     <disable_collisions link1="link2" link2="yumi_link_4_l" reason="Never" />
     <disable_collisions link1="link2" link2="yumi_link_5_l" reason="Never" />
@@ -688,28 +527,33 @@
     <disable_collisions link1="link5" link2="yumi_link_5_l" reason="Never" />
     <disable_collisions link1="link5" link2="yumi_link_6_l" reason="Never" />
     <disable_collisions link1="link5" link2="yumi_link_7_l" reason="Never" />
-    <disable_collisions link1="link5" link2="yumi_link_7_r" reason="Never" />
     <disable_collisions link1="link51" link2="link52" reason="Adjacent" />
     <disable_collisions link1="link51" link2="link53" reason="Never" />
     <disable_collisions link1="link51" link2="yumi_link_3_l" reason="Never" />
+    <disable_collisions link1="link51" link2="yumi_link_4_l" reason="Never" />
+    <disable_collisions link1="link51" link2="yumi_link_5_l" reason="Never" />
     <disable_collisions link1="link51" link2="yumi_link_6_l" reason="Never" />
     <disable_collisions link1="link51" link2="yumi_link_7_l" reason="Never" />
     <disable_collisions link1="link52" link2="link53" reason="Adjacent" />
     <disable_collisions link1="link52" link2="yumi_link_3_l" reason="Never" />
+    <disable_collisions link1="link52" link2="yumi_link_4_l" reason="Never" />
+    <disable_collisions link1="link52" link2="yumi_link_5_l" reason="Never" />
     <disable_collisions link1="link52" link2="yumi_link_6_l" reason="Never" />
     <disable_collisions link1="link52" link2="yumi_link_7_l" reason="Never" />
     <disable_collisions link1="link53" link2="yumi_link_3_l" reason="Never" />
+    <disable_collisions link1="link53" link2="yumi_link_4_l" reason="Never" />
     <disable_collisions link1="link53" link2="yumi_link_5_l" reason="Never" />
     <disable_collisions link1="link53" link2="yumi_link_6_l" reason="Never" />
     <disable_collisions link1="link53" link2="yumi_link_7_l" reason="Never" />
-    <disable_collisions link1="link53" link2="yumi_link_7_r" reason="Never" />
     <disable_collisions link1="yumi_body" link2="yumi_link_1_l" reason="Adjacent" />
     <disable_collisions link1="yumi_body" link2="yumi_link_1_r" reason="Adjacent" />
     <disable_collisions link1="yumi_link_1_l" link2="yumi_link_1_r" reason="Never" />
     <disable_collisions link1="yumi_link_1_l" link2="yumi_link_2_l" reason="Adjacent" />
     <disable_collisions link1="yumi_link_1_l" link2="yumi_link_3_l" reason="Never" />
+    <disable_collisions link1="yumi_link_1_l" link2="yumi_link_4_l" reason="Never" />
     <disable_collisions link1="yumi_link_1_r" link2="yumi_link_2_r" reason="Adjacent" />
     <disable_collisions link1="yumi_link_1_r" link2="yumi_link_3_r" reason="Never" />
+    <disable_collisions link1="yumi_link_1_r" link2="yumi_link_4_r" reason="Never" />
     <disable_collisions link1="yumi_link_2_l" link2="yumi_link_3_l" reason="Adjacent" />
     <disable_collisions link1="yumi_link_2_r" link2="yumi_link_3_r" reason="Adjacent" />
     <disable_collisions link1="yumi_link_3_l" link2="yumi_link_4_l" reason="Adjacent" />
@@ -727,12 +571,7 @@
     <disable_collisions link1="yumi_link_4_r" link2="yumi_link_6_r" reason="Never" />
     <disable_collisions link1="yumi_link_4_r" link2="yumi_link_7_r" reason="Never" />
     <disable_collisions link1="yumi_link_5_l" link2="yumi_link_6_l" reason="Adjacent" />
-    <disable_collisions link1="yumi_link_5_r" link2="yumi_link_6_l" reason="Default" />
     <disable_collisions link1="yumi_link_5_r" link2="yumi_link_6_r" reason="Adjacent" />
-    <disable_collisions link1="yumi_link_6_l" link2="yumi_link_6_r" reason="Default" />
     <disable_collisions link1="yumi_link_6_l" link2="yumi_link_7_l" reason="Adjacent" />
-    <disable_collisions link1="yumi_link_6_l" link2="yumi_link_7_r" reason="Default" />
-    <disable_collisions link1="yumi_link_6_r" link2="yumi_link_7_l" reason="Default" />
     <disable_collisions link1="yumi_link_6_r" link2="yumi_link_7_r" reason="Adjacent" />
-    <disable_collisions link1="yumi_link_7_l" link2="yumi_link_7_r" reason="Default" />
 </robot>
