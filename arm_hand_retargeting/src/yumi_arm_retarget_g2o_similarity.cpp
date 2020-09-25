@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
   std::vector<Matrix<double, JOINT_DOF, 1> > q_test_dmp_optim(NUM_DATAPOINTS);
   if (test_dmp_optim)
   {
-    std::vector<std::vector<double> > q_results_last = read_h5(out_file_name, in_group_name, "arm_traj_1");
+    std::vector<std::vector<double> > q_results_last = h5_io::read_h5(out_file_name, in_group_name, "arm_traj_1");
     for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
     {
       Matrix<double, JOINT_DOF, 1> q_tmp;

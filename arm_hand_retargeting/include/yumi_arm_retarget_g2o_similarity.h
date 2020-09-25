@@ -84,6 +84,7 @@
 using namespace g2o;
 using namespace Eigen;
 using namespace H5;
+using namespace h5_io;
 
 
 // Program arguments, free of re-compilation

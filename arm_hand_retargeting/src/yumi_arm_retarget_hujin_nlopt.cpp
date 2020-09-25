@@ -581,8 +581,10 @@ double MyNLopt::compute_elbow_wrist_cost(KDL::ChainFkSolverPos_recursive fk_solv
 
 
   // Compute cost function
-  double K_WRIST_POS = 5.0; //1.0; //0.1; //1.0;
-  double K_ELBOW_POS = 5.0; //1.0; //0.1; //1.0;
+  double K_WRIST_POS = 0.01; //0.05; //1.0; // 0.1; 
+  double K_ELBOW_POS = 0.01; //0.05; //1.0; // 0.1; 
+  // (0.1, 0.1) works well for fengren_1, baozhu_1 and kaoqin_2, but not so good for gun_2 (after setting eps for constraints gradients calculation properly);
+  // (0.01, 0.01), works.. so so, for gun_2 motion
   double wrist_pos_cost = (wrist_pos_goal - wrist_pos_cur).norm();
   double elbow_pos_cost = (elbow_pos_goal - elbow_pos_cur).norm();
  
@@ -851,12 +853,13 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
                                                                     fdata->l_num_elbow_seg, fdata->r_num_elbow_seg,
                                                                     fdata);
   std::cout << ">>>> Iteration " << (num_iter+1) << "/" << max_iter << ": "
+            << "Total cost = " << total_cost << " || "
             << "l_wrist_cost = " << elbow_wrist_cost[0] << ", "
             << "r_wrist_cost = " << elbow_wrist_cost[1] << ", "
             << "l_elbow_cost = " << elbow_wrist_cost[2] << ", "
             << "r_elbow_cost = " << elbow_wrist_cost[3] << std::endl;;
   num_iter++;
-  
+
 
   // Compute gradient using Numeric Differentiation
   // only compute gradient if not NULL
@@ -912,7 +915,7 @@ void MyNLopt::my_inequality_constraint_pos(unsigned m, double *result, unsigned 
   // std::cout << std::endl;
 
   // Calculate numeric differentiation for SQP
-  double eps = 0.01;
+  double eps = 1e-5; //0.01;
   Matrix<double, ARM_DOF*ARM_DOF*2, 1> delta_x = Matrix<double, ARM_DOF*ARM_DOF*2, 1>::Zero();
   Matrix<double, 2*2*ARM_DOF, 1> error_plus, error_minus;
   if (grad)
@@ -977,7 +980,7 @@ void MyNLopt::my_inequality_constraint_vel(unsigned m, double *result, unsigned 
   // std::cout << std::endl;
 
   // Calculate numeric differentiation for SQP
-  double eps = 0.01;
+  double eps = 1e-5; //0.01;
   Matrix<double, ARM_DOF*ARM_DOF*2, 1> delta_x = Matrix<double, ARM_DOF*ARM_DOF*2, 1>::Zero();
   Matrix<double, 2*2*ARM_DOF, 1> error_plus, error_minus;
   if (grad)
@@ -1042,7 +1045,7 @@ void MyNLopt::my_inequality_constraint_acc(unsigned m, double *result, unsigned 
   // std::cout << std::endl;
 
   // Calculate numeric differentiation for SQP
-  double eps = 0.01;
+  double eps = 1e-5; //0.01;
   Matrix<double, ARM_DOF*ARM_DOF*2, 1> delta_x = Matrix<double, ARM_DOF*ARM_DOF*2, 1>::Zero();
   Matrix<double, 2*2*ARM_DOF, 1> error_plus, error_minus;
   if (grad)
@@ -1429,7 +1432,7 @@ void MyNLopt::my_equality_constraint_pos(unsigned m, double *result, unsigned n,
   Matrix<double, 2*ARM_DOF, 1> error = calculate_eq_constraints_pos_helper(x_mat, pos_id, fdata); // apply joint angle equality constraint on the last path point
   
   // Compute gradients for SQP using numeric differentiation
-  double eps = 0.01;
+  double eps = 1e-5; //0.01;
   Matrix<double, 2*ARM_DOF, 1> error_plus, error_minus;
   Matrix<double, ARM_DOF*ARM_DOF*2, 1> delta_x = Matrix<double, ARM_DOF*ARM_DOF*2, 1>::Zero();
   if (grad)
@@ -1478,7 +1481,7 @@ void MyNLopt::my_equality_constraint_vel(unsigned m, double *result, unsigned n,
   Matrix<double, 2*ARM_DOF, 1> error = calculate_eq_constraints_vel_helper(x_mat, vel_id, fdata); // apply joint angle equality constraint on the last path point
   
   // Compute gradients for SQP using numeric differentiation
-  double eps = 0.01;
+  double eps = 1e-5;//0.01;
   Matrix<double, 2*ARM_DOF, 1> error_plus, error_minus;
   Matrix<double, ARM_DOF*ARM_DOF*2, 1> delta_x = Matrix<double, ARM_DOF*ARM_DOF*2, 1>::Zero();
   if (grad)
@@ -1747,7 +1750,7 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string jo
   std::vector<double> x(x_dim, 0.0); // 2 matrices for both arms
 
   // Initialize identity matrices for both affine transform
-  Matrix<double, ARM_DOF, ARM_DOF> M = 0.1* Matrix<double, ARM_DOF, ARM_DOF>::Identity();
+  Matrix<double, ARM_DOF, ARM_DOF> M = Matrix<double, ARM_DOF, ARM_DOF>::Identity();
   for (unsigned int r = 0; r < ARM_DOF; r++)
   {
     for (unsigned int c = 0; c < ARM_DOF; c++)
@@ -1849,9 +1852,9 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string jo
   // opt.set_lower_bounds(qlb); // set lower bounds
   // opt.set_upper_bounds(qub); // set upper bounds
   opt.set_stopval(1e-12); // stop value
-  // opt.set_ftol_rel(1e-10); // objective function value changes by less than `tol` multiplied by the absolute value of the function value
+  opt.set_ftol_rel(1e-10); // objective function value changes by less than `tol` multiplied by the absolute value of the function value
   //opt.set_ftol_abs(1e-12); // objective function value changes by less than `tol`
-  // opt.set_xtol_rel(1e-8); // optimization parameters' magnitude changes by less than `tol` multiplied by the current magnitude(can set weights for each dimension)
+  opt.set_xtol_rel(1e-8); // optimization parameters' magnitude changes by less than `tol` multiplied by the current magnitude(can set weights for each dimension)
   //opt.set_xtol_abs(1e-8); // optimization parameters' magnitude changes by less than `tol`
   opt.set_maxeval(max_iter); // maximum evaluation
   //opt.set_maxtime(3.0); // maximum time
