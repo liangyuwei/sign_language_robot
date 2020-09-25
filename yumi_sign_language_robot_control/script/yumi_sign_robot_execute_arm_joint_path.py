@@ -53,8 +53,8 @@ def main():
 
     ### Read h5 file for joint paths (arms only for now)
     f = h5py.File(file_name, "r")
-    l_joint_angles_ik_yumi = f[group_name]['l_joint_angles_optim_ik_yumi']
-    r_joint_angles_ik_yumi = f[group_name]['r_joint_angles_optim_ik_yumi']
+    l_joint_angles_ik_yumi = f[group_name]['arm_traj_affine_l']#['l_joint_angles_optim_ik_yumi']#
+    r_joint_angles_ik_yumi = f[group_name]['arm_traj_affine_r']#['r_joint_angles_optim_ik_yumi']#
     lr_joint_angles_ik_yumi = np.concatenate((l_joint_angles_ik_yumi, r_joint_angles_ik_yumi), axis=1)
     f.close()
 
@@ -62,7 +62,7 @@ def main():
     ### Arms: Go to start positions
     import pdb
     pdb.set_trace()
-    print "============ Both arms go to initial positions..."
+    print("============ Both arms go to initial positions...")
     dual_arms_group.allow_replanning(True)
     dual_arms_group.go(lr_joint_angles_ik_yumi[0, :], wait=True)
     dual_arms_group.stop()
@@ -72,7 +72,7 @@ def main():
 
 
     ### Construct a plan
-    print "============ Construct a plan of two arms' motion..."
+    print("============ Construct a plan of two arms' motion...")
     cartesian_plan = moveit_msgs.msg.RobotTrajectory()
     cartesian_plan.joint_trajectory.header.frame_id = '/world'
     cartesian_plan.joint_trajectory.joint_names = ['yumi_joint_1_l', 'yumi_joint_2_l', 'yumi_joint_7_l', 'yumi_joint_3_l', 'yumi_joint_4_l', 'yumi_joint_5_l', 'yumi_joint_6_l'] \
@@ -88,7 +88,7 @@ def main():
 
 
     ### Execute the plan
-    print "============ Execute the planned path..."        
+    print("============ Execute the planned path...")
     dual_arms_group.execute(cartesian_plan, wait=True)
 
 

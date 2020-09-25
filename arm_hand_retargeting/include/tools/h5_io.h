@@ -19,6 +19,8 @@
 using namespace H5;
 using namespace Eigen;
 
+namespace h5_io{
+
 /**
  * Write 2-dim matrix to h5 file
  */
@@ -359,5 +361,6 @@ bool write_h5(const std::string file_name, const std::string group_name, const s
   return true;
 }
 
+}
 
 #endif

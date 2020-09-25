@@ -29,10 +29,10 @@ find_package(HDF5 REQUIRED COMPONENTS C CXX HL) # this works...
 include_directories(${HDF5_INCLUDE_DIRS})
 
 # For NLopt
-# find_package(NLopt REQUIRED)
-# if(NLopt_FOUND)
-#   message("NLopt lib is found: " ${NLOPT_LIBRARIES})
-# endif(NLopt_FOUND)
+find_package(NLopt REQUIRED)
+if(NLopt_FOUND)
+  message("NLopt lib is found: " ${NLOPT_LIBRARIES})
+endif(NLopt_FOUND)
 
 
 # Find G2O
@@ -232,7 +232,6 @@ target_link_libraries(generate_trajectory_using_DMP ${EIGEN3_LIBRARIES} ${HDF5_C
 #target_link_libraries(yumi_arm_retarget_nlopt distance_computation)
 #target_link_libraries(yumi_arm_retarget_nlopt collision_checking_yumi)
 
-
 #add_executable(yumi_arm_retarget_g2o src/yumi_arm_retarget_g2o.cpp)
 #target_link_libraries(yumi_arm_retarget_g2o ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 #target_link_libraries(yumi_arm_retarget_g2o collision_checking_yumi)
@@ -247,6 +246,11 @@ target_link_libraries(yumi_arm_retarget_g2o_similarity ${catkin_LIBRARIES} ${EIG
 #target_link_libraries(yumi_arm_retarget_g2o_similarity ${TORCH_LIBRARIES}) # libTorch
 #set_property(TARGET yumi_arm_retarget_g2o_similarity PROPERTY CXX_STANDARD 14)#14)
 
+
+### Optimization code for Hujin's method, for comparison with ours
+add_executable(yumi_arm_retarget_hujin_nlopt src/yumi_arm_retarget_hujin_nlopt.cpp)
+target_link_libraries(yumi_arm_retarget_hujin_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+# target_link_libraries(yumi_arm_retarget_hujin_nlopt collision_checking_yumi)
 
 
 ### Test modules
