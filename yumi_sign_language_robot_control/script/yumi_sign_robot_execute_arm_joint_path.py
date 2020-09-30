@@ -20,7 +20,7 @@ import h5py
 
 def main():
 
-  file_name = "mocap_ik_results_YuMi.h5"
+  file_name = "mocap_ik_results_YuMi_hujin.h5"
   group_name = "baozhu_1"
 
   try:

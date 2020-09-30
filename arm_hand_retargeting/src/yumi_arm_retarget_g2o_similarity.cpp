@@ -238,6 +238,8 @@ int main(int argc, char *argv[])
     {"in-group-name",         required_argument, NULL, 'g'},
     {"out-h5-filename",       required_argument, NULL, 'o'},
     {"test-dmp-optim",        required_argument, NULL, 't'},
+    {"finger-col-scale",      required_argument, NULL, 'f'},
+    {"non-finger-col-scale",  required_argument, NULL, 'n'},
     {"help",                        no_argument, NULL, 'h'},
     {0,                                       0,    0,   0}
   };
@@ -246,7 +248,7 @@ int main(int argc, char *argv[])
   {
     int opt_index = 0;
     // Get arguments
-    c = getopt_long(argc, argv, "i:g:o:ht", long_options, &opt_index);
+    c = getopt_long(argc, argv, "i:g:o:htf:n:", long_options, &opt_index);
     if (c == -1)
       break;
 
@@ -261,6 +263,8 @@ int main(int argc, char *argv[])
         std::cout << "    -g, --in-group-name, specify the group name in the h5 file, which is actually the motion's name.\n" << std::endl;
         std::cout << "    -o, --out-h5-name, specify the name of the output h5 file to store the resultant joint trajectory.\n" << std::endl;
         std::cout << "    -t, --test-dmp-optim, Test DMP optimization only.\n" << std::endl;
+        std::cout << "    -f, --finger-col-scale, Coefficient for finger-related collision jacobian.\n" << std::endl;
+        std::cout << "    -n, --non-finger-col-scale, Coefficient for non-finger-related collision jacobian.\n" << std::endl;
         return 0;
         break;
 
@@ -280,6 +284,14 @@ int main(int argc, char *argv[])
         test_dmp_optim = true;
         break;
 
+      case 'f':
+        FINGER_COL_SCALE = atof(optarg);
+        break;
+
+      case 'n':
+        NON_FINGER_COL_SCALE = atof(optarg);
+        break;
+
       default:
         break;
     }
@@ -288,7 +300,8 @@ int main(int argc, char *argv[])
   std::cout << "The input h5 file name is: " << in_file_name << std::endl;
   std::cout << "The motion name is: " << in_group_name << std::endl;
   std::cout << "The output h5 file name is: " << out_file_name << std::endl;
-
+  std::cout << "Non-finger collision scale = " << NON_FINGER_COL_SCALE << std::endl;
+  std::cout << "Finger collision scale = " << FINGER_COL_SCALE << std::endl;
 
   // Test DMP optimization, skip the q optimization of the first round
   std::vector<Matrix<double, JOINT_DOF, 1> > q_test_dmp_optim(NUM_DATAPOINTS);
@@ -688,7 +701,7 @@ int main(int argc, char *argv[])
   // Constraints bounds, used as termination condition
   double eps = 1e-6; // numeric error
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
-  double smoothness_bound = std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); //std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
+  double smoothness_bound = std::sqrt(std::pow(6.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); //std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
 
   double dmp_orien_cost_bound = eps; // 0.0, on account of numeric error //0.0; // better be 0, margin is already set in it!!!
   double dmp_scale_cost_bound = eps; // 0.0, on account of numeric error 0.0; // better be 0
@@ -1198,6 +1211,32 @@ int main(int argc, char *argv[])
       optimizer.optimize(q_trk_per_iterations); 
       }
 
+      // Store jacobians results
+      std::cout << ">> Jacobians <<" << std::endl;        
+      // output collision jacobians for debug
+      std::cout << "Norms of col_jacobians = ";
+      for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
+      {
+        // std::cout << unary_edges[n]->col_jacobians.norm() << " ";
+        std::cout << collision_edges[n]->col_jacobians.norm() << " ";
+      }
+      std::cout << std::endl << std::endl;    
+      // output jacobians of Smoothness edge for q vertices
+      std::cout << "Norms of smoothness_q_jacobian = ";
+      Matrix<double, 2, JOINT_DOF> smoothness_q_jacobian;
+      for (unsigned int n = 0; n < NUM_DATAPOINTS-1; n++)
+      {
+        smoothness_q_jacobian = smoothness_edges[n]->output_q_jacobian();
+        std::cout << smoothness_q_jacobian.norm() << " ";
+      }
+      std::cout << std::endl << std::endl;  
+
+      // debug:
+      tmp_col_cost = 0.0;
+      for (unsigned int t = 0; t < collision_edges.size(); t++)
+        tmp_col_cost += collision_edges[t]->return_col_cost(); 
+      std::cout << "Collision cost right after optimization: col_cost = " << tmp_col_cost << std::endl;
+
       // resolve collision, just in case...
       std::cout << "resolve the collision state of the optimized joint trajectories..." << std::endl;
       std::vector<Matrix<double, JOINT_DOF, 1>> tmp_q(NUM_DATAPOINTS);
@@ -1208,8 +1247,8 @@ int main(int argc, char *argv[])
       }        
       //
       unsigned int num_intervals = 50; //100;
-      double arm_update_scale = 0.01; //0.1; 
-      double hand_update_scale = 200.0; //100.0; 
+      double arm_update_scale = NON_FINGER_COL_SCALE; //0.01; //0.1; // 0.01; //0.1; 
+      double hand_update_scale = FINGER_COL_SCALE; //100.0; //200.0; //100.0;     // (0.1, xx) for gun_2???
       tmp_q = collision_edges[0]->resolve_path_collisions(tmp_q, num_intervals, arm_update_scale, hand_update_scale);
       //
       for (unsigned int s = 0; s < NUM_DATAPOINTS; s++)
@@ -1323,27 +1362,6 @@ int main(int argc, char *argv[])
       print_debug_output("r_elbow_pos_cost", r_elbow_pos_cost);
       print_debug_output("finger_cost", finger_cost);
 
-
-      // Store jacobians results
-      std::cout << ">> Jacobians <<" << std::endl;        
-      // output collision jacobians for debug
-      std::cout << "Norms of col_jacobians = ";
-      for (unsigned int n = 0; n < NUM_DATAPOINTS; n++)
-      {
-        // std::cout << unary_edges[n]->col_jacobians.norm() << " ";
-        std::cout << collision_edges[n]->col_jacobians.norm() << " ";
-      }
-      std::cout << std::endl << std::endl;    
-      // output jacobians of Smoothness edge for q vertices
-      std::cout << "Norms of smoothness_q_jacobian = ";
-      Matrix<double, 2, JOINT_DOF> smoothness_q_jacobian;
-      for (unsigned int n = 0; n < NUM_DATAPOINTS-1; n++)
-      {
-        smoothness_q_jacobian = smoothness_edges[n]->output_q_jacobian();
-        std::cout << smoothness_q_jacobian.norm() << " ";
-      }
-      std::cout << std::endl << std::endl;  
-
       // Evaluate costs after optimization, for loop termination checks
       // wrist pos
       wrist_pos_cost_after_optim = 0.0;
@@ -1374,18 +1392,18 @@ int main(int argc, char *argv[])
       // Adjust K_SMOOTHNESS
       if (smoothness_cost_after_optim > smoothness_bound && id_k_smoothness <= K_SMOOTHNESS_set.size() - 1) 
       {
-        if (smoothness_cost_before_optim - smoothness_cost_after_optim <= ftol) // if not descending or not descending fast enough, increase the K
-        {
+        // if (smoothness_cost_before_optim - smoothness_cost_after_optim <= ftol) // if not descending or not descending fast enough, increase the K
+        // {
           if (id_k_smoothness < K_SMOOTHNESS_set.size() - 1)
             std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << " ----> " << K_SMOOTHNESS_set[id_k_smoothness+1] << std::endl;
           else
             std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << " (Reached the end) " << std::endl;
           id_k_smoothness++;
-        }
-        else
-        {
-          std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << std::endl;
-        }
+        // }
+        // else
+        // {
+        //   std::cout << "Coefficient: K_SMOOTHNESS = " << K_SMOOTHNESS_set[id_k_smoothness] << std::endl;
+        // }
         std::cout << "Cost: smoothness_cost = " << smoothness_cost_before_optim << " ----> " << smoothness_cost_after_optim 
                                         << "(" << (smoothness_cost_before_optim > smoothness_cost_after_optim ? "-" : "+")
                                         << std::abs(smoothness_cost_before_optim - smoothness_cost_after_optim) << ")" 

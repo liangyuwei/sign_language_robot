@@ -40,6 +40,9 @@
 //#include "distance_computation.h"
 // #include "tools/collision_checking_yumi.h"
 
+double K_WRIST_POS = 0.1;
+double K_ELBOW_POS = 0.1;
+
 
 std::stringstream read_file(std::string file_name)
 {
@@ -581,8 +584,8 @@ double MyNLopt::compute_elbow_wrist_cost(KDL::ChainFkSolverPos_recursive fk_solv
 
 
   // Compute cost function
-  double K_WRIST_POS = 0.01; //0.05; //1.0; // 0.1; 
-  double K_ELBOW_POS = 0.01; //0.05; //1.0; // 0.1; 
+  // double K_WRIST_POS = 1.0; //0.1; //0.01; //0.05; //1.0; // 0.1; 
+  // double K_ELBOW_POS = 0.1; //0.01; //0.05; //1.0; // 0.1; 
   // (0.1, 0.1) works well for fengren_1, baozhu_1 and kaoqin_2, but not so good for gun_2 (after setting eps for constraints gradients calculation properly);
   // (0.01, 0.01), works.. so so, for gun_2 motion
   double wrist_pos_cost = (wrist_pos_goal - wrist_pos_cur).norm();
@@ -1115,6 +1118,9 @@ Matrix<double, 2*ARM_DOF, 1> MyNLopt::calculate_eq_constraints_pos_helper(Matrix
   error.block(0, 0, ARM_DOF, 1) = (mat_l - Matrix<double, ARM_DOF, ARM_DOF>::Identity()) * error_pos_l;
   error.block(ARM_DOF, 0, ARM_DOF, 1) = (mat_r - Matrix<double, ARM_DOF, ARM_DOF>::Identity()) * error_pos_r;
 
+  // debug:
+  // std::cout << "pos eq error = " << error.transpose() << std::endl;
+
   return error;
 }
 
@@ -1155,6 +1161,9 @@ Matrix<double, 2*ARM_DOF, 1> MyNLopt::calculate_eq_constraints_vel_helper(Matrix
   Matrix<double, ARM_DOF*2, 1> error;
   error.block(0, 0, ARM_DOF, 1) = (mat_l - Matrix<double, ARM_DOF, ARM_DOF>::Identity()) * error_vel_l;
   error.block(ARM_DOF, 0, ARM_DOF, 1) = (mat_r - Matrix<double, ARM_DOF, ARM_DOF>::Identity()) * error_vel_r;  
+
+  // debug:
+  // std::cout << "vel eq error = " << error.transpose() << std::endl;
 
   return error;
 }
@@ -1308,6 +1317,12 @@ Matrix<double, 2*2*ARM_DOF, 1> MyNLopt::calculate_ineq_constraints_vel_helper(Ma
   vel_lb_error_l = (vel_lb_error_l + vel_lb_error_l.cwiseAbs()) / 2.0;
   vel_ub_error_r = (vel_ub_error_r + vel_ub_error_r.cwiseAbs()) / 2.0;
   vel_lb_error_r = (vel_lb_error_r + vel_lb_error_r.cwiseAbs()) / 2.0;
+
+  // debug:
+  // std::cout << "vel_ub_error_l = " << vel_ub_error_l.transpose() << std::endl;
+  // std::cout << "vel_lb_error_l = " << vel_lb_error_l.transpose() << std::endl;
+  // std::cout << "vel_ub_error_r = " << vel_ub_error_r.transpose() << std::endl;
+  // std::cout << "vel_lb_error_r = " << vel_lb_error_r.transpose() << std::endl;
 
   // accumulate the values across different path points
   error.block(0, 0, ARM_DOF, 1) += vel_ub_error_l;
@@ -1999,6 +2014,23 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string jo
     optim_user_data.r_elbow_pos_goal[it] = optim_user_data.r_elbow_pos_goal[it] + re_set_offset;
   }
 
+
+  // way 3 - same trajectories as used for human IK (way 2 does a few modifications on the relative trajectories!!!! so it's not a good choice since human IK results are not solved according to that)
+  /*
+  Vector3d l_shoulder_pos_human = optim_user_data.l_shoulder_pos_goal[0];
+  Vector3d r_shoulder_pos_human = optim_user_data.r_shoulder_pos_goal[0];
+  Vector3d human_shoulder_center = (l_shoulder_pos_human + r_shoulder_pos_human) / 2.0;
+  Vector3d manual_offset; manual_offset << 0.0, 0.0, 0.65; 
+  for (unsigned int it = 0; it < optim_user_data.num_datapoints; it++)
+  {
+    optim_user_data.l_wrist_pos_goal[it] = optim_user_data.l_wrist_pos_goal[it] - human_shoulder_center + manual_offset;
+    optim_user_data.l_elbow_pos_goal[it] = optim_user_data.l_elbow_pos_goal[it] - human_shoulder_center + manual_offset;
+    optim_user_data.r_wrist_pos_goal[it] = optim_user_data.r_wrist_pos_goal[it] - human_shoulder_center + manual_offset;
+    optim_user_data.r_elbow_pos_goal[it] = optim_user_data.r_elbow_pos_goal[it] - human_shoulder_center + manual_offset;
+  }
+  */
+
+
   // store the target trajs
   std::vector<std::vector<double>> l_wrist_pos_goal_store, r_wrist_pos_goal_store, l_elbow_pos_goal_store, r_elbow_pos_goal_store;
   for (unsigned int it = 0; it < optim_user_data.num_datapoints; it++)
@@ -2163,6 +2195,8 @@ int main(int argc, char **argv)
     {"in-group-name", required_argument, NULL, 'g'},
     {"out-h5-filename", required_argument, NULL, 'o'},
     {"joint-ik-result-filename", required_argument, NULL, 'j'},
+    {"k-wrist-pos", required_argument, NULL, 'w'},
+    {"k-elbow-pos", required_argument, NULL, 'e'},
     {"help", no_argument, NULL, 'h'},
     {0, 0, 0, 0}
   };
@@ -2171,7 +2205,7 @@ int main(int argc, char **argv)
   {
     int opt_index = 0;
     // Get arguments
-    c = getopt_long(argc, argv, "i:g:o:j:h", long_options, &opt_index);
+    c = getopt_long(argc, argv, "i:g:o:j:hw:e:", long_options, &opt_index);
     if (c == -1)
       break;
 
@@ -2186,6 +2220,8 @@ int main(int argc, char **argv)
         std::cout << "    -g, --in-group-name, specify the group name in the h5 file, which is actually the motion's name.\n" << std::endl;
         std::cout << "    -o, --out-h5-name, specify the name of the output h5 file to store the resultant joint trajectory.\n" << std::endl;
         std::cout << "    -j, --joint-ik-result-filename, specify the h5 file that stores the re-mapped results of human IK joint trajectories.\n" << std::endl;
+        std::cout << "    -w, --k-wrist-pos, K_WRIST_POS for tracking.\n" << std::endl;
+        std::cout << "    -e, --k-elbow-pos, K_ELBOW_POS for tracking.\n" << std::endl;
         return 0;
         break;
 
@@ -2204,6 +2240,14 @@ int main(int argc, char **argv)
       case 'j':
         joint_ik_result_filename = optarg;
         break;
+      
+      case 'w':
+        K_WRIST_POS = atof(optarg);
+        break;
+      
+      case 'e':
+        K_ELBOW_POS = atof(optarg);
+        break;
 
       default:
         break;
@@ -2214,7 +2258,8 @@ int main(int argc, char **argv)
   std::cout << "The input h5 file that stores re-mapped human IK results is: " << joint_ik_result_filename << std::endl;
   std::cout << "The motion name is: " << in_group_name << std::endl;
   std::cout << "The output h5 file name is: " << out_file_name << std::endl;
-
+  std::cout << "K_WRIST_POS = " << K_WRIST_POS << std::endl;
+  std::cout << "K_ELBOW_POS = " << K_ELBOW_POS << std::endl;
 
   // Start optimization
   MyNLopt my_nlopt(argc, argv, in_file_name, joint_ik_result_filename, in_group_name, out_file_name);

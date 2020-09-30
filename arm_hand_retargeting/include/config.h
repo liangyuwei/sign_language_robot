@@ -29,6 +29,9 @@ double K_DMPSTARTSGOALS;        ///< Coefficient for the cost of orientation cha
 double K_DMPSCALEMARGIN;        ///< Coefficient for the cost of scale change of the vector pointing from start to goal.
 double K_DMPRELCHANGE;          ///< Coefficient for the cost of relative trajectories' changes in the magnitude of vectors connecting the corresponding starts and goals.
 
+double NON_FINGER_COL_SCALE = 0.1;
+double FINGER_COL_SCALE = 400.0;
+
 unsigned int count_col = 0;         ///< For debug, count the number of times collision checking is performed.
 unsigned int count_traj = 0;        ///< For debug, count the number of times (DMP) trajectory generator is called.
 unsigned int count_unary = 0;       ///< For debug, count the number of times unary edges are called. (now it's collision edge)
