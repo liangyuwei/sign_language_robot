@@ -1989,8 +1989,8 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string jo
   }
   */
   
-
   // way 2 - set the initial position of human demonstrations in the same way as we do, i.e. set the x and z to appropriate fixed positions, and set y properly to keep it as symmetrical as possible
+  /*
   // note that even so we still utilize different trajectories!!! because the reference trajectories we use are pre-processed according to human hand length and robot hand length...
   Vector3d lw_set_start; 
   Vector3d le_set_start; le_set_start << 0.218, 0.310, 0.378; 
@@ -2013,7 +2013,7 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string jo
     optim_user_data.r_wrist_pos_goal[it] = optim_user_data.r_wrist_pos_goal[it] + rw_set_offset;
     optim_user_data.r_elbow_pos_goal[it] = optim_user_data.r_elbow_pos_goal[it] + re_set_offset;
   }
-
+  */
 
   // way 3 - same trajectories as used for human IK (way 2 does a few modifications on the relative trajectories!!!! so it's not a good choice since human IK results are not solved according to that)
   /*
@@ -2030,6 +2030,23 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string jo
   }
   */
 
+
+  // way 4 - move human shoulder center to robot shoulder center (same offset applied to all four trajectories, therefore relative movements are not changed)
+  
+  Vector3d l_shoulder_pos_human = optim_user_data.l_shoulder_pos_goal[0];
+  Vector3d r_shoulder_pos_human = optim_user_data.r_shoulder_pos_goal[0]; // use the initial state which would be more appropriate
+  Vector3d human_shoulder_center = (l_shoulder_pos_human + r_shoulder_pos_human) / 2.0;
+  Vector3d robot_shoulder_center = (constraint_data.l_robot_shoulder_pos + constraint_data.r_robot_shoulder_pos) / 2.0;
+  Vector3d manual_offset; manual_offset << 0.25, 0.0, 0.0; // 0, 0, 0; //
+  Vector3d human_robot_offset = robot_shoulder_center - human_shoulder_center + manual_offset;
+  for (unsigned int it = 0; it < optim_user_data.num_datapoints; it++)
+  {
+    optim_user_data.l_wrist_pos_goal[it] = optim_user_data.l_wrist_pos_goal[it] + human_robot_offset;
+    optim_user_data.l_elbow_pos_goal[it] = optim_user_data.l_elbow_pos_goal[it] + human_robot_offset;
+    optim_user_data.r_wrist_pos_goal[it] = optim_user_data.r_wrist_pos_goal[it] + human_robot_offset;
+    optim_user_data.r_elbow_pos_goal[it] = optim_user_data.r_elbow_pos_goal[it] + human_robot_offset;
+  }
+  
 
   // store the target trajs
   std::vector<std::vector<double>> l_wrist_pos_goal_store, r_wrist_pos_goal_store, l_elbow_pos_goal_store, r_elbow_pos_goal_store;
