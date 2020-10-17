@@ -61,6 +61,7 @@ def main():
     dual_arms_group = moveit_commander.MoveGroupCommander("dual_arms")
     '''
     dual_arms_with_hands_group = moveit_commander.MoveGroupCommander("dual_arms_with_hands")
+    dual_hands_group = moveit_commander.MoveGroupCommander("dual_hands")
 
 
     ### Read h5 file for joint paths (arms only for now)
@@ -85,13 +86,15 @@ def main():
     # #dual_arms_with_hands_group.set_joint_value_target(dual_arms_with_hands_start)
     # dual_arms_with_hands_group.go(dual_arms_with_hands_start, wait=True)
     # dual_arms_with_hands_group.stop()
-
+    import pdb
+    pdb.set_trace()
     # first frame was ignored!!!!! so execute from the second frame
     dual_arms_with_hands_start = arm_path_array[1, :7].tolist() + arm_path_array[1, 14:26].tolist() + arm_path_array[1, 7:14].tolist() + arm_path_array[1, 26:38].tolist()
     dual_arms_with_hands_group.allow_replanning(True)
     #dual_arms_with_hands_group.set_joint_value_target(dual_arms_with_hands_start)
     dual_arms_with_hands_group.go(dual_arms_with_hands_start, wait=True)
     dual_arms_with_hands_group.stop()
+
 
 
     ### Construct a plan

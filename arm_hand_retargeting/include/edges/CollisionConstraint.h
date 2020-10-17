@@ -106,15 +106,16 @@ class CollisionConstraint : public BaseBinaryEdge<6, my_constraint_struct, DualA
     // use different margins of safety for arms and hands
     // here the safety margin should be set according to actual condition: set a collision-free state and check minimum distance for dual_arms and dual_hands using collision_checking_yumi.cpp to have a sense of it
     double d_arm_check = 0.003;  ///< Distance threshold under which to check collision, note that d_check must be strictly greater than d_safe.
-    double d_arm_safe = 0.001; ///< Safety margin for arm part. In the current condition, 0.01 would actually be too large, for some links are very close to each other, e.g. _5_l and _7_l.
+    double d_arm_safe = 0.0001; ///< Safety margin for arm part. In the current condition, 0.01 would actually be too large, for some links are very close to each other, e.g. _5_l and _7_l.
     // 0.0001; // 0.001 is enough for most cases, but in the motion of juan_2 yumi_link_5_l and yumi_link_7_l are pretty close... dist = 0.000563,0.00044
     // 0.001;  // good enough for most cases
     double d_hand_check = 0.002; ///< Distance threshold under which to check collision, note that d_check must be strictly greater than d_safe. 
     double d_hand_safe = 1e-6;   ///< Safety margin for hand part. A small value close to 0 is fine since link51 and link111 are really close to each other under initial collision-free state.
 
     // Scale factors for different scenerios
-    double non_finger_col_scale = NON_FINGER_COL_SCALE; // 0.1; //0.001; //0.01; //0.1; //0.01; //0.05; //0.1; //0.5; //1.0; 
-    double finger_col_scale = FINGER_COL_SCALE; //400; // only this matters when involved in same-hand collision
+    double non_finger_col_scale = NON_FINGER_COL_SCALE;  
+    double finger_col_scale = FINGER_COL_SCALE; // only this matters when involved in same-hand collision
+    // (1.0, 100.0) good for fengren_1
     // 400 is default, but 400 is too large for gun_2 motion
 
     // Time of contact (stored to reduce number of queries)

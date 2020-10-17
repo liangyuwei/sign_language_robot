@@ -1,6 +1,13 @@
 
 // header
-#include "KDL_FK_Solver.h"
+#include "tools/KDL_FK_Solver.h"
+
+// Process the terminal arguments
+#include <getopt.h>
+// Read and Write to H5 files
+#include "tools/h5_io.h"
+
+using namespace h5_io;
 
 
 KDL_FK_Solver::KDL_FK_Solver()
@@ -278,6 +285,48 @@ Vector3d KDL_FK_Solver::return_shoulder_pos(KDL::ChainFkSolverPos_recursive &fk_
 // test usage
 int main(int argc, char **argv)
 {
+
+  // Settings 
+  std::string in_file_name = "/home/liangyuwei/sign_language_robot_ws/test_imi_data/mocap_ik_results_YuMi_g2o_similarity.h5";
+  
+  // Process the terminal arguments
+  static struct option long_options[] = 
+  {
+    {"in-h5-filename", required_argument, NULL, 'i'},
+    {"help", no_argument, NULL, 'h'},
+    {0, 0, 0, 0}
+  };
+  int c;
+  while(1)
+  {
+    int opt_index = 0;
+    // Get arguments
+    c = getopt_long(argc, argv, "i:h", long_options, &opt_index);
+    if (c == -1)
+      break;
+
+    // Process
+    switch(c)
+    {
+      case 'h':
+        std::cout << "Help: \n" << std::endl;
+        std::cout << "    This program reads imitation data from h5 file and performs optimization on the joint angles. The results are stored in a h5 file at last.\n" << std::endl; 
+        std::cout << "Arguments:\n" << std::endl;
+        std::cout << "    -i, --in-h5-filename, specify the name of the input h5 file, otherwise a default name specified inside the program will be used. Suffix is required.\n" << std::endl;
+        return 0;
+        break;
+
+      case 'i':
+        in_file_name = optarg;
+        break;
+
+      default:
+        break;
+    }
+
+  }
+  std::cout << "The input h5 file name is: " << in_file_name << std::endl;
+
   // Initialization
   KDL_FK_Solver fk_solver;
   KDL::ChainFkSolverPos_recursive left_fk_solver = fk_solver.setup_left_kdl();
@@ -326,10 +375,78 @@ int main(int argc, char **argv)
   
   std::cout << "Done." << std::endl;
 
+
+
+
+
+  // Automatic...
+  std::cout << ">>>> Performing Forward Kinematics on joint trajectories to obtain corresponding Orientation trajectories..." << std::endl;
+  std::vector<std::string> in_group_name_list = {"baozhu_1", "gun_2", "fengren_1", "kaoqin_2", 
+                                                 "minzheng_1", "kai_3", "juan_2", "jidong_1", 
+                                                 "chengjian_1", "jieshou_7", "pao_3", "qiao_2", 
+                                                 "qie_6", "shuan_1", "zhenli_9"};
+
+  for (unsigned int s = 0; s < in_group_name_list.size(); s++)
+  {
+    // Get group name
+    std::string in_group_name = in_group_name_list[s];
+
+    std::cout << ">> Processing motion: " << in_group_name << std::endl;
+
+    /* Temporary use: computing orientation trajectories of both hands for comparison experiments */
+    // 1 - Pure IK results
+    // std::vector<std::vector<double>> read_l_joint_traj = read_h5(in_file_name, in_group_name, "l_joint_angle_2"); 
+    // std::vector<std::vector<double>> read_r_joint_traj = read_h5(in_file_name, in_group_name, "r_joint_angle_2");  // N x 7
+    // 2 - Hujin's results
+    // std::vector<std::vector<double>> read_l_joint_traj = read_h5(in_file_name, in_group_name, "arm_traj_affine_l"); 
+    // std::vector<std::vector<double>> read_r_joint_traj = read_h5(in_file_name, in_group_name, "arm_traj_affine_r");  // N x 7
+    // 3 - Our results
+    std::vector<std::vector<double>> read_joint_traj = read_h5(in_file_name, in_group_name, "arm_traj_1");  // N x 38
+    std::vector<std::vector<double>> read_l_joint_traj, read_r_joint_traj;
+    std::vector<double> l_joint_tmp(7), r_joint_tmp(7);
+    for (unsigned int it = 0; it < read_joint_traj.size(); it++)
+    {
+      for (unsigned int d = 0; d < 7; d++)
+      {
+        l_joint_tmp[d] = read_joint_traj[it][d];
+        r_joint_tmp[d] = read_joint_traj[it][d+7];
+      }
+      read_l_joint_traj.push_back(l_joint_tmp);
+      read_r_joint_traj.push_back(r_joint_tmp);
+    }
+
+
+    /* Perform FK to obtain orientation trajectories */
+    std::vector<std::vector<double>> l_wrist_quat_traj, r_wrist_quat_traj; // initialization for storing quaternion trajectories
+    for (unsigned int it = 0; it < read_l_joint_traj.size(); it++)
+    {
+      // get joint angles
+      Matrix<double, 7, 1> l_joint_angle = Map<Matrix<double, 7, 1>>(read_l_joint_traj[it].data(), 7, 1);
+      Matrix<double, 7, 1> r_joint_angle = Map<Matrix<double, 7, 1>>(read_r_joint_traj[it].data(), 7, 1);
+      // Perform FK
+      Matrix3d l_wrist_rot = fk_solver.return_wrist_ori(left_fk_solver, l_joint_angle, true);
+      Matrix3d r_wrist_rot = fk_solver.return_wrist_ori(right_fk_solver, r_joint_angle, false);
+      // Convert rotation matrices to quaternion
+      Quaterniond l_wrist_quat(l_wrist_rot);
+      Quaterniond r_wrist_quat(r_wrist_rot);
+      std::vector<double> l_wrist_quat_vec = {l_wrist_quat.x(), l_wrist_quat.y(), l_wrist_quat.z(), l_wrist_quat.w()}; // in (x,y,z,w) !!!
+      std::vector<double> r_wrist_quat_vec = {r_wrist_quat.x(), r_wrist_quat.y(), r_wrist_quat.z(), r_wrist_quat.w()}; // in (x,y,z,w) !!!
+      // Store in the vector
+      l_wrist_quat_traj.push_back(l_wrist_quat_vec);
+      r_wrist_quat_traj.push_back(r_wrist_quat_vec);
+    }
+
+
+    // Store the orientation trajectoriese
+    write_h5(in_file_name, in_group_name, "actual_l_wrist_ori_traj", l_wrist_quat_traj);
+    write_h5(in_file_name, in_group_name, "actual_r_wrist_ori_traj", r_wrist_quat_traj);
+
+
+  }
+
   return 0;
 
+
+
 }
-
-
-
 

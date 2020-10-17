@@ -701,7 +701,7 @@ int main(int argc, char *argv[])
   // Constraints bounds, used as termination condition
   double eps = 1e-6; // numeric error
   double col_cost_bound = 0.5; // to cope with possible numeric error (here we still use check_self_collision() for estimating, because it might not be easy to keep minimum distance outside safety margin... )
-  double smoothness_bound = std::sqrt(std::pow(6.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); //std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
+  double smoothness_bound = std::sqrt(std::pow(4.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // std::sqrt(std::pow(6.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); //std::sqrt(std::pow(5.0*M_PI/180.0, 2) * JOINT_DOF) * (NUM_DATAPOINTS-1); // in average, 3 degree allowable difference for each joint 
 
   double dmp_orien_cost_bound = eps; // 0.0, on account of numeric error //0.0; // better be 0, margin is already set in it!!!
   double dmp_scale_cost_bound = eps; // 0.0, on account of numeric error 0.0; // better be 0
