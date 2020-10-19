@@ -226,11 +226,11 @@ target_link_libraries(generate_trajectory_using_DMP ${EIGEN3_LIBRARIES} ${HDF5_C
 #target_link_libraries(ur5_arm_retarget_nlopt collision_checking)
 
 
-### retargeting code for YuMi configuration
-#add_executable(yumi_arm_retarget_nlopt src/yumi_arm_retarget_nlopt.cpp)
-#target_link_libraries(yumi_arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
-#target_link_libraries(yumi_arm_retarget_nlopt distance_computation)
-#target_link_libraries(yumi_arm_retarget_nlopt collision_checking_yumi)
+### retargeting code for YuMi configuration (position scaling based)
+add_executable(yumi_arm_retarget_nlopt src/obsolete/yumi_arm_retarget_nlopt.cpp)
+target_link_libraries(yumi_arm_retarget_nlopt ${catkin_LIBRARIES} ${NLOPT_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
+# target_link_libraries(yumi_arm_retarget_nlopt distance_computation)
+target_link_libraries(yumi_arm_retarget_nlopt collision_checking_yumi)
 
 #add_executable(yumi_arm_retarget_g2o src/yumi_arm_retarget_g2o.cpp)
 #target_link_libraries(yumi_arm_retarget_g2o ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})

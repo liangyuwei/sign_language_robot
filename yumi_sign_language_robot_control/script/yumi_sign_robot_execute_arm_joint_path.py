@@ -81,7 +81,7 @@ def main():
     for i in range(lr_joint_angles_ik_yumi.shape[0]):
         path_point = trajectory_msgs.msg.JointTrajectoryPoint()
         path_point.positions = lr_joint_angles_ik_yumi[i].tolist()
-        t = rospy.Time(i*1.0/5.0) 
+        t = rospy.Time(i*1.0/15.0) 
         path_point.time_from_start.secs = t.secs
         path_point.time_from_start.nsecs = t.nsecs        
         cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))

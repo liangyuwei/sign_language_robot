@@ -381,10 +381,10 @@ int main(int argc, char **argv)
 
   // Automatic...
   std::cout << ">>>> Performing Forward Kinematics on joint trajectories to obtain corresponding Orientation trajectories..." << std::endl;
-  std::vector<std::string> in_group_name_list = {"baozhu_1", "gun_2", "fengren_1", "kaoqin_2", 
+  std::vector<std::string> in_group_name_list = {"baozhu_1", "gun_2", "fengren_1"}; /*, "kaoqin_2", 
                                                  "minzheng_1", "kai_3", "juan_2", "jidong_1", 
                                                  "chengjian_1", "jieshou_7", "pao_3", "qiao_2", 
-                                                 "qie_6", "shuan_1", "zhenli_9"};
+                                                 "qie_6", "shuan_1", "zhenli_9"};*/
 
   for (unsigned int s = 0; s < in_group_name_list.size(); s++)
   {
@@ -400,7 +400,7 @@ int main(int argc, char **argv)
     // 2 - Hujin's results
     // std::vector<std::vector<double>> read_l_joint_traj = read_h5(in_file_name, in_group_name, "arm_traj_affine_l"); 
     // std::vector<std::vector<double>> read_r_joint_traj = read_h5(in_file_name, in_group_name, "arm_traj_affine_r");  // N x 7
-    // 3 - Our results
+    // 3/4 - Our results or Position Scaling results
     std::vector<std::vector<double>> read_joint_traj = read_h5(in_file_name, in_group_name, "arm_traj_1");  // N x 38
     std::vector<std::vector<double>> read_l_joint_traj, read_r_joint_traj;
     std::vector<double> l_joint_tmp(7), r_joint_tmp(7);

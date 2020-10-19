@@ -37,7 +37,7 @@
 
 // For collision checking
 //#include "distance_computation.h"
-#include "collision_checking_yumi.h"
+#include "tools/collision_checking_yumi.h"
 
 
 // global flags
@@ -175,7 +175,7 @@ typedef struct {
 
 
   // Indicate whether the current point is a keypoint
-  bool is_keypoint = false;
+  // bool is_keypoint = false;
 
 
 } my_constraint_struct;
@@ -197,6 +197,11 @@ class MyNLopt
     bool write_h5(const std::string file_name, const std::string group_name, const std::string dataset_name, const int ROW, const int COL, std::vector<std::vector<double>> data_vector);
     std::vector<std::vector<double>> read_h5(const std::string file_name, const std::string group_name, const std::string dataset_name);
 
+    // Helper functions for outputing the Cartesian trajectories
+    Vector3d return_wrist_pos(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg); ///< Helper function for outputing the actually tracked wrist position.
+    Vector3d return_elbow_pos(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_elbow_seg); ///< Helper function for outputing the actually tracked elbow position
+
+
 
   private:
     // Initialization list
@@ -206,7 +211,7 @@ class MyNLopt
     static double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
     static double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct *fdata);
     static double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct *fdata);
-    static double compute_keypoint_cost(KDL::ChainFkSolverPos_recursive left_fk_solver, KDL::ChainFkSolverPos_recursive right_fk_solver, Matrix<double, 7, 1> q_cur_l, Matrix<double, 7, 1> q_cur_r, bool is_keypoint, my_constraint_struct *fdata);
+    // static double compute_keypoint_cost(KDL::ChainFkSolverPos_recursive left_fk_solver, KDL::ChainFkSolverPos_recursive right_fk_solver, Matrix<double, 7, 1> q_cur_l, Matrix<double, 7, 1> q_cur_r, bool is_keypoint, my_constraint_struct *fdata);
 
     static double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_data);
 
@@ -225,6 +230,53 @@ class MyNLopt
 
 };
 
+
+Vector3d MyNLopt::return_elbow_pos(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_elbow_seg)
+{
+ // Get joint angles
+  KDL::JntArray q_in(q_cur.size()); 
+  for (unsigned int i = 0; i < q_cur.size(); ++i)
+    q_in(i) = q_cur(i);
+
+  // Do FK using KDL, get the current elbow/wrist/shoulder state
+  KDL::Frame elbow_cart_out;//, shoulder_cart_out; // Output homogeneous transformation
+  int result;
+  result = fk_solver.JntToCart(q_in, elbow_cart_out, num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing elbow link, something went wrong");
+    exit(-1);
+  }
+ 
+  // Preparations
+  Vector3d elbow_pos_cur = Map<Vector3d>(elbow_cart_out.p.data, 3, 1);
+ 
+  // return results
+  return elbow_pos_cur;
+}
+
+
+Vector3d MyNLopt::return_wrist_pos(KDL::ChainFkSolverPos_recursive &fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg)
+{
+  // Get joint angles
+  KDL::JntArray q_in(q_cur.size()); 
+  for (unsigned int i = 0; i < q_cur.size(); ++i)
+    q_in(i) = q_cur(i);
+
+  // Do FK using KDL, get the current elbow/wrist/shoulder state
+  KDL::Frame wrist_cart_out;//, shoulder_cart_out; // Output homogeneous transformation
+  int result;
+  result = fk_solver.JntToCart(q_in, wrist_cart_out, num_wrist_seg+1);
+  if (result < 0){
+    ROS_INFO_STREAM("FK solver failed when processing wrist link, something went wrong");
+    exit(-1);
+  }
+
+  // Preparations
+  Vector3d wrist_pos_cur = Map<Vector3d>(wrist_cart_out.p.data, 3, 1);
+  
+  // return results
+  return wrist_pos_cur;
+}
 
 /*static double MyNLopt::wrap_myfunc(const std::vector<double> &x, std::vector<double> &grad, void *data) 
 {
@@ -296,71 +348,13 @@ double MyNLopt::compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool l
 }
 
 
+/*
 double MyNLopt::compute_keypoint_cost(KDL::ChainFkSolverPos_recursive left_fk_solver, KDL::ChainFkSolverPos_recursive right_fk_solver, Matrix<double, 7, 1> q_cur_l, Matrix<double, 7, 1> q_cur_r, bool is_keypoint, my_constraint_struct *fdata)
 {
-
-
-  //return 0;  // disable temporarily
-
 
   // If it's not a keypoint
   if (!is_keypoint)
     return 0;
-
-  // If it's a keypoint, compute the cost on relative motion constraint
-/*
-  KDL::JntArray q_in_l(q_cur_l.size()), q_in_r(q_cur_r.size()); 
-  for (unsigned int i = 0; i < q_cur_l.size(); ++i)
-  {
-    q_in_l(i) = q_cur_l(i);
-    q_in_r(i) = q_cur_r(i);
-  }
-
-  // Do FK using KDL, get the current elbow/wrist/shoulder state  
-  KDL::Frame elbow_cart_out_l, wrist_cart_out_l; 
-  KDL::Frame elbow_cart_out_r, wrist_cart_out_r; 
-  int result;
-  result = left_fk_solver.JntToCart(q_in_l, elbow_cart_out_l, fdata->l_num_elbow_seg+1); // notice that the number here is not the segment ID, but the number of segments till target segment
-  if (result < 0){
-    ROS_INFO_STREAM("FK solver failed when processing *LEFT ELBOW* link, something went wrong");
-    return -1;
-  }
-  else{
-    //ROS_INFO_STREAM("FK solver succeeded for elbow link.");
-  }
-  result = left_fk_solver.JntToCart(q_in_l, wrist_cart_out_l, fdata->l_num_wrist_seg+1);
-  if (result < 0){
-    ROS_INFO_STREAM("FK solver failed when processing *LEFT WRIST* link, something went wrong");
-    return -1;
-  }
-  else{
-    //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
-  }
-  result = right_fk_solver.JntToCart(q_in_r, elbow_cart_out_r, fdata->r_num_elbow_seg+1);
-  if (result < 0){
-    ROS_INFO_STREAM("FK solver failed when processing *RIGHT ELBOW* link, something went wrong");
-    return -1;
-  }
-  else{
-    //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
-  }
-  result = right_fk_solver.JntToCart(q_in_r, wrist_cart_out_r, fdata->r_num_wrist_seg+1);
-  if (result < 0){
-    ROS_INFO_STREAM("FK solver failed when processing *RIGHT WRIST* link, something went wrong");
-    return -1;
-  }
-  else{
-    //ROS_INFO_STREAM("FK solver succeeded for wrist link.");
-  }
-
-  // Preparations
-  Vector3d elbow_pos_cur_l = Map<Vector3d>(elbow_cart_out_l.p.data, 3, 1);
-  Vector3d wrist_pos_cur_l = Map<Vector3d>(wrist_cart_out_l.p.data, 3, 1);
-  Matrix3d wrist_ori_cur_l = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out_l.M.data, 3, 3); 
-  Vector3d elbow_pos_cur_r = Map<Vector3d>(elbow_cart_out_r.p.data, 3, 1);
-  Vector3d wrist_pos_cur_r = Map<Vector3d>(wrist_cart_out_r.p.data, 3, 1);
-  Matrix3d wrist_ori_cur_r = Map<Matrix<double, 3, 3, RowMajor> >(wrist_cart_out_r.M.data, 3, 3); 
-  */
 
   // Get robot current state, which has been computed in compute_cost() ahead of this function
   Vector3d wrist_pos_cur_l = fdata->l_wrist_pos_cur;
@@ -389,6 +383,7 @@ double MyNLopt::compute_keypoint_cost(KDL::ChainFkSolverPos_recursive left_fk_so
 
 
 }
+*/
 
 
 // Used for computing cost and grad(numeric differentiation) in myfunc()
@@ -493,13 +488,51 @@ double MyNLopt::compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<d
   Vector3d human_shoulder_mid = (fdata->l_shoulder_pos_goal + fdata->r_shoulder_pos_goal)/2;
   Vector3d robot_shoulder_mid = (fdata->l_robot_shoulder_pos + fdata->r_robot_shoulder_pos)/2;
 
-  double scaled_wrist_pos_cost = (wrist_pos_cur - ratio * (wrist_pos_human - human_shoulder_mid) - robot_shoulder_mid).norm();
-  //(wrist_pos_cur - (wrist_pos_human - elbow_pos_human)/(wrist_pos_human - elbow_pos_human).norm() * (wrist_pos_cur - elbow_pos_cur).norm() - elbow_pos_cur).norm(); // coordinate difference, not in the way of vector difference // written as elbow-wrist form
-  //(wrist_pos_cur - (wrist_pos_human - shoulder_pos_human)/(wrist_pos_human - shoulder_pos_human).norm() * (wrist_pos_cur - shoulder_pos_cur).norm() - shoulder_pos_cur).norm(); // written as shoulder-wrist to avoid accumulated error from elbow part
-  //
 
-  double scaled_elbow_pos_cost = (elbow_pos_cur - ratio * (elbow_pos_human - human_shoulder_mid) - robot_shoulder_mid).norm();
-  //(elbow_pos_cur - (elbow_pos_human - shoulder_pos_human)/(elbow_pos_human - shoulder_pos_human).norm() * (elbow_pos_cur - shoulder_pos_cur).norm() - shoulder_pos_cur).norm();
+  // Do position scaling on the original data
+  Vector3d scaled_elbow_pos, scaled_wrist_pos;
+  // way 1 - scaling w.r.t the center of shoulders
+  scaled_elbow_pos = ratio * (elbow_pos_human - human_shoulder_mid) + robot_shoulder_mid;
+  scaled_wrist_pos = ratio * (wrist_pos_human - human_shoulder_mid) + robot_shoulder_mid;
+  // way 2 - scaling w.r.t the parent, i.e. elbow in this case (*** causes misalignment in fengren_1 motion ***)
+  // scaled_elbow_pos = (elbow_pos_human - shoulder_pos_human).normalized() * (elbow_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
+  // scaled_wrist_pos = (wrist_pos_human - elbow_pos_human).normalized() * (wrist_pos_cur - elbow_pos_cur).norm() + scaled_elbow_pos;
+  // way 3 - scaling w.r.t the shoulder (to avoid accumulated error from elbow part) (*** causes misalignment in fengren_1 motion ***)        
+  // scaled_elbow_pos = (elbow_pos_human - shoulder_pos_human).normalized() * (elbow_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
+  // scaled_wrist_pos = (wrist_pos_human - shoulder_pos_human).normalized() * (wrist_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
+  
+  // Compute the tracking costs using scaled position data
+  double scaled_elbow_pos_cost = (elbow_pos_cur - scaled_elbow_pos).norm(); 
+  double scaled_wrist_pos_cost = (wrist_pos_cur - scaled_wrist_pos).norm(); 
+
+
+  // for debug purpose
+  if (left_or_right)
+  {
+    // lengths
+    fdata->l_upperarm_length = (elbow_pos_cur - shoulder_pos_cur).norm();
+    fdata->l_forearm_length = (wrist_pos_cur - elbow_pos_cur).norm();
+    // scaled pos
+    fdata->scaled_l_elbow_pos = scaled_elbow_pos;
+    fdata->scaled_l_wrist_pos = scaled_wrist_pos;
+
+    fdata->actual_l_elbow_pos = elbow_pos_cur;
+    fdata->actual_l_wrist_pos = wrist_pos_cur;
+  }
+  else
+  {
+    // lengths
+    fdata->r_upperarm_length = (elbow_pos_cur - shoulder_pos_cur).norm();
+    fdata->r_forearm_length = (wrist_pos_cur - elbow_pos_cur).norm();    
+    // scaled pos
+    fdata->scaled_r_elbow_pos = scaled_elbow_pos;
+    fdata->scaled_r_wrist_pos = scaled_wrist_pos;
+
+    fdata->actual_r_elbow_pos = elbow_pos_cur;
+    fdata->actual_r_wrist_pos = wrist_pos_cur;
+
+  }
+
 
 
   if (!first_iter)
@@ -516,12 +549,12 @@ double MyNLopt::compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<d
   double cost = 0.0 * upperarm_direction_cost
               + 0.0 * forearm_direction_cost
               + 0.0 * shoulder_wrist_direction_cost
-              + 1.0 * wrist_ori_cost
+              + wrist_ori_cost * 10.0 //5.0 
               + 0.0 * wrist_pos_cost
               + 0.0 * elbow_pos_cost
-              + 1.0 * scaled_wrist_pos_cost
-              + 1.0 * scaled_elbow_pos_cost
-              + 1.0 * smoothness_cost
+              + scaled_wrist_pos_cost * 10.0 //5.0
+              + scaled_elbow_pos_cost * 5.0 //10.0 //5.0 //2.0 //1.0
+              + smoothness_cost * 1.0
               + 0.0 * l_r_pos_diff_cost;
 
   // record the costs for display
@@ -535,38 +568,7 @@ double MyNLopt::compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<d
   fdata->scaled_elbow_pos_cost = scaled_elbow_pos_cost;
   fdata->smoothness_cost = smoothness_cost;
 
-  // for debug purpose
-  if (left_or_right)
-  {
-    // lengths
-    fdata->l_upperarm_length = (elbow_pos_cur - shoulder_pos_cur).norm();
-    fdata->l_forearm_length = (wrist_pos_cur - elbow_pos_cur).norm();
-    // scaled pos
-    fdata->scaled_l_elbow_pos = ratio * (elbow_pos_human - human_shoulder_mid) + robot_shoulder_mid;
-                                //(elbow_pos_human - shoulder_pos_human)/(elbow_pos_human - shoulder_pos_human).norm() * fdata->l_upperarm_length + shoulder_pos_cur;
-    fdata->scaled_l_wrist_pos = ratio * (wrist_pos_human - human_shoulder_mid) + robot_shoulder_mid;
-                                //(wrist_pos_human - elbow_pos_human)/(wrist_pos_human - elbow_pos_human).norm() * fdata->l_forearm_length + fdata->scaled_l_elbow_pos; //elbow_pos_cur;
-
-    fdata->actual_l_elbow_pos = elbow_pos_cur;
-    fdata->actual_l_wrist_pos = wrist_pos_cur;
-
-  }
-  else
-  {
-    // lengths
-    fdata->r_upperarm_length = (elbow_pos_cur - shoulder_pos_cur).norm();
-    fdata->r_forearm_length = (wrist_pos_cur - elbow_pos_cur).norm();    
-    // scaled pos
-    fdata->scaled_r_elbow_pos = ratio * (elbow_pos_human - human_shoulder_mid) + robot_shoulder_mid;
-                                //(elbow_pos_human - shoulder_pos_human)/(elbow_pos_human - shoulder_pos_human).norm() * fdata->r_upperarm_length + shoulder_pos_cur;
-    fdata->scaled_r_wrist_pos = ratio * (wrist_pos_human - human_shoulder_mid) + robot_shoulder_mid;
-                                //(wrist_pos_human - elbow_pos_human)/(wrist_pos_human - elbow_pos_human).norm() * fdata->r_forearm_length + fdata->scaled_r_elbow_pos ;//elbow_pos_cur;
-    
-    fdata->actual_r_elbow_pos = elbow_pos_cur;
-    fdata->actual_r_wrist_pos = wrist_pos_cur;
-
-  }
-
+  
   //fdata->total_cost = cost;
 
   // Display for debug
@@ -755,7 +757,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
   double k_arm_cost = 1.0;
   double k_finger_cost = 1.0;
   double k_col = 1.0;
-  double k_keypoint_cost = 1.0;
+  // double k_keypoint_cost = 1.0;
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   double cost = 0;
@@ -770,8 +772,8 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
   cost += finger_cost;
   std::chrono::steady_clock::time_point t3 = std::chrono::steady_clock::now();
   // keypoints
-  double keypoint_cost = k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_cur_l, q_cur_r, fdata->is_keypoint, fdata);
-  cost += keypoint_cost;
+  // double keypoint_cost = k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_cur_l, q_cur_r, fdata->is_keypoint, fdata);
+  // cost += keypoint_cost;
   std::chrono::steady_clock::time_point t4 = std::chrono::steady_clock::now();
   // cost for collision checking
   double min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x); // 1 for colliding, -1 for non-colliding
@@ -782,7 +784,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
 
   fdata->arm_cost = arm_cost;
   fdata->finger_cost = finger_cost;
-  fdata->keypoint_cost = (keypoint_cost == 0 ? -1 : keypoint_cost); // if not keypoint, set to -1
+  // fdata->keypoint_cost = (keypoint_cost == 0 ? -1 : keypoint_cost); // if not keypoint, set to -1
   fdata->col_cost = col_cost;
   fdata->total_cost = cost; // store the results
   
@@ -824,7 +826,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
       cost1 += k_arm_cost * compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       cost1 += k_finger_cost * compute_finger_cost(q_tmp_finger_l, true, fdata);
       cost1 += k_finger_cost * compute_finger_cost(q_tmp_finger_r, false, fdata);
-      cost1 += k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_tmp_l, q_tmp_r, fdata->is_keypoint, fdata);
+      // cost1 += k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_tmp_l, q_tmp_r, fdata->is_keypoint, fdata);
       // for collision cost
       min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x_tmp_plus); // 1 for colliding, -1 for non-colliding
       cost1 += k_col * (min_distance + 1) * (min_distance + 1);
@@ -841,7 +843,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
       cost2 += k_arm_cost * compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       cost2 += k_finger_cost * compute_finger_cost(q_tmp_finger_l, true, fdata);
       cost2 += k_finger_cost * compute_finger_cost(q_tmp_finger_r, false, fdata);
-      cost2 += k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_tmp_l, q_tmp_r, fdata->is_keypoint, fdata);
+      // cost2 += k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_tmp_l, q_tmp_r, fdata->is_keypoint, fdata);
       // for collision cost
       min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x_tmp_minus); // 1 for colliding, -1 for non-colliding
       cost2 += k_col * (min_distance + 1) * (min_distance + 1); 
@@ -1336,7 +1338,9 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
 
   // Input Cartesian trajectories
   const unsigned int joint_value_dim = 2*7 + 2*12; // dual arm + dual hand = 38 DOF
-  std::vector<double> x(joint_value_dim);
+  std::vector<double> x(joint_value_dim); // -1.5, -1.5, 1.5, 0.0, 0.0, 0.0, 0.0, 1.5, -1.5, -1.5, 0.0, 0.0, 0.0, 0.0
+  x[0] = -1.5; x[1] = -1.5; x[2] = 1.5;
+  x[7] = 1.5; x[8] = -1.5; x[9] = -1.5;
 
   std::vector<std::vector<double>> read_l_wrist_pos_traj = read_h5(in_file_name, in_group_name, "l_wrist_pos"); 
   std::vector<std::vector<double>> read_l_wrist_ori_traj = read_h5(in_file_name, in_group_name, "l_wrist_ori"); 
@@ -1356,8 +1360,10 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
   unsigned int num_datapoints = read_l_wrist_pos_traj.size(); 
 
   // read keypoint id list
+  /*
   std::vector<std::vector<double>> read_kp_id_list = read_h5(in_file_name, in_group_name, "kp_id_list");
   unsigned int num_keypoints = read_kp_id_list.size(); 
+  */
   /*std::cout << num_keypoints << " and " << read_kp_id_list[0].size() << std::endl;
   for (int i = 0; i < read_kp_id_list.size(); ++i)
   {
@@ -1382,15 +1388,15 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
 
 
   // Variables' bounds
-  const std::vector<double> q_l_arm_lb = {-2.9, -2.49, 0.0, -1.7, -1.578, -1.5, -1.57};//{-2.94, -2.5, -2.94, -2.16, -5.06, -1.54, -4.0};
-  const std::vector<double> q_r_arm_lb = {-2.9, -2.49, 0.0, -1.7, -1.578, -1.5, -1.57};//{-2.94, -2.50, -2.94, -2.16, -5.06, -1.54, -4.0};
-  const std::vector<double> q_l_arm_ub = {0.5, 0.75, 2.9, 1.4, 1.578, 2.1, 1.57};//{2.94, 0.76, 2.94, 1.4, 5.06, 2.41, 4.0};
-  const std::vector<double> q_r_arm_ub = {0.5, 0.75, 2.9, 1.4, 1.578, 2.1, 1.57};//{2.94, 0.76, 2.94, 1.4, 5.06, 2.41, 4.0};
-
-  const std::vector<double> q_l_finger_lb = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
-  const std::vector<double> q_l_finger_ub = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
-  const std::vector<double> q_r_finger_lb = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
-  const std::vector<double> q_r_finger_ub = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
+  const std::vector<double> q_l_arm_lb = {-2.8, -2.49, -1.2, -1.7, -2.0, -1.5, -2.0};
+  const std::vector<double> q_l_arm_ub = {0.5, 0.75, 2.2, 1.4, 1.578, 2.1, 1.578};
+  const std::vector<double> q_r_arm_lb = {-0.5, -2.49, -2.2, -1.7, -2.0, -1.5, -2.0}; 
+  const std::vector<double> q_r_arm_ub = {2.8, 0.75, 1.2, 1.4, 1.578, 2.1, 1.578};  // keep consistent with our method's setup
+  // remember to keep consistent with _robot_finger_start and _robot_finger_goal
+  const std::vector<double> q_l_finger_lb = {-1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -0.75, 0.0, -0.2, -0.15};
+  const std::vector<double> q_l_finger_ub = {0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3,  0.1,  0.0,  0.0};
+  const std::vector<double> q_r_finger_lb = {-1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.0, 0.0, -0.2, -0.15};
+  const std::vector<double> q_r_finger_ub = {0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3, 0.1,  0.0,  0.0}; 
 
   std::vector<double> qlb = q_l_arm_lb;
   std::vector<double> qub = q_l_arm_ub;
@@ -1422,15 +1428,15 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
   // robot's shoulder position
   constraint_data.l_robot_shoulder_pos = Vector3d(0.05355, 0.0725, 0.51492); //Vector3d(-0.06, 0.235, 0.395);
   constraint_data.r_robot_shoulder_pos = Vector3d(0.05255, -0.0725, 0.51492); //Vector3d(-0.06, -0.235, 0.395);
-  constraint_data.l_robot_finger_start << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0; 
-  constraint_data.l_robot_finger_final << -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0;
-  constraint_data.r_robot_finger_start << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0;
-  constraint_data.r_robot_finger_final << -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0; // right and left hands' joint ranges are manually set to be the same, but according to Inspire Hand Inc, this will keep changing in the future.
-  constraint_data.glove_start << 0, 0, 53, 0, 0, 22, 0, 0, 22, 0, 0, 35, 0, 0;
+  constraint_data.l_robot_finger_start <<  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3,  0.1,  0.0,  0.0; 
+  constraint_data.l_robot_finger_final << -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -0.75, 0.0, -0.2, -0.15;  
+  constraint_data.r_robot_finger_start <<  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3, 0.1,  0.0,  0.0;
+  constraint_data.r_robot_finger_final << -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.0, 0.0, -0.2, -0.15; // right and left hands' joint ranges are manually set to be the same, but according to Inspire Hand Inc, this will keep changing in the future.
+  constraint_data.glove_start << 0,    0, 53,  0,   0, 22,  0,   0, 22,  0,   0, 35,  0,   0;
   constraint_data.glove_start = constraint_data.glove_start * M_PI / 180.0; // in radius  
-  constraint_data.glove_final << 45, 100, 0, 90, 120, 0, 90, 120, 0, 90, 120, 0, 90, 120;
+  constraint_data.glove_final << 45, 100,  0, 90, 120,  0, 90, 120,  0, 90, 120,  0, 90, 120;
   constraint_data.glove_final = constraint_data.glove_final * M_PI / 180.0; 
-
+  
 
   // Optimization settings
   double minf;
@@ -1474,23 +1480,24 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
   std::vector<std::vector<double> > scaled_r_elbow_pos_history(num_datapoints, std::vector<double>(3)); 
 
   
-  std::vector<std::vector<double> > actual_l_wrist_pos_history(num_datapoints, std::vector<double>(3)); 
-  std::vector<std::vector<double> > actual_r_wrist_pos_history(num_datapoints, std::vector<double>(3)); 
-  std::vector<std::vector<double> > actual_l_elbow_pos_history(num_datapoints, std::vector<double>(3)); 
-  std::vector<std::vector<double> > actual_r_elbow_pos_history(num_datapoints, std::vector<double>(3)); 
+  std::vector<std::vector<double> > actual_l_wrist_pos_history; //(num_datapoints, std::vector<double>(3)); 
+  std::vector<std::vector<double> > actual_r_wrist_pos_history; //(num_datapoints, std::vector<double>(3)); 
+  std::vector<std::vector<double> > actual_l_elbow_pos_history; //(num_datapoints, std::vector<double>(3)); 
+  std::vector<std::vector<double> > actual_r_elbow_pos_history; //(num_datapoints, std::vector<double>(3)); 
 
 
   std::vector<std::vector<double> > total_cost_history(num_datapoints, std::vector<double>(1));  
   std::vector<std::vector<double> > time_spent_history(num_datapoints, std::vector<double>(1));  
 
 
-  unsigned int next_kp_id_in_list = 0; // use the 1st keypoint
+  // unsigned int next_kp_id_in_list = 0; // use the 1st keypoint
 
 
   for (unsigned int it = 0; it < num_datapoints; ++it)
   {
 
     // Check whether the current point is a keypoint
+    /*
     if (next_kp_id_in_list < num_keypoints) // still not running out of keypoints in list
     {
       if ( it + 1 == (int)(read_kp_id_list[next_kp_id_in_list][0]) ) // if the current point is a keypoint
@@ -1504,7 +1511,7 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
         constraint_data.is_keypoint = false;      
       }
     }
-
+    */
 
     // Reset counter.
     count = 0; 
@@ -1593,8 +1600,9 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
     {*/
 
       // Display messages
-      std::cout << "========== Path point " << it + 1  <<"/" << num_datapoints << (constraint_data.is_keypoint ? " (keypoint)" : " (not keypoint)") << " ==========" << std::endl;
-      nlopt::result opt_result;
+      // std::cout << "========== Path point " << it + 1  <<"/" << num_datapoints << (constraint_data.is_keypoint ? " (keypoint)" : " (not keypoint)") << " ==========" << std::endl;
+      std::cout << "========== Path point " << it + 1  <<"/" << num_datapoints << " ==========" << std::endl;
+      nlopt::result opt_result; 
       //std::cout << "first_iter is " << first_iter << " before optimizing the first point." << std::endl; // ok, checked
       if (first_iter)
         opt_result = opt.optimize(x, minf);
@@ -1707,7 +1715,7 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
       scaled_r_elbow_pos_history[it][1] = f_data->scaled_r_elbow_pos[1];      
       scaled_r_elbow_pos_history[it][2] = f_data->scaled_r_elbow_pos[2];    
 
-
+      /*
       actual_l_wrist_pos_history[it][0] = f_data->actual_l_wrist_pos[0];     
       actual_l_wrist_pos_history[it][1] = f_data->actual_l_wrist_pos[1];      
       actual_l_wrist_pos_history[it][2] = f_data->actual_l_wrist_pos[2];   
@@ -1723,7 +1731,7 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
       actual_r_elbow_pos_history[it][0] = f_data->actual_r_elbow_pos[0];      
       actual_r_elbow_pos_history[it][1] = f_data->actual_r_elbow_pos[1];      
       actual_r_elbow_pos_history[it][2] = f_data->actual_r_elbow_pos[2];    
-
+      */
   
 
       total_cost_history[it][0] = f_data->total_cost;  
@@ -1789,6 +1797,36 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
   std::cout << num_point_in_collision << " points on the path are in collision !" << std::endl;
 
 
+  // Get the actually tracked Cartesian trajectories
+  std::cout << ">>>> Obtain the actually tracked Cartesian trajectories <<<<" << std::endl;
+  // Prepare FK solvers
+  KDL::ChainFkSolverPos_recursive left_fk_solver = setup_left_kdl(constraint_data);
+  KDL::ChainFkSolverPos_recursive right_fk_solver = setup_right_kdl(constraint_data);
+  // Iterate to get data
+  for (unsigned int fk = 0; fk < num_datapoints; fk++)
+  {
+    // get joint angles
+    Matrix<double, 7, 1> q_l; q_l << q_results[fk][0], q_results[fk][1], q_results[fk][2], q_results[fk][3], q_results[fk][4], q_results[fk][5], q_results[fk][6];
+    Matrix<double, 7, 1> q_r; q_r << q_results[fk][7], q_results[fk][8], q_results[fk][9], q_results[fk][10], q_results[fk][11], q_results[fk][12], q_results[fk][13];
+    // l wrist pos
+    Vector3d l_wrist_pos = this->return_wrist_pos(left_fk_solver, q_l, constraint_data.l_num_wrist_seg);
+    std::vector<double> l_wrist_pos_vec = {l_wrist_pos[0], l_wrist_pos[1], l_wrist_pos[2]};
+    actual_l_wrist_pos_history.push_back(l_wrist_pos_vec);
+    // r wrist pos
+    Vector3d r_wrist_pos = this->return_wrist_pos(right_fk_solver, q_r, constraint_data.r_num_wrist_seg);
+    std::vector<double> r_wrist_pos_vec = {r_wrist_pos[0], r_wrist_pos[1], r_wrist_pos[2]};
+    actual_r_wrist_pos_history.push_back(r_wrist_pos_vec);
+    // l elbow pos
+    Vector3d l_elbow_pos = this->return_elbow_pos(left_fk_solver, q_l, constraint_data.l_num_elbow_seg);
+    std::vector<double> l_elbow_pos_vec = {l_elbow_pos[0], l_elbow_pos[1], l_elbow_pos[2]};
+    actual_l_elbow_pos_history.push_back(l_elbow_pos_vec);
+    // r elbow pos
+    Vector3d r_elbow_pos = this->return_elbow_pos(right_fk_solver, q_r, constraint_data.r_num_elbow_seg);
+    std::vector<double> r_elbow_pos_vec = {r_elbow_pos[0], r_elbow_pos[1], r_elbow_pos[2]};
+    actual_r_elbow_pos_history.push_back(r_elbow_pos_vec);
+  }
+
+
   // Store the results
   const std::string group_name = in_group_name;
   //const std::string dataset_name = "arm_traj_1";
@@ -1838,7 +1876,7 @@ int main(int argc, char **argv)
 {
   
   // Initialize a ros node, for the calculation of collision distance
-  ros::init(argc, argv, "yumi_sign_language_robot_retarget");
+  ros::init(argc, argv, "yumi_sign_language_robot_retarget_position_scaling");
 
   // reset 
   dual_arm_dual_hand_collision_ptr.reset( new DualArmDualHandCollision(::urdf_string.str(), ::srdf_string.str()) );
@@ -1850,8 +1888,8 @@ int main(int argc, char **argv)
   std::string srdf_file_name = "/home/liangyuwei/sign_language_robot_ws/src/yumi_sign_language_robot_moveit_config/config/yumi.srdf";
 
   std::string in_file_name = "test_imi_data_YuMi.h5";
-  std::string in_group_name = "fengren";
-  std::string out_file_name = "mocap_ik_results_YuMi.h5";
+  std::string in_group_name = "fengren_1";
+  std::string out_file_name = "mocap_ik_results_YuMi_pos_scaling.h5";
   
   // Process the terminal arguments
   static struct option long_options[] = 
