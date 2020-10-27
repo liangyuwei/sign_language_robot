@@ -492,11 +492,11 @@ double MyNLopt::compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<d
   // Do position scaling on the original data
   Vector3d scaled_elbow_pos, scaled_wrist_pos;
   // way 1 - scaling w.r.t the center of shoulders
-  scaled_elbow_pos = ratio * (elbow_pos_human - human_shoulder_mid) + robot_shoulder_mid;
-  scaled_wrist_pos = ratio * (wrist_pos_human - human_shoulder_mid) + robot_shoulder_mid;
+  // scaled_elbow_pos = ratio * (elbow_pos_human - human_shoulder_mid) + robot_shoulder_mid;
+  // scaled_wrist_pos = ratio * (wrist_pos_human - human_shoulder_mid) + robot_shoulder_mid;
   // way 2 - scaling w.r.t the parent, i.e. elbow in this case (*** causes misalignment in fengren_1 motion ***)
-  // scaled_elbow_pos = (elbow_pos_human - shoulder_pos_human).normalized() * (elbow_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
-  // scaled_wrist_pos = (wrist_pos_human - elbow_pos_human).normalized() * (wrist_pos_cur - elbow_pos_cur).norm() + scaled_elbow_pos;
+  scaled_elbow_pos = (elbow_pos_human - shoulder_pos_human).normalized() * (elbow_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
+  scaled_wrist_pos = (wrist_pos_human - elbow_pos_human).normalized() * (wrist_pos_cur - elbow_pos_cur).norm() + scaled_elbow_pos;
   // way 3 - scaling w.r.t the shoulder (to avoid accumulated error from elbow part) (*** causes misalignment in fengren_1 motion ***)        
   // scaled_elbow_pos = (elbow_pos_human - shoulder_pos_human).normalized() * (elbow_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
   // scaled_wrist_pos = (wrist_pos_human - shoulder_pos_human).normalized() * (wrist_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;

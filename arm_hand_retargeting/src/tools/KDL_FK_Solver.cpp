@@ -381,10 +381,10 @@ int main(int argc, char **argv)
 
   // Automatic...
   std::cout << ">>>> Performing Forward Kinematics on joint trajectories to obtain corresponding Orientation trajectories..." << std::endl;
-  std::vector<std::string> in_group_name_list = {"baozhu_1", "gun_2", "fengren_1"}; /*, "kaoqin_2", 
+  std::vector<std::string> in_group_name_list = {"baozhu_1", "gun_2", "fengren_1", "kaoqin_2", 
                                                  "minzheng_1", "kai_3", "juan_2", "jidong_1", 
                                                  "chengjian_1", "jieshou_7", "pao_3", "qiao_2", 
-                                                 "qie_6", "shuan_1", "zhenli_9"};*/
+                                                 "qie_6", "shuan_1", "zhenli_9"};
 
   for (unsigned int s = 0; s < in_group_name_list.size(); s++)
   {
