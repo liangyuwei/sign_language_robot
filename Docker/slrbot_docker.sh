@@ -17,8 +17,10 @@ docker run -id --rm --gpus all \
 -p 2333:4399 \
 --volume ${LOCAL_PROJ_PATH}:${CONTAINER_PROJ_PATH} \
 --env DISPLAY=$DISPLAY --env QT_X11_NO_MITSHM=1 \
---volume /tmp/.X11-unix:/tmp/.X11-unix \
+--volume "/tmp/.X11-unix:/tmp/.X11-unix:ro" \
 --name ${CONTAINER_NAME} ${IMAGE_NAME}
+# --volume ${HOME}/.Xauthority:/root/.Xauthority \
+
 
 # Set up Forwarding SSH in local machine (edit local file)
 #msg="ForwardX11 yes"

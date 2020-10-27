@@ -55,7 +55,7 @@ RUN apt-get install -y ros-kinetic-moveit \
 # ROS Serial
 RUN apt-get install -y ros-kinetic-serial
 
-# NLopt (a bit slow to use github, so modify hosts)
+# NLopt (connection to github too slow, so modify hosts)
 #RUN wget https://github.com/stevengj/nlopt/archive/v2.6.2.tar.gz \
 #    tar -xzf rebol.tar.gz 
 RUN echo "151.101.84.133  raw.githubusercontent.com" >> /etc/hosts 
@@ -100,22 +100,20 @@ RUN apt-get install -y ros-kinetic-gazebo-ros-control
 
 # SSH server (set 'username:userpassword' with chpasswd)
 RUN apt-get update && apt-get install -y openssh-server 
-
 # change default listen port of 22 to other port number for security
 ARG sshport=4399
 RUN sed -i 's/Port 22/Port '${sshport}'/g' /etc/ssh/sshd_config
 EXPOSE ${sshport}
-
 # allow root login
 RUN sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-
-# change password (must be!) after allowing root login
+# change password (must be) after allowing root login
 ARG userpasswd='123'
 # RUN useradd -rm -d /home/${username} -s /bin/bash -g root -G sudo -u 1000 ${username}
 RUN echo 'root:'${userpasswd} | chpasswd  
-RUN service ssh start
+RUN service ssh restart
 
-# restart ssh service to update the settings
+# Manually set $DISPLAY and $QT_X11_NO_MITSHM environment variables for SSH login shell to be able to launch GUIs
+# Note that these two env vars come from docker container, which are passed by docker run --env. We pass them to login shell for SSH to use GUIs
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["/usr/sbin/sshd", "-D"]
