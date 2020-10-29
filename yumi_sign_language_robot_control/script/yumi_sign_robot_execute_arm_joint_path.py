@@ -49,39 +49,80 @@ def main():
     ### Set up groups
     print("============ Set up group ...")
     dual_arms_group = moveit_commander.MoveGroupCommander("dual_arms")
+    dual_arms_with_hands_group = moveit_commander.MoveGroupCommander("dual_arms_with_hands")
 
 
     ### Read h5 file for joint paths (arms only for now)
     f = h5py.File(file_name, "r")
+    ## arm
     l_joint_angles_ik_yumi = f[group_name]['arm_traj_affine_l']#['l_joint_angles_optim_ik_yumi']#
     r_joint_angles_ik_yumi = f[group_name]['arm_traj_affine_r']#['r_joint_angles_optim_ik_yumi']#
-    lr_joint_angles_ik_yumi = np.concatenate((l_joint_angles_ik_yumi, r_joint_angles_ik_yumi), axis=1)
+    ## hand (My code for Hujin/Affine's method does not cope with finger joints, and simply using linear mapping would yield out-of-bound results)
+    # use the results from our method
+    ff = h5py.File("/home/liangyuwei/sign_language_robot_ws/test_imi_data/mocap_ik_results_YuMi_g2o_similarity.h5")
+    arm_path_array = ff[group_name]['arm_traj_1']
+    l_finger_joint_angles_our = arm_path_array[:, 14:26]
+    r_finger_joint_angles_our = arm_path_array[:, 26:38] # finger joints results from our method
+    ff.close()
+    # interpolate to obtain finger joint angles for Hujin/Affine's method
+    N1 = l_finger_joint_angles_our.shape[0]
+    N2 = l_joint_angles_ik_yumi.shape[0]
+    seq1 = np.linspace(0, 1, N1)
+    seq2 = np.linspace(0, 1, N2)
+    l_finger_joint_angles = np.zeros((N2, 12))  #f[group_name]['l_finger_joints']
+    r_finger_joint_angles = np.zeros((N2, 12))  #f[group_name]['r_finger_joints']
+    for i in range(12):
+      l_finger_joint_angles[:, i] = np.interp(seq2, seq1, l_finger_joint_angles_our[:, i])
+      r_finger_joint_angles[:, i] = np.interp(seq2, seq1, r_finger_joint_angles_our[:, i])
+    # combine dual arms and dual hands (l arm, r arm, l hand, r hand)
+    lr_joint_angles_ik_yumi = np.concatenate((l_joint_angles_ik_yumi, r_joint_angles_ik_yumi, l_finger_joint_angles, r_finger_joint_angles), axis=1)
     f.close()
 
 
     ### Arms: Go to start positions
-    import pdb
-    pdb.set_trace()
-    print("============ Both arms go to initial positions...")
-    dual_arms_group.allow_replanning(True)
-    dual_arms_group.go(lr_joint_angles_ik_yumi[0, :], wait=True)
-    dual_arms_group.stop()
+    print "============ Both arms go to initial positions..."
+    # go to a non-colliding initial state
+    q_init = np.zeros(38)
+    q_init = [-1.5, -1.5, 1.5, 0.0, 0.0, 0.0, 0.0] + lr_joint_angles_ik_yumi[0, 14:26].tolist() + [1.5, -1.5, -1.5, 0.0, 0.0, 0.0, 0.0] + lr_joint_angles_ik_yumi[0, 26:38].tolist()
+    dual_arms_with_hands_start = q_init #arm_path_array[1, :7].tolist() + arm_path_array[1, 14:26].tolist() + arm_path_array[1, 7:14].tolist() + arm_path_array[1, 26:38].tolist()
+    dual_arms_with_hands_group.allow_replanning(True)
+    #dual_arms_with_hands_group.set_joint_value_target(dual_arms_with_hands_start)
+    dual_arms_with_hands_group.go(dual_arms_with_hands_start, wait=True)
+    dual_arms_with_hands_group.stop()
 
     import pdb
     pdb.set_trace()
-
 
     ### Construct a plan
     print("============ Construct a plan of two arms' motion...")
     cartesian_plan = moveit_msgs.msg.RobotTrajectory()
     cartesian_plan.joint_trajectory.header.frame_id = '/world'
     cartesian_plan.joint_trajectory.joint_names = ['yumi_joint_1_l', 'yumi_joint_2_l', 'yumi_joint_7_l', 'yumi_joint_3_l', 'yumi_joint_4_l', 'yumi_joint_5_l', 'yumi_joint_6_l'] \
-    + ['yumi_joint_1_r', 'yumi_joint_2_r', 'yumi_joint_7_r', 'yumi_joint_3_r', 'yumi_joint_4_r', 'yumi_joint_5_r', 'yumi_joint_6_r'] 
+    + ['link1', 'link11', 'link2', 'link22', 'link3', 'link33', 'link4', 'link44', 'link5', 'link51', 'link52', 'link53'] \
+    + ['yumi_joint_1_r', 'yumi_joint_2_r', 'yumi_joint_7_r', 'yumi_joint_3_r', 'yumi_joint_4_r', 'yumi_joint_5_r', 'yumi_joint_6_r'] \
+    + ['Link1', 'Link11', 'Link2', 'Link22', 'Link3', 'Link33', 'Link4', 'Link44', 'Link5', 'Link51', 'Link52', 'Link53']
+
+    # add non-colliding start state into the trajectory for ease of execution
+    path_point = trajectory_msgs.msg.JointTrajectoryPoint()
+    path_point.positions = q_init
+    t = rospy.Time(0.0) 
+    path_point.time_from_start.secs = t.secs
+    path_point.time_from_start.nsecs = t.nsecs        
+    cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))
+    # add the original start state for delaying the demonstration
+    path_point = trajectory_msgs.msg.JointTrajectoryPoint()
+    path_point.positions = lr_joint_angles_ik_yumi[0, :7].tolist() + lr_joint_angles_ik_yumi[0, 14:26].tolist() + lr_joint_angles_ik_yumi[0, 7:14].tolist() + lr_joint_angles_ik_yumi[0, 26:38].tolist()
+    t = rospy.Time(0.1) 
+    path_point.time_from_start.secs = t.secs
+    path_point.time_from_start.nsecs = t.nsecs        
+    cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))
+
+    t_delay = 2.0 # delay for better demonstration
 
     for i in range(lr_joint_angles_ik_yumi.shape[0]):
         path_point = trajectory_msgs.msg.JointTrajectoryPoint()
-        path_point.positions = lr_joint_angles_ik_yumi[i].tolist()
-        t = rospy.Time(i*1.0/15.0) 
+        path_point.positions = lr_joint_angles_ik_yumi[i, :7].tolist() + lr_joint_angles_ik_yumi[i, 14:26].tolist() + lr_joint_angles_ik_yumi[i, 7:14].tolist() + lr_joint_angles_ik_yumi[i, 26:38].tolist()
+        t = rospy.Time(t_delay + i*1.0/15.0) 
         path_point.time_from_start.secs = t.secs
         path_point.time_from_start.nsecs = t.nsecs        
         cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))

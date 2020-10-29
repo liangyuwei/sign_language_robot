@@ -1975,6 +1975,27 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string jo
   }
 
 
+  // store the linearly mapped finger joint angles
+  // convert to std::vector<std::vector<double> >
+  /*
+  std::vector<std::vector<double> > l_robot_finger_angle_vec_vec, r_robot_finger_angle_vec_vec;
+  for (unsigned int r = 0; r < num_datapoints; r++)
+  {
+    std::vector<double> l_robot_finger_angle_vec, r_robot_finger_angle_vec;
+    for (unsigned int c = 0; c < 12; c++)
+    {
+      l_robot_finger_angle_vec.push_back(l_robot_finger_angle[r][c]);
+      r_robot_finger_angle_vec.push_back(r_robot_finger_angle[r][c]);
+    }
+    l_robot_finger_angle_vec_vec.push_back(l_robot_finger_angle_vec);
+    r_robot_finger_angle_vec_vec.push_back(r_robot_finger_angle_vec);
+  }
+  h5_io::write_h5(out_file_name, in_group_name, "l_finger_joints", l_robot_finger_angle_vec_vec);
+  h5_io::write_h5(out_file_name, in_group_name, "r_finger_joints", r_robot_finger_angle_vec_vec);
+  exit(0); // post-process... forgot to record the finger joint angles when I was collecting optimization data
+  */
+
+
   // Re-position the human mocap data to a place suitable for robot execution
   // Pre-processing the human demonstrations
   std::cout << ">>>> Pre-processing on human demonstrations to fit robot configuration and workspace..." << std::endl;

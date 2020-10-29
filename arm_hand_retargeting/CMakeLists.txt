@@ -36,8 +36,12 @@ endif(NLopt_FOUND)
 
 
 # Find G2O
-list( APPEND CMAKE_MODULE_PATH /usr/local/g2o/cmake_modules )
-set(G2O_DIR /usr/local/g2o)
+# for Docker 
+#list( APPEND CMAKE_MODULE_PATH /usr/local/g2o/cmake_modules )
+#set(G2O_DIR /usr/local/g2o)
+# for Local compilation on my PC
+list( APPEND CMAKE_MODULE_PATH /home/liangyuwei/g2o/cmake_modules )
+set(G2O_DIR /home/liangyuwei/g2o)
 find_package(G2O REQUIRED)
 if(G2O_FOUND)
   include_directories(${G2O_INCLUDE_DIR})

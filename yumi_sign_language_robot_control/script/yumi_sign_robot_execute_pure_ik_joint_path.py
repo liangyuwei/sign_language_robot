@@ -86,10 +86,13 @@ def main():
     # #dual_arms_with_hands_group.set_joint_value_target(dual_arms_with_hands_start)
     # dual_arms_with_hands_group.go(dual_arms_with_hands_start, wait=True)
     # dual_arms_with_hands_group.stop()
-    import pdb
-    pdb.set_trace()
+    # import pdb
+    # pdb.set_trace()
     # first frame was ignored!!!!! so execute from the second frame
-    dual_arms_with_hands_start = arm_path_array[1, :7].tolist() + arm_path_array[1, 14:26].tolist() + arm_path_array[1, 7:14].tolist() + arm_path_array[1, 26:38].tolist()
+    
+    q_init = np.zeros(38)
+    q_init = [-1.5, -1.5, 1.5, 0.0, 0.0, 0.0, 0.0] + arm_path_array[1, 14:26].tolist() + [1.5, -1.5, -1.5, 0.0, 0.0, 0.0, 0.0] + arm_path_array[1, 26:38].tolist()
+    dual_arms_with_hands_start = q_init #arm_path_array[1, :7].tolist() + arm_path_array[1, 14:26].tolist() + arm_path_array[1, 7:14].tolist() + arm_path_array[1, 26:38].tolist()
     dual_arms_with_hands_group.allow_replanning(True)
     #dual_arms_with_hands_group.set_joint_value_target(dual_arms_with_hands_start)
     dual_arms_with_hands_group.go(dual_arms_with_hands_start, wait=True)
@@ -109,11 +112,28 @@ def main():
     # structure: left arm, left hand, right arm, right hand; different from the result of IK
 
     # for i in range(arm_path_array.shape[0]):
+    # add the non-colliding initial state (so that it won't warn that start state deviates too much from the current state)
+    path_point = trajectory_msgs.msg.JointTrajectoryPoint()
+    path_point.positions = q_init #arm_path_array[1, :7].tolist() + arm_path_array[1, 14:26].tolist() + arm_path_array[1, 7:14].tolist() + arm_path_array[1, 26:38].tolist()
+    t = rospy.Time(0.0) #rospy.Time(i*1.0/15.0) # rospy.Time(timestamp_array[i]) # 15 Hz # rospy.Time(0.5*i) #
+    path_point.time_from_start.secs = t.secs
+    path_point.time_from_start.nsecs = t.nsecs        
+    cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))
+    # add a possibly-colliding initial state
+    path_point = trajectory_msgs.msg.JointTrajectoryPoint()
+    path_point.positions = arm_path_array[1, :7].tolist() + arm_path_array[1, 14:26].tolist() + arm_path_array[1, 7:14].tolist() + arm_path_array[1, 26:38].tolist()
+    t = rospy.Time(0.1) #rospy.Time(i*1.0/15.0) # rospy.Time(timestamp_array[i]) # 15 Hz # rospy.Time(0.5*i) #
+    path_point.time_from_start.secs = t.secs
+    path_point.time_from_start.nsecs = t.nsecs        
+    cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))
+
+    t_delay = 2.0 # delay 2 seconds for demonstration
+
     # ignore the first frame
     for i in range(1, arm_path_array.shape[0]): 
         path_point = trajectory_msgs.msg.JointTrajectoryPoint()
         path_point.positions = arm_path_array[i, :7].tolist() + arm_path_array[i, 14:26].tolist() + arm_path_array[i, 7:14].tolist() + arm_path_array[i, 26:38].tolist()
-        t = rospy.Time(i*1.0/15.0) #rospy.Time(i*1.0/15.0) # rospy.Time(timestamp_array[i]) # 15 Hz # rospy.Time(0.5*i) #
+        t = rospy.Time(t_delay + (i-1)*1.0/15.0) #rospy.Time(i*1.0/15.0) # rospy.Time(timestamp_array[i]) # 15 Hz # rospy.Time(0.5*i) #
         path_point.time_from_start.secs = t.secs
         path_point.time_from_start.nsecs = t.nsecs        
         cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))
