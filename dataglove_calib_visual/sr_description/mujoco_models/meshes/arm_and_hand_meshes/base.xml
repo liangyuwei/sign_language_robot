@@ -1,0 +1,3 @@
+<mujoco>
+    <geom type="mesh" material="plastic" mesh="base" class="visual" />
+</mujoco>

@@ -1,0 +1,70 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro"
+xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
+xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
+xmlns:joint="http://playerstage.sourceforge.net/gazebo/xmlschema/#slider"
+xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+xmlns:body="http://playerstage.sourceforge.net/gazebo/xmlschema/#body"
+xmlns:geom="http://playerstage.sourceforge.net/gazebo/xmlschema/#geom">
+
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thhub.gazebo.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thhub.transmission.xacro" />
+  <!-- muscle is true for muscle hand or false for motor hand -->
+  <!-- reflect is either 1 (for right hand) or -1 (for left hand) -->
+  <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+  <!-- parent is the parent link for the first joint -->
+  <!-- is_lite is this the lite hand, if so lock J3 -->
+  <xacro:macro name="thhub" params="muscle prefix parent is_lite">
+    <link name="${prefix}thhub">
+      <inertial>
+        <mass value="0.005" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <inertia ixx="0.000001" ixy="0.0" ixz="0.0" iyy="0.000001"
+        iyz="0.0" izz="0.0000003" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry name="${prefix}thhub_visual">
+          <box size="0.001 0.001 0.001" />
+        </geometry>
+        <material name="shadow_thhub_material">
+          <color rgba="0.7 0.7 0.7 1.0" />
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry name="${prefix}thhub_collision_geom">
+          <sphere radius="0.010" />
+        </geometry>
+      </collision>
+    </link>
+    <xacro:if value="${is_lite}">
+      <joint name="${prefix}THJ3" type="fixed">
+        <parent link="${parent}" />
+        <child link="${prefix}thhub" />
+        <origin xyz="0 0 0.038" rpy="0 0 0" />
+        <axis xyz="1 0 0" />
+      </joint>
+    </xacro:if>
+    <xacro:unless value="${is_lite}">
+      <joint name="${prefix}THJ3" type="revolute">
+        <parent link="${parent}" />
+        <child link="${prefix}thhub" />
+        <origin xyz="0 0 0.038" rpy="0 0 0" />
+        <axis xyz="1 0 0" />
+        <limit lower="${-12/180*M_PI}" upper="${12/180*M_PI}"
+        effort="2.0" velocity="4.0" />
+        <dynamics damping="0.2" />
+      </joint>
+      <gazebo reference="${prefix}THJ3">
+        <provideFeedback>1</provideFeedback>
+        <implicitSpringDamper>1</implicitSpringDamper>
+      </gazebo>
+    </xacro:unless>
+    <!-- extensions -->
+    <xacro:unless value="${is_lite}">
+      <xacro:thhub_transmission muscletrans="${muscle}"
+      prefix="${prefix}" />
+    </xacro:unless>
+    <xacro:thhub_gazebo prefix="${prefix}" />
+  </xacro:macro>
+</robot>

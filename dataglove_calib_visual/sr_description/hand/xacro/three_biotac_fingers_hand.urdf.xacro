@@ -1,0 +1,76 @@
+<robot xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
+xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
+xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find sr_description)/hand/xacro/forearm/forearm.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/wrist/wrist.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/palm/palm.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/finger/fingers.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thumb.urdf.xacro" />
+  <xacro:property name="M_PI" value="3.1415926535897931" />
+  <!-- muscletrans is true for muscle transmission to be used, false to use motor transmission -->
+  <!-- muscle is true for muscle hand or false for motor hand -->
+  <!-- bio is true for biotac finger or false for standard finger -->
+  <!-- bt_sp is true for BT_SP finger or false for standard finger -->
+  <!-- ubi is true for ubi finger or false for standard finger -->
+  <!-- eli is true for ellipsoid fingertip or false for standard finger -->
+  <!-- reflect is either 1 (for right hand) or -1 (for left hand) -->
+  <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+  <xacro:macro name="shadowhand"
+  params="muscletrans muscle bio bt_sp ubi eli reflect prefix">
+    <!-- Forearm -->
+    <xacro:forearm muscle="${muscle}" prefix="${prefix}" />
+    <!-- Wrist -->
+    <xacro:if value="${muscle}">
+      <xacro:wrist muscletrans="${muscletrans}" prefix="${prefix}"
+      reflect="${reflect}" parent="${prefix}forearm">
+        <origin xyz="0 0 0.4096" rpy="0 0 0" />
+      </xacro:wrist>
+    </xacro:if>
+    <xacro:unless value="${muscle}">
+      <xacro:wrist muscletrans="false" prefix="${prefix}"
+      reflect="${reflect}" parent="${prefix}forearm">
+        <origin xyz="0 -0.010 0.213" rpy="0 0 0" />
+      </xacro:wrist>
+    </xacro:unless>
+    <!-- Palm -->
+    <xacro:palm muscletrans="${muscletrans}" prefix="${prefix}"
+    reflect="${reflect}" parent="${prefix}wrist" />
+    <!-- First Finger Biotac -->
+    <xacro:finger muscletrans="${muscletrans}" lf="false"
+    bio="true" bt_sp="false"  ubi="false" eli="false" prefix="${prefix}"
+    reflect="${reflect}" link_prefix="ff" joint_prefix="FF"
+    parent="${prefix}palm">
+      <origin xyz="${reflect*0.033} 0 0.095" rpy="0 0 0" />
+      <axis xyz="0 ${-1*reflect} 0" />
+    </xacro:finger>
+    <!-- Middle Finger Biotac -->
+    <xacro:finger muscletrans="${muscletrans}" lf="false"
+    bio="true" bt_sp="false" ubi="false" eli="false" prefix="${prefix}"
+    reflect="${reflect}" link_prefix="mf" joint_prefix="MF"
+    parent="${prefix}palm">
+      <origin xyz="${reflect*0.011} 0 0.099" rpy="0 0 0" />
+      <axis xyz="0 ${-1*reflect} 0" />
+    </xacro:finger>
+    <!-- Ring Finger -->
+    <xacro:finger muscletrans="${muscletrans}" lf="false"
+    bio="false" bt_sp="false" ubi="false" eli="false" prefix="${prefix}"
+    reflect="${reflect}" link_prefix="rf" joint_prefix="RF"
+    parent="${prefix}palm">
+      <origin xyz="${reflect*-0.011} 0 0.095" rpy="0 0 0" />
+      <axis xyz="0 ${reflect} 0" />
+    </xacro:finger>
+    <!-- Little Finger  -->
+    <xacro:finger muscletrans="${muscletrans}" lf="true"
+    bio="false" bt_sp="false" ubi="false" eli="false" prefix="${prefix}"
+    reflect="${reflect}" link_prefix="lf" joint_prefix="LF"
+    parent="${prefix}palm">
+      <origin xyz="0 0 0.06579" rpy="0 0 0" />
+      <axis xyz="0 ${reflect} 0" />
+    </xacro:finger>
+    <!-- Thumb Biotac -->
+    <xacro:thumb muscletrans="${muscletrans}" bio="true" bt_sp="false"
+    ubi="false" eli="false" prefix="${prefix}" reflect="${reflect}"
+    is_lite="0" parent="${prefix}palm"></xacro:thumb>
+  </xacro:macro>
+</robot>

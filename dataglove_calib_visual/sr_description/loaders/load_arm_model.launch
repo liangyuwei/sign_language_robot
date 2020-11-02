@@ -1,0 +1,10 @@
+<launch>
+  <group if="$(optenv MUSCLE 0)">
+    <param name="sa_description"
+    command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/sr_arm_muscle.urdf.xacro'" />
+  </group>
+  <group unless="$(optenv MUSCLE 0)">
+    <param name="sa_description"
+    command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/sr_arm_motor.urdf.xacro'" />
+  </group>
+</launch>

@@ -1,0 +1,15 @@
+<robot xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
+xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
+xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+xmlns:xacro="http://www.ros.org/wiki/xacro" name="sr_arm_motor">
+  <xacro:include filename="$(find sr_description)/materials.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/arm/xacro/full_arm_motor.urdf.xacro" />
+  <!--xacro:include filename="$(find sr_description)/other/xacro/gazebo/gazebo.urdf.xacro" /-->
+  <link name="world" />
+  <joint name="arm_to_world_fixed" type="fixed">
+    <parent link="world" />
+    <child link="shadowarm_base" />
+    <origin rpy="0 0 0" xyz="0 0 1.0" />
+  </joint>
+  <xacro:sr_arm_motor></xacro:sr_arm_motor>
+</robot>

@@ -1,0 +1,23 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro"
+name="bimanual_shadowhand_motor">
+  <xacro:include filename="$(find sr_description)/materials.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/hand_lite.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/other/xacro/gazebo/gazebo.urdf.xacro" />
+  <link name="world" />
+  <xacro:arg name="arm_x_separation" default="-0.4"/>
+
+  <joint name="world_joint" type="fixed">
+    <parent link="world" />
+    <child link="rh_forearm" />
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+  </joint>
+  <xacro:shadowhand muscletrans="false" muscle="false" bio="false" bt_sp="true"
+                    ubi="false" eli="false" reflect="1.0" prefix="rh_" extra_lite="false" />
+  <joint name="right_hand_to_left_hand" type="fixed">
+    <parent link="rh_forearm" />
+    <child link="lh_forearm" />
+    <origin xyz="$(arg arm_x_separation) 0.0 0.0" rpy="0.0 0.0 0.0" />
+  </joint>
+  <xacro:shadowhand muscletrans="false" muscle="false" bio="false" bt_sp="false"
+                    ubi="false" eli="false" reflect="-1.0" prefix="lh_" extra_lite="false" />
+</robot>

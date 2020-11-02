@@ -11,7 +11,7 @@ Panels:
         - /TF1/Tree1
         - /RobotModel1
       Splitter Ratio: 0.5
-    Tree Height: 747
+    Tree Height: 359
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -59,18 +59,6 @@ Visualization Manager:
       Frame Timeout: 15
       Frames:
         All Enabled: false
-        LeftForearm:
-          Value: false
-        LeftHand:
-          Value: false
-        LeftUpperarm:
-          Value: false
-        RightForearm:
-          Value: false
-        RightHand:
-          Value: false
-        RightUpperarm:
-          Value: false
         left_forearm:
           Value: true
         left_hand:
@@ -92,18 +80,6 @@ Visualization Manager:
       Show Names: true
       Tree:
         world:
-          LeftForearm:
-            {}
-          LeftHand:
-            {}
-          LeftUpperarm:
-            {}
-          RightForearm:
-            {}
-          RightHand:
-            {}
-          RightUpperarm:
-            {}
           left_forearm:
             {}
           left_hand:
@@ -123,7 +99,7 @@ Visualization Manager:
       Marker Topic: visualization_marker_array
       Name: MarkerArray
       Namespaces:
-        {}
+        sign_language_robot_ns: true
       Queue Size: 100
       Value: true
     - Alpha: 1
@@ -167,25 +143,25 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 2.76246977
+      Distance: 3.41534233
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
         Swap Stereo Eyes: false
         Value: false
       Focal Point:
-        X: -0.030543711
-        Y: 0.170912862
-        Z: 0.180792704
+        X: -0.129621357
+        Y: -0.0152420802
+        Z: 0.391698956
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.0500000007
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Pitch: 0.625398219
+      Pitch: 0.430398345
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: 5.97358894
+      Yaw: 0.000408172607
     Saved: ~
 Window Geometry:
   Displays:
@@ -204,4 +180,4 @@ Window Geometry:
     collapsed: true
   Width: 928
   X: 992
-  Y: 24
+  Y: 30

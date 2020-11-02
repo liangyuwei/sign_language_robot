@@ -1,0 +1,19 @@
+<mujoco>
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_visual" class="visual" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_0" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_1" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_2" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_3" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_4" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_5" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_6" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_7" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_8" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_9" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_10" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_11" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_12" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_13" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_14" class="collision" />
+    <geom type="mesh" material="plastic" mesh="lfmetacarpal_collision_15" class="collision" />
+</mujoco>

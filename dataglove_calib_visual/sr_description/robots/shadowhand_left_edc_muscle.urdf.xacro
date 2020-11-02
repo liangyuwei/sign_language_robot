@@ -1,0 +1,49 @@
+<robot xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
+xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
+xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+xmlns:xacro="http://www.ros.org/wiki/xacro"
+name="shadowhand_muscle">
+  <xacro:include filename="$(find sr_description)/materials.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/full_hand.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/other/xacro/gazebo/gazebo.urdf.xacro" />
+  <!-- hand with cylindrical base drifts in gazebo, attach it to the world -->
+  <link name="world" />
+  <joint name="lh_world_joint" type="fixed">
+    <parent link="world" />
+    <child link="lh_forearm_disk" />
+    <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+  </joint>
+  <xacro:shadowhand muscletrans="true" muscle="true" bio="false" bt_sp="false"
+  ubi="false" eli="false" reflect="-1.0" prefix="lh_" lf="true" />
+  <link name="lh_forearm_disk">
+    <inertial>
+      <origin xyz="0 0 0" />
+      <mass value="3.0" />
+      <inertia ixx="0.00735" ixy="0.0" ixz="0.0" iyy="0.00735"
+      iyz="0.0" izz="0.0343" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry name="lh_forearm_disk_geom">
+        <mesh filename="package://sr_description/meshes/hand/forearm_muscle_disk.dae"
+        scale="1.0 1.0 1.0" />
+      </geometry>
+      <material name="Grey" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0.175" rpy="0 0 0" />
+      <geometry name="lh_forearm_disk_collision">
+        <cylinder radius="0.07" length="0.004" />
+      </geometry>
+    </collision>
+  </link>
+  <gazebo reference="lh_forearm_disk">
+    <material>Gazebo/Grey</material>
+    <selfCollide>false</selfCollide>
+  </gazebo>
+  <joint name="lh_forearm_disk_to_lh_forearm" type="fixed">
+    <parent link="lh_forearm_disk" />
+    <child link="lh_forearm" />
+    <origin xyz="0 0 0.004" rpy="0 0 0" />
+  </joint>
+</robot>

@@ -1,0 +1,36 @@
+<launch>
+  <!-- spawn the arm model -->
+  <group if="$(optenv MUSCLE 0)">
+    <param if="$(optenv BIOTAC_HAND 0)" name="robot_description"
+    command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/arm_and_hand_muscle_biotac.urdf.xacro'" />
+    <param unless="$(optenv BIOTAC_HAND 0)"
+    name="robot_description"
+    command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/arm_and_hand_muscle.urdf.xacro'" />
+  </group>
+  <group unless="$(optenv MUSCLE 0)">
+    <group if="$(optenv ONE_FINGER 0)">
+      <param name="robot_description"
+      command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/arm_and_sr_one_finger_motor.urdf.xacro'" />
+    </group>
+    <group unless="$(optenv ONE_FINGER 0)">
+      <group if="$(optenv THREE_FINGER 0)">
+        <param name="robot_description"
+        command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/arm_and_hand_motor_three_finger.urdf.xacro'" />
+      </group>
+      <group unless="$(optenv THREE_FINGER 0)">
+        <group if="$(optenv ELLIPSOID 0)">
+          <param name="robot_description"
+          command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/arm_and_hand_motor_ellipsoid.urdf.xacro'" />
+        </group>
+        <group unless="$(optenv ELLIPSOID 0)">
+          <param if="$(optenv BIOTAC_HAND 0)"
+          name="robot_description"
+          command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/arm_and_hand_motor_biotac.urdf.xacro'" />
+          <param unless="$(optenv BIOTAC_HAND 0)"
+          name="robot_description"
+          command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/arm_and_hand_motor.urdf.xacro'" />
+        </group>
+      </group>
+    </group>
+  </group>
+</launch>

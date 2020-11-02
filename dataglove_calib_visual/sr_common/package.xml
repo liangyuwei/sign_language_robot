@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<package>
+  <name>sr_common</name>
+  <version>0.0.0</version>
+  <description>This metapackage contains the bare minimum for communicating with the Shadow Hand from a remote computer: urdf models and messages.</description>
+
+  <maintainer email="software@shadowrobot.com">Shadow Robot's software team</maintainer>
+
+  <license>GPL</license>
+
+  <author email="ugo@shadowrobot.com">Ugo Cupcic</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <run_depend>sr_description</run_depend>
+  <run_depend>sr_robot_msgs</run_depend>
+
+  <export>
+    <metapackage/>
+  </export>
+</package>

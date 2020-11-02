@@ -1,0 +1,58 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro"
+xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
+xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
+xmlns:joint="http://playerstage.sourceforge.net/gazebo/xmlschema/#slider"
+xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+xmlns:body="http://playerstage.sourceforge.net/gazebo/xmlschema/#body"
+xmlns:geom="http://playerstage.sourceforge.net/gazebo/xmlschema/#geom">
+
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thbase.gazebo.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thbase.transmission.xacro" />
+  <!-- muscle is true for muscle hand or false for motor hand -->
+  <!-- reflect is either 1 (for right hand) or -1 (for left hand) -->
+  <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+  <!-- parent is the parent link for the first joint -->
+  <xacro:macro name="thbase" params="muscle reflect prefix parent">
+    <link name="${prefix}thbase">
+      <inertial>
+        <mass value="0.010" />
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <inertia ixx="0.00000016" ixy="0.0" ixz="0.0"
+        iyy="0.00000016" iyz="0.0" izz="0.00000016" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry name="${prefix}thbase_visual">
+          <box size="0.001 0.001 0.001" />
+        </geometry>
+        <material name="shadow_thbase_material">
+          <color rgba="0.5 0.5 0.5 1.0" />
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <geometry name="${prefix}thbase_collision_geom">
+          <sphere radius="0.011" />
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${prefix}THJ5" type="revolute">
+      <parent link="${parent}" />
+      <child link="${prefix}thbase" />
+      <origin xyz="${reflect*0.034} -0.0085 0.029"
+      rpy="0 ${M_PI/4} ${M_PI/2-reflect*M_PI/2}" />
+      <axis xyz="0 0 ${reflect*-1}" />
+      <limit lower="${-60/180*M_PI}" upper="${60/180*M_PI}"
+      effort="5.0" velocity="4.0" />
+      <dynamics damping="0.2" />
+    </joint>
+    <gazebo reference="${prefix}THJ5">
+      <provideFeedback>1</provideFeedback>
+      <implicitSpringDamper>1</implicitSpringDamper>
+    </gazebo>
+    <!-- extensions -->
+    <xacro:thbase_transmission muscletrans="${muscle}"
+    prefix="${prefix}" />
+    <xacro:thbase_gazebo prefix="${prefix}" />
+  </xacro:macro>
+</robot>

@@ -3,9 +3,11 @@
 <launch>
   <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
     <param name="video_device" value="/dev/video0" />
-    <param name="image_width" value="640" />
-    <param name="image_height" value="480" /> <!-- 1280-960, 1280-720 approximately 7.5Hz; 640-480 nearly 30Hz -->
-    <param name="pixel_format" value="yuyv" />
+    <param name="image_width" value="1280" />
+    <param name="image_height" value="960" /> <!-- 1280-960, 1280-720 approximately 7.5Hz; 640-480 nearly 30Hz (18-20 FPS actually...); 800-600 converged to 15-18Hz; 320-240 around 21-22 Hz -->
+    <param name="framerate" value="30" /> <!-- Not working -->
+    <param name="pixel_format" value="mjpeg" /> <!--"yuyv". MJPG pixel format supports higher FPS at 1280 960 /-->
+    <!--param name="autofocus" value="true" /--> <!-- Not supported by our hardware... -->
     <param name="camera_frame_id" value="usb_cam" />
     <param name="io_method" value="mmap"/>
   </node>

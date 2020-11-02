@@ -1,0 +1,16 @@
+<mujoco>    
+    <mesh name="base" file="meshes/arm_and_hand_meshes/visual/base.stl" scale="1 1 1"/>
+    <mesh name="shoulder" file="meshes/arm_and_hand_meshes/visual/shoulder.stl" scale="1 1 1"/>
+    <mesh name="upperarm_body_link" file="meshes/arm_and_hand_meshes/visual/upperarm_body.stl" scale="1 1 1"/>
+    <mesh name="upperarm_bottom_link" file="meshes/arm_and_hand_meshes/visual/upperarm_bottom_link.stl" scale="1 1 1"/>
+    <mesh name="upperarm_top_link" file="meshes/arm_and_hand_meshes/visual/upperarm_top_link.stl" scale="1 1 1"/>
+    <mesh name="forearm_body_link" file="meshes/arm_and_hand_meshes/visual/forearm_body_link.stl" scale="1 1 1"/>
+    <mesh name="forearm_bottom_link" file="meshes/arm_and_hand_meshes/visual/forearm_bottom_link.stl" scale="1 1 1"/>
+    <mesh name="forearm_top_link" file="meshes/arm_and_hand_meshes/visual/forearm_top_link.stl" scale="1 1 1"/>
+    <mesh name="wrist1_link" file="meshes/arm_and_hand_meshes/visual/wrist1_link.stl" scale="1 1 1"/>
+    <mesh name="wrist1_base" file="meshes/arm_and_hand_meshes/visual/wrist1_base.stl" scale="1 1 1"/>
+    <mesh name="wrist2_link" file="meshes/arm_and_hand_meshes/visual/wrist2_link.stl" scale="1 1 1"/>
+    <mesh name="wrist2_base" file="meshes/arm_and_hand_meshes/visual/wrist2_base.stl" scale="1 1 1"/>
+    <mesh name="wrist3" file="meshes/arm_and_hand_meshes/visual/wrist3.stl" scale="1 1 1"/>
+    <mesh name="mount_link_50_4_M6_col" file="meshes/arm_and_hand_meshes/visual/mount_link_50_4_M6.stl" scale="1 1 1"/>
+</mujoco>

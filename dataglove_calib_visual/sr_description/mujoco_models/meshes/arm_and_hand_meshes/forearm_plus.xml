@@ -1,0 +1,9 @@
+<mujoco>
+    <geom type="mesh" material="plastic" mesh="forearm_plus_visual" class="visual" />
+    <geom type="mesh" material="plastic" mesh="forearm_plus_collision_1" class="collision" />
+    <geom type="mesh" material="plastic" mesh="forearm_plus_collision_2" class="collision" />
+    <geom type="mesh" material="plastic" mesh="forearm_plus_collision_3" class="collision" />
+    <geom type="mesh" material="plastic" mesh="forearm_plus_collision_4" class="collision" />
+    <geom type="mesh" material="plastic" mesh="forearm_plus_collision_5" class="collision" />
+    <geom type="mesh" material="plastic" mesh="forearm_collision_wrist" class="collision" />
+</mujoco>

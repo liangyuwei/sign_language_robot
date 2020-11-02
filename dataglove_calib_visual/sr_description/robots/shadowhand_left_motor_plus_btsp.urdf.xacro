@@ -1,0 +1,18 @@
+<robot xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
+       xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
+       xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+       xmlns:xacro="http://www.ros.org/wiki/xacro"
+       name="shadowhand_motor">
+    <xacro:include filename="$(find sr_description)/materials.urdf.xacro"/>
+    <xacro:include filename="$(find sr_description)/hand/xacro/full_hand.urdf.xacro"/>
+    <xacro:include filename="$(find sr_description)/other/xacro/gazebo/gazebo.urdf.xacro"/>
+    <!-- hand with cylindrical base drifts in gazebo, attach it to the world -->
+    <link name="world" />
+    <joint name="lh_world_joint" type="fixed">
+      <parent link="world" />
+      <child link="lh_forearm" />
+      <origin xyz="0.0 0.0 0.0" rpy="0.0 0.0 0.0" />
+    </joint>
+    <xacro:shadowhand muscletrans="false" muscle="false" hand_type="hand_e_plus" bio="false" bt_sp="true"
+                      ubi="false" eli="false" reflect="-1.0" prefix="lh_" lf="true" />
+</robot>

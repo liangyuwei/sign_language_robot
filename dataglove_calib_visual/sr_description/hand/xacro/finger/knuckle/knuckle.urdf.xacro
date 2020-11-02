@@ -1,0 +1,62 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro"
+xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
+xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
+xmlns:joint="http://playerstage.sourceforge.net/gazebo/xmlschema/#slider"
+xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+xmlns:body="http://playerstage.sourceforge.net/gazebo/xmlschema/#body"
+xmlns:geom="http://playerstage.sourceforge.net/gazebo/xmlschema/#geom">
+
+  <xacro:include filename="$(find sr_description)/hand/xacro/finger/knuckle/knuckle.gazebo.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/finger/knuckle/knuckle.transmission.xacro" />
+  <!-- muscle is true for muscle hand or false for motor hand -->
+  <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+  <!-- link_prefix prepends fingername to the link names -->
+  <!-- joint_prefix prepends fingername to the joint names -->
+  <!-- parent is the parent link for the joint -->
+  <xacro:macro name="knuckle"
+  params="muscle prefix link_prefix joint_prefix parent *origin">
+    <link name="${prefix}${link_prefix}knuckle">
+      <inertial>
+        <origin xyz="0 0 0" rpy="0 0 0" />
+        <mass value="0.008" />
+        <inertia ixx="0.00000026" ixy="0.0" ixz="0.0"
+        iyy="0.00000026" iyz="0.0" izz="0.00000032" />
+      </inertial>
+      <visual>
+        <origin xyz="0 0 0.0005" rpy="0 0 0" />
+        <geometry name="${prefix}${link_prefix}knuckle_visual">
+          <mesh filename="package://sr_description/meshes/hand/knuckle.dae"
+          scale="0.001 0.001 0.001" />
+        </geometry>
+        <material name="LightGrey" />
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="0 1.5708 0" />
+        <geometry name="${prefix}${link_prefix}knuckle_collision_geom">
+
+          <cylinder radius="0.007" length="0.014" />
+        </geometry>
+      </collision>
+    </link>
+    <joint name="${prefix}${joint_prefix}J4" type="revolute">
+      <parent link="${parent}" />
+      <child link="${prefix}${link_prefix}knuckle" />
+      <!--<origin xyz="0.033 0 0.095" rpy="0 0 0" />-->
+      <xacro:insert_block name="origin" />
+      <xacro:insert_block name="axis" />
+      <limit lower="${-20/180*M_PI}" upper="${20/180*M_PI}"
+      effort="2" velocity="2.0" />
+      <dynamics damping="0.1" />
+    </joint>
+    <gazebo reference="${prefix}${joint_prefix}J4">
+      <provideFeedback>1</provideFeedback>
+      <implicitSpringDamper>1</implicitSpringDamper>
+    </gazebo>
+    <!-- extensions -->
+    <xacro:knuckle_transmission muscletrans="${muscle}"
+    prefix="${prefix}" joint_prefix="${joint_prefix}"
+    link_prefix="${link_prefix}" />
+    <xacro:knuckle_gazebo prefix="${prefix}"
+    link_prefix="${link_prefix}" />
+  </xacro:macro>
+</robot>

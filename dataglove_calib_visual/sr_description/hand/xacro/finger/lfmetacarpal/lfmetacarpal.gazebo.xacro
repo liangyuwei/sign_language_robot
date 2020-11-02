@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="lfmetacarpal_gazebo" params="prefix link_prefix">
+
+  <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+  <gazebo reference="${prefix}lfmetacarpal">
+      <sensor type="contact" name="${prefix}lfmetacarpal_contact">
+				<always_on>1</always_on>
+        <update_rate>1000.0</update_rate>
+        <contact>
+          <collision>${prefix}lfmetacarpal_collision</collision>
+          <topic>${prefix}lfmetacarpal_collision</topic>
+        </contact>
+        <plugin name="${prefix}lfmetacarpal_gazebo_ros_bumper_controller" filename="libgazebo_ros_bumper.so">
+          <alwaysOn>true</alwaysOn>
+          <frameName>${prefix}lfmetacarpal</frameName>
+          <updateRate>100.0</updateRate>
+          <bumperTopicName>contacts/${prefix}lf/metacarpal</bumperTopicName>
+        </plugin>
+      </sensor>
+      <selfCollide>true</selfCollide>
+       
+    </gazebo>
+  </xacro:macro>
+</robot>

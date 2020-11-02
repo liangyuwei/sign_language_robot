@@ -1,0 +1,37 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thbase.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thproximal.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thhub.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thmiddle.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/thumb/thdistal.urdf.xacro" />
+  <!-- muscletrans is true for muscle transmission to be used, false to use motor transmission -->
+  <!-- bio is true for biotac finger or false for standard finger -->
+  <!-- bt_sp is true for BT_SP finger or false for standard finger -->
+  <!-- ubi is true for ubi finger or false for standard finger -->
+  <!-- eli is true for ellipsoid fingertip or false for standard finger -->
+  <!-- reflect is either 1 (for right hand) or -1 (for left hand) -->
+  <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+  <!-- parent is the parent link for the first joint -->
+  <!-- is_lite is this the lite hand, if so lock J3 -->
+  <xacro:macro name="thumb"
+  params="muscletrans bio bt_sp ubi eli reflect prefix parent is_lite">
+    <!-- Base -->
+    <xacro:thbase muscle="${muscletrans}" prefix="${prefix}"
+    reflect="${reflect}" parent="${parent}"></xacro:thbase>
+    <!-- Proximal -->
+    <xacro:thproximal muscle="${muscletrans}" prefix="${prefix}"
+    reflect="${reflect}" parent="${prefix}thbase">
+    </xacro:thproximal>
+    <!-- Hub -->
+    <xacro:thhub muscle="${muscletrans}" prefix="${prefix}"
+    parent="${prefix}thproximal" is_lite="${is_lite}">
+    &gt;</xacro:thhub>
+    <!-- Middle -->
+    <xacro:thmiddle muscle="${muscletrans}" bio="${bio}"
+    prefix="${prefix}" parent="${prefix}thhub"></xacro:thmiddle>
+    <!-- Distal -->
+    <xacro:thdistal muscle="${muscletrans}" bio="${bio}" bt_sp="${bt_sp}"
+    ubi="${ubi}" eli="${eli}" prefix="${prefix}"
+    parent="${prefix}thmiddle"></xacro:thdistal>
+  </xacro:macro>
+</robot>

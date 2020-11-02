@@ -1,0 +1,239 @@
+sh_lh_ffj0_variable_position_controller:
+  joint: lh_FFJ0
+  pid:
+    d: 0.005
+    i: 0.1
+    i_clamp: 0.05
+    p: 0.5
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_ffj3_variable_position_controller:
+  joint: lh_FFJ3
+  pid:
+    d: 0.05
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_ffj4_variable_position_controller:
+  joint: lh_FFJ4
+  pid:
+    d: 0.05
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_lfj0_variable_position_controller:
+  joint: lh_LFJ0
+  pid:
+    d: 0.005
+    i: 0.1
+    i_clamp: 0.05
+    p: 0.5
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_lfj3_variable_position_controller:
+  joint: lh_LFJ3
+  pid:
+    d: 0.05
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_lfj4_variable_position_controller:
+  joint: lh_LFJ4
+  pid:
+    d: 0.05
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_lfj5_variable_position_controller:
+  joint: lh_LFJ5
+  pid:
+    d: 0.05
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_mfj0_variable_position_controller:
+  joint: lh_MFJ0
+  pid:
+    d: 0.005
+    i: 0.1
+    i_clamp: 0.05
+    p: 0.5
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_mfj3_variable_position_controller:
+  joint: lh_MFJ3
+  pid:
+    d: 0.05
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_mfj4_variable_position_controller:
+  joint: lh_MFJ4
+  pid:
+    d: 0.05
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_rfj0_variable_position_controller:
+  joint: lh_RFJ0
+  pid:
+    d: 0.005
+    i: 0.1
+    i_clamp: 0.05
+    p: 0.5
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_rfj3_variable_position_controller:
+  joint: lh_RFJ3
+  pid:
+    d: 0.05
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_rfj4_variable_position_controller:
+  joint: lh_RFJ4
+  pid:
+    d: 0.05
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_thj1_variable_position_controller:
+  joint: lh_THJ1
+  pid:
+    d: 0.0
+    i: 0.2
+    i_clamp: 0.2
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_thj2_variable_position_controller:
+  joint: lh_THJ2
+  pid:
+    d: 0.0
+    i: 0.7
+    i_clamp: 0.4
+    p: 1.5
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_thj3_variable_position_controller:
+  joint: lh_THJ3
+  pid:
+    d: 0.0
+    i: 0.2
+    i_clamp: 0.2
+    p: 0.5
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 1.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_thj4_variable_position_controller:
+  joint: lh_THJ4
+  pid:
+    d: 0.0
+    i: 0.4
+    i_clamp: 0.3
+    p: 1.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 2.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_thj5_variable_position_controller:
+  joint: lh_THJ5
+  pid:
+    d: 0.05
+    i: 0.1
+    i_clamp: 0.4
+    p: 0.4
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 3.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_wrj1_variable_position_controller:
+  joint: lh_WRJ1
+  pid:
+    d: 1.0
+    i: 1.5
+    i_clamp: 0.8
+    p: 10.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 5.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController
+
+sh_lh_wrj2_variable_position_controller:
+  joint: lh_WRJ2
+  pid:
+    d: 0.2
+    i: 1.5
+    i_clamp: 0.5
+    p: 8.0
+    position_deadband: 0.0
+    friction_deadband: 0.0
+    max_force: 10.0
+  type: sr_mechanism_controllers/SrhJointVariablePidPositionController

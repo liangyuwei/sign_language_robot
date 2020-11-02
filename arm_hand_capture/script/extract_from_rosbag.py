@@ -5,6 +5,7 @@ import h5py
 import numpy as np
 import tf
 import copy
+import math
 
 import sys
 import getopt
@@ -37,6 +38,12 @@ def bag_to_h5_video(bag_name, h5_name, hand_length, fps=15.0):
   # Iterate to get the message contents
   bag_file = rosbag.Bag(bag_name + '.bag')
   count = bag_file.get_message_count()
+
+  # set the actual fps 
+  duration = bag_file.get_end_time() - bag_file.get_start_time() # for calculating FPS...
+  fps = math.ceil(count / duration)
+  print("FPS: {}".format(fps))
+
   bridge = CvBridge()
 
   idx = 0
@@ -58,8 +65,8 @@ def bag_to_h5_video(bag_name, h5_name, hand_length, fps=15.0):
   r_hd_pos = np.zeros([count, 3])
   r_hd_quat = np.zeros([count, 4])
 
-  l_glove_angle = np.zeros([count, 14])
-  r_glove_angle = np.zeros([count, 14])
+  l_glove_angle = np.zeros([count, 15]) #14])
+  r_glove_angle = np.zeros([count, 15]) #14])
 
   # inferred hand tip by extending corresponding wrist positions along z-axis of local frame (which is specific to the hand marker setting for human motion capture)
   l_hand_tip_pos = np.zeros([count, 3])
@@ -118,7 +125,7 @@ def bag_to_h5_video(bag_name, h5_name, hand_length, fps=15.0):
     if idx == 0:
       #fps = 15.0
       size = (cols, rows)
-      fourcc = cv2.VideoWriter_fourcc(*"XVID")
+      fourcc = cv2.VideoWriter_fourcc(*"MJPG")#(*"XVID")
       video_writer = cv2.VideoWriter(bag_name+'.avi', fourcc, fps, size) 
     video_writer.write(cv2_img)
 

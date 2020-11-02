@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="thbase_gazebo" params="prefix">
+
+  <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+  <gazebo reference="${prefix}thbase">
+      <sensor type="contact" name="${prefix}thbase_contact">
+        <always_on>1</always_on>
+        <update_rate>1000.0</update_rate>
+        <contact>
+          <collision>${prefix}thbase_collision</collision>
+          <topic>${prefix}thbase_collision</topic>
+        </contact>
+        <plugin name="${prefix}thbase_gazebo_ros_bumper_controller" filename="libgazebo_ros_bumper.so">
+          <alwaysOn>true</alwaysOn>
+          <frameName>${prefix}thbase</frameName>
+          <updateRate>100.0</updateRate>
+          <bumperTopicName>contacts/${prefix}th/base</bumperTopicName>
+        </plugin>
+      </sensor>
+      <selfCollide>false</selfCollide>
+       
+    </gazebo>
+  </xacro:macro>
+</robot>

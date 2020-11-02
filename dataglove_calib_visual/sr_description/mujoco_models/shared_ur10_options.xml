@@ -1,0 +1,10 @@
+<mujoco>
+    <actuator>
+        <motor name="ra_shoulder_pan_joint" joint="ra_shoulder_pan_joint" ctrllimited="false" ctrlrange="-6.28319 6.28319"/>
+        <motor name="ra_shoulder_lift_joint" joint="ra_shoulder_lift_joint"  ctrllimited="false" ctrlrange="-6.28319 6.28319"/>
+        <motor name="ra_elbow_joint" joint="ra_elbow_joint" ctrllimited="false" ctrlrange="-3.14159 3.14159"/>
+        <motor name="ra_wrist_1_joint" joint="ra_wrist_1_joint" ctrllimited="false" ctrlrange="-6.28319 6.28319"/>
+        <motor name="ra_wrist_2_joint" joint="ra_wrist_2_joint" ctrllimited="false" ctrlrange="-6.28319 6.28319"/>
+        <motor name="ra_wrist_3_joint" joint="ra_wrist_3_joint" ctrllimited="false" ctrlrange="-6.28319 6.28319"/>
+    </actuator>
+</mujoco>

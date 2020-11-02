@@ -1,0 +1,381 @@
+sh_lh_ffj0_mixed_position_velocity_controller:
+  joint: FFJ0
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_ffj3_mixed_position_velocity_controller:
+  joint: FFJ3
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_ffj4_mixed_position_velocity_controller:
+  joint: FFJ4
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_lfj0_mixed_position_velocity_controller:
+  joint: LFJ0
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_lfj3_mixed_position_velocity_controller:
+  joint: LFJ3
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_lfj4_mixed_position_velocity_controller:
+  joint: LFJ4
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_lfj5_mixed_position_velocity_controller:
+  joint: LFJ5
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_mfj0_mixed_position_velocity_controller:
+  joint: MFJ0
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_mfj3_mixed_position_velocity_controller:
+  joint: MFJ3
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_mfj4_mixed_position_velocity_controller:
+  joint: MFJ4
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_rfj0_mixed_position_velocity_controller:
+  joint: RFJ0
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_rfj3_mixed_position_velocity_controller:
+  joint: RFJ3
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_rfj4_mixed_position_velocity_controller:
+  joint: RFJ4
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_thj1_mixed_position_velocity_controller:
+  joint: THJ1
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -3.0
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_thj2_mixed_position_velocity_controller:
+  joint: THJ2
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -3.0
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_thj3_mixed_position_velocity_controller:
+  joint: THJ3
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -3.0
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_thj4_mixed_position_velocity_controller:
+  joint: THJ4
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -3.0
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_thj5_mixed_position_velocity_controller:
+  joint: THJ5
+  position_pid:
+    d: 0.0
+    i: 0.0
+    i_clamp: 0.1
+    max_velocity: 1.5
+    min_velocity: -1.5
+    p: -3.0
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_wrj1_mixed_position_velocity_controller:
+  joint: WRJ1
+  position_pid:
+    d: 0.0
+    i: -0.1
+    i_clamp: 0.1
+    max_velocity: 0.5
+    min_velocity: -0.5
+    p: -2.0
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+sh_lh_wrj2_mixed_position_velocity_controller:
+  joint: WRJ2
+  position_pid:
+    d: 0.0
+    i: -0.1
+    i_clamp: 0.1
+    max_velocity: 0.5
+    min_velocity: -0.5
+    p: -2.3
+    position_deadband: 0.0
+  type: sr_mechanism_controllers/SrhMixedPositionVelocityJointController
+  velocity_pid:
+    d: 0.0
+    friction_deadband: 100.0
+    i: 0.0
+    i_clamp: 0.0
+    max_force: 10.0
+    p: -0.2
+
+

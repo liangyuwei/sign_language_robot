@@ -1,0 +1,72 @@
+<launch>
+  <arg name="robot_param" default="sh_description" />
+  <group if="$(optenv MUSCLE 0)">
+    <group if="$(optenv LEFT_HAND 0)">
+      <param name="$(arg robot_param)"
+      command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_left_muscle.urdf.xacro'" />
+    </group>
+    <group unless="$(optenv LEFT_HAND 0)">
+      <param if="$(optenv BIOTAC_HAND 0)" name="$(arg robot_param)"
+      command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_muscle_biotac.urdf.xacro'" />
+      <param unless="$(optenv BIOTAC_HAND 0)"
+      name="$(arg robot_param)"
+      command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_muscle.urdf.xacro'" />
+    </group>
+  </group>
+  <group unless="$(optenv MUSCLE 0)">
+    <group if="$(optenv ONE_FINGER 0)">
+      <param name="$(arg robot_param)"
+      command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/sr_one_finger_motor.urdf.xacro'" />
+    </group>
+    <group unless="$(optenv ONE_FINGER 0)">
+      <group if="$(optenv LEFT_HAND 0)">
+        <param name="$(arg robot_param)"
+        command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_left_motor.urdf.xacro'" />
+      </group>
+      <group unless="$(optenv LEFT_HAND 0)">
+        <group if="$(optenv THREE_FINGER 0)">
+          <param name="$(arg robot_param)"
+          command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/sr_three_finger_motor.urdf.xacro'" />
+        </group>
+        <group unless="$(optenv THREE_FINGER 0)">
+          <group if="$(optenv ELLIPSOID 0)">
+            <param name="$(arg robot_param)"
+            command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_motor_ellipsoid.urdf.xacro'" />
+          </group>
+          <group unless="$(optenv ELLIPSOID 0)">
+            <group if="$(optenv FF_BIOTAC 0)">
+              <param name="$(arg robot_param)"
+              command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_motor_ff_biotac.urdf.xacro'" />
+            </group>
+            <group unless="$(optenv FF_BIOTAC 0)">
+              <group if="$(optenv BTSP_HAND 0)">
+                <param name="$(arg robot_param)"
+                command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_motor_btsp.urdf.xacro'" />
+              </group>
+              <group unless="$(optenv BTSP_HAND 0)">
+		<group if="$(optenv HAND_LITE 0)">
+                  <param name="$(arg robot_param)"
+			 command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_lite.urdf.xacro'" />
+		</group>
+		<group unless="$(optenv HAND_LITE 0)">
+		  <group if="$(optenv HAND_EXTRA_LITE 0)">
+                    <param name="$(arg robot_param)"
+			   command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_extra_lite.urdf.xacro'" />
+		  </group>
+		  <group unless="$(optenv HAND_EXTRA_LITE 0)">
+                    <param if="$(optenv BIOTAC_HAND 0)"
+			   name="$(arg robot_param)"
+			   command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_motor_biotac.urdf.xacro'" />
+                    <param unless="$(optenv BIOTAC_HAND 0)"
+			   name="$(arg robot_param)"
+			   command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/shadowhand_motor.urdf.xacro'" />
+		  </group>
+		</group>
+              </group>
+            </group>
+          </group>
+        </group>
+      </group>
+    </group>
+  </group>
+</launch>

@@ -1,0 +1,6 @@
+<mujoco>
+    <geom type="mesh" material="plastic" mesh="TH2_visual" class="visual" />
+    <geom type="mesh" material="plastic" mesh="TH2_collision_proximal" class="collision" />
+    <geom type="mesh" material="plastic" mesh="TH2_collision_middle" class="collision" />
+    <geom type="mesh" material="plastic" mesh="TH2_collision_distal" class="collision" />
+</mujoco>

@@ -1,0 +1,4 @@
+<launch>
+  <param name="support_description"
+  command="$(find xacro)/xacro --inorder '$(find sr_description)/other/xacro/desk/desk_robot.urdf.xacro'" />
+</launch>

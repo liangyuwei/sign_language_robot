@@ -1,0 +1,16 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="shadowhand_motor">
+  <xacro:macro name="imu_sensor" params="prefix">
+    <link name="${prefix}imu"/>
+    <joint name="${prefix}palm_to_imu" type="fixed">
+      <parent link="${prefix}palm" />
+      <child link = "${prefix}imu"/>
+      <origin xyz="0.01785 0.00765 0.049125" rpy="-1.5707963 3.141592 0.0"/>
+    </joint>
+
+    <sensor name="${prefix}imu" update_rate="100">
+      <parent link="${prefix}imu"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <imu />
+    </sensor>
+  </xacro:macro>
+</robot>

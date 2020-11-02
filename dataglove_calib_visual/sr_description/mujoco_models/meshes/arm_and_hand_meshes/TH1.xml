@@ -1,0 +1,4 @@
+<mujoco>
+    <geom type="mesh" material="plastic" mesh="TH1_collision" class="collision"/>
+    <geom type="mesh" material="plastic" mesh="TH1_visual" class="visual"/>
+</mujoco>

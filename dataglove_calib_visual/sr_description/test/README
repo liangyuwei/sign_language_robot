@@ -1,0 +1,17 @@
+In addition to the gtest test_sr_description_urdf which tests xacro expansion and resulting urdf validity, 
+visual tests have been added to check the generated urdf produce the desired hand with correct joints.
+The visual tests are shell script and require user interaction
+1) start the test
+  /bin/bash tests_hand.sh for all the hand models (no arm)
+  or 
+  /bin/bash tests.sh for arm and hand models
+
+you will see 
+ press enter after you tested and killed the launch file
+ Press [Enter] key
+
+2) User is requested to press enter the first time and each time after a visual inspection is over
+3) To finish an inspection do a CTRL-C in the terminal 
+   Goto 2)
+
+Currently there is no way to select the test, if one fails, fix the urdf, and re-run all the visual inspections

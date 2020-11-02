@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:macro name="thdistal_gazebo" params="prefix">
+
+  <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+  <gazebo reference="${prefix}thdistal">
+      <sensor type="contact" name="${prefix}thdistal_contact">
+        <always_on>1</always_on>
+        <update_rate>1000.0</update_rate>
+        <contact>
+          <collision>${prefix}thdistal_collision</collision>
+          <topic>${prefix}thdistal_collision</topic>
+        </contact>
+        <plugin name="${prefix}thdistal_gazebo_ros_bumper_controller" filename="libgazebo_ros_bumper.so">
+          <alwaysOn>true</alwaysOn>
+          <frameName>${prefix}thdistal</frameName>
+          <updateRate>100.0</updateRate>
+          <bumperTopicName>contacts/${prefix}th/distal</bumperTopicName>
+        </plugin>
+      </sensor>
+      <mu1 value="500.0" />
+      <mu2 value="500.0" />
+      <kp  value="10000000.0" />
+      <kd  value="1.0" />
+       
+      <selfCollide>true</selfCollide>
+    </gazebo>
+  </xacro:macro>
+</robot>

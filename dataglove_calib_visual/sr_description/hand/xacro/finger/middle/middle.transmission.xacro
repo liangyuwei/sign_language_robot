@@ -1,0 +1,46 @@
+<?xml version="1.0"?>
+<robot xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
+       xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
+       xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
+       xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+    <!-- muscletrans is true for muscle transmission or false for motor transmission -->
+    <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+    <!-- link_prefix prepends fingername to the link names -->
+    <!-- joint_prefix prepends fingername to the joint names -->
+    <xacro:macro name="middle_transmission" params="muscletrans prefix joint_prefix link_prefix">
+
+        <!-- muscle hand -->
+        <xacro:if value="${muscletrans}">
+            <transmission name="${prefix}${link_prefix}middle_transmission">
+                <type>sr_mechanism_model/J0TransmissionForMuscle</type>
+                <actuator name="${prefix}${joint_prefix}J0">
+                    <mechanicalReduction>1</mechanicalReduction>
+                </actuator>
+                <joint name="${prefix}${joint_prefix}J1">
+                    <hardwareInterface>EffortJointInterface</hardwareInterface>
+                    <hardwareInterface>PositionJointInterface</hardwareInterface>
+                </joint>
+                <joint name="${prefix}${joint_prefix}J2">
+                    <hardwareInterface>EffortJointInterface</hardwareInterface>
+                    <hardwareInterface>PositionJointInterface</hardwareInterface>
+                </joint>
+                <mechanicalReduction>1</mechanicalReduction>
+            </transmission>
+        </xacro:if>
+        <!-- motor hand -->
+        <xacro:unless value="${muscletrans}">
+            <transmission name="${prefix}${link_prefix}middle_transmission">
+                <type>sr_mechanism_model/J0Transmission</type>
+                <actuator name="${prefix}${joint_prefix}J0">
+                    <mechanicalReduction>1</mechanicalReduction>
+                </actuator>
+                <joint name="${prefix}${joint_prefix}J1">
+                    <hardwareInterface>EffortJointInterface</hardwareInterface>
+                    <hardwareInterface>PositionJointInterface</hardwareInterface>
+                </joint>
+                <secondJoint name="${prefix}${joint_prefix}J2"/>
+            </transmission>
+        </xacro:unless>
+    </xacro:macro>
+</robot>

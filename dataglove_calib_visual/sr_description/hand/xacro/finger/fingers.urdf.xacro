@@ -1,0 +1,69 @@
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find sr_description)/hand/xacro/finger/knuckle/knuckle.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/finger/proximal/proximal.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/finger/middle/middle.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/finger/distal/distal.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/finger/lfmetacarpal/lfmetacarpal.urdf.xacro" />
+  <xacro:include filename="$(find sr_description)/hand/xacro/finger/biotac/biotac.urdf.xacro" />
+  <!-- muscletrans is true for muscle transmission to be used, false to use motor transmission -->
+  <!-- lf is true for little finger or false for standard finger -->
+  <!-- bio is true for biotac finger or false for standard finger -->
+  <!-- bt_sp is true for BT_SP finger or false for standard finger -->
+  <!-- ubi is true for ubi finger or false for standard finger -->
+  <!-- eli is true for ellipsoid fingertip or false for standard finger -->
+  <!-- reflect is either 1 (for right hand) or -1 (for left hand) -->
+  <!-- prefix can be anything but usually is "r_" or  "l_" for right and left hands distinction -->
+  <!-- link_prefix prepends fingername to the link names -->
+  <!-- joint_prefix prepends fingername to the joint names -->
+  <!-- parent is the parent link for the first joint -->
+  <xacro:macro name="finger"
+  params="muscletrans lf bio bt_sp ubi eli reflect prefix link_prefix joint_prefix parent *origin *axis">
+
+    <!-- Little finger special case -->
+    <xacro:if value="${lf}">
+      <xacro:lfmetacarpal muscle="${muscletrans}"
+      prefix="${prefix}" reflect="${reflect}" parent="${parent}" />
+      <!-- Knuckle -->
+      <xacro:knuckle muscle="${muscletrans}" prefix="${prefix}"
+      link_prefix="${link_prefix}" joint_prefix="${joint_prefix}"
+      parent="${prefix}lfmetacarpal">
+        <xacro:insert_block name="origin" />
+      </xacro:knuckle>
+    </xacro:if>
+    <!-- Standard finger -->
+    <xacro:unless value="${lf}">
+      <!-- Knuckle -->
+      <xacro:knuckle muscle="${muscletrans}" prefix="${prefix}"
+      link_prefix="${link_prefix}" joint_prefix="${joint_prefix}"
+      parent="${parent}">
+        <xacro:insert_block name="origin" />
+      </xacro:knuckle>
+    </xacro:unless>
+    <!-- Proximal -->
+    <xacro:proximal muscle="${muscletrans}" prefix="${prefix}"
+    link_prefix="${link_prefix}" joint_prefix="${joint_prefix}"
+    parent="${prefix}${link_prefix}knuckle"></xacro:proximal>
+    <!-- Biotac Middle -->
+    <xacro:if value="${bio}">
+      <xacro:biotac_middle muscle="${muscletrans}"
+      prefix="${prefix}" link_prefix="${link_prefix}"
+      joint_prefix="${joint_prefix}"
+      parent="${prefix}${link_prefix}proximal">
+      </xacro:biotac_middle>
+    </xacro:if>
+    <!-- Standard Middle -->
+    <xacro:unless value="${bio}">
+      <xacro:middle muscle="${muscletrans}" prefix="${prefix}"
+      link_prefix="${link_prefix}" joint_prefix="${joint_prefix}"
+      parent="${prefix}${link_prefix}proximal"></xacro:middle>
+    </xacro:unless>
+    <!-- Distal  -->
+    <!-- only if finger is not biotac  -->
+    <xacro:unless value="${bio}">
+      <xacro:distal muscle="${muscletrans}" bio="${bio}" bt_sp="${bt_sp}"
+      ubi="${ubi}" eli="${eli}" prefix="${prefix}"
+      link_prefix="${link_prefix}" joint_prefix="${joint_prefix}"
+      parent="${prefix}${link_prefix}middle"></xacro:distal>
+    </xacro:unless>
+  </xacro:macro>
+</robot>

@@ -1,0 +1,165 @@
+sh_rh_grasp_controller:
+  gains:
+    lh_FFJ0:
+      d: 0.005
+      i: 0.1
+      i_clamp: 0.05
+      p: 0.5
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_FFJ3:
+      d: 0.05
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_FFJ4:
+      d: 0.05
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_LFJ0:
+      d: 0.005
+      i: 0.1
+      i_clamp: 0.05
+      p: 0.5
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_LFJ3:
+      d: 0.05
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_LFJ4:
+      d: 0.05
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_LFJ5:
+      d: 0.05
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_MFJ0:
+      d: 0.005
+      i: 0.1
+      i_clamp: 0.05
+      p: 0.5
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_MFJ3:
+      d: 0.05
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_MFJ4:
+      d: 0.05
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_RFJ0:
+      d: 0.005
+      i: 0.1
+      i_clamp: 0.05
+      p: 0.5
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_RFJ3:
+      d: 0.05
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_RFJ4:
+      d: 0.05
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_THJ1:
+      d: 0.0
+      i: 0.2
+      i_clamp: 0.2
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_THJ2:
+      d: 0.0
+      i: 0.7
+      i_clamp: 0.4
+      p: 1.5
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_THJ3:
+      d: 0.0
+      i: 0.2
+      i_clamp: 0.2
+      p: 0.5
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 1.0
+    lh_THJ4:
+      d: 0.0
+      i: 0.4
+      i_clamp: 0.3
+      p: 1.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 2.0
+    lh_THJ5:
+      d: 0.05
+      i: 0.1
+      i_clamp: 0.4
+      p: 0.4
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 3.0
+    lh_WRJ1:
+      d: 1.0
+      i: 1.5
+      i_clamp: 0.8
+      p: 10.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 5.0
+    lh_WRJ2:
+      d: 0.2
+      i: 1.5
+      i_clamp: 0.5
+      p: 8.0
+      position_deadband: 0.0
+      friction_deadband: 0.0
+      max_force: 10.0
+      
+  type: sr_grasp_controllers/SrhGraspController
+  joints: [lh_FFJ0, lh_FFJ3, lh_FFJ4, lh_LFJ0, lh_LFJ3, lh_LFJ4, lh_LFJ5, lh_MFJ0, lh_MFJ3, lh_MFJ4, lh_RFJ0, lh_RFJ3, lh_RFJ4, lh_THJ1, lh_THJ2, lh_THJ3, lh_THJ4, lh_THJ5, lh_WRJ1, lh_WRJ2]
