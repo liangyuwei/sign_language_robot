@@ -11,7 +11,9 @@
 
 
   <!-- Start camera streaming -->
-  <include file="$(find arm_hand_capture)/launch/load_camera.launch" />
+  <!--include file="$(find arm_hand_capture)/launch/load_camera.launch" /--> <!-- Using usb_cam -->
+  <include file="$(find arm_hand_capture)/launch/load_camera_uvc.launch" /> <!-- Using libuvc_cam!!! higher resolution with higher FPS, check out by v4l2-ctl - -list-formats-ext -->
+
 
   <!-- Synchronize the mocap data and glove data(and transform to z-up frames) -->
   <node name="sync_state_with_image_node" pkg="arm_hand_capture" type="sync_state_with_image"/><!-- output="screen" /-->

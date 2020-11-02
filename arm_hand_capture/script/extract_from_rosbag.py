@@ -125,7 +125,7 @@ def bag_to_h5_video(bag_name, h5_name, hand_length, fps=15.0):
     if idx == 0:
       #fps = 15.0
       size = (cols, rows)
-      fourcc = cv2.VideoWriter_fourcc(*"MJPG")#(*"XVID")
+      fourcc = cv2.VideoWriter_fourcc(*"MJPG")#(*"XVID")#
       video_writer = cv2.VideoWriter(bag_name+'.avi', fourcc, fps, size) 
     video_writer.write(cv2_img)
 

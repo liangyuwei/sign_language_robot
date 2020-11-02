@@ -153,8 +153,8 @@ TimeSyncWithImageAndPublish::TimeSyncWithImageAndPublish()
   message_filters::Subscriber<PoseStamped> left_hand_sub(n_, "/vrpn_client_node/LeftHand/pose", 100);
 
 
-  message_filters::Subscriber<Image> image_sub(n_, "/usb_cam/image_raw", 100);
-
+  //message_filters::Subscriber<Image> image_sub(n_, "/usb_cam/image_raw", 100);
+  message_filters::Subscriber<Image> image_sub(n_, "/uvc_cam/image_raw", 100);
 
   // Approximate Time sync, how accurate is it???
   typedef message_filters::sync_policies::ApproximateTime<PoseStamped, PoseStamped, PoseStamped, PoseStamped, PoseStamped, PoseStamped, GloveState, Image> MySyncPolicy;

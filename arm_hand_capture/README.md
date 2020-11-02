@@ -15,6 +15,20 @@ README for collecting motion data:
 
 2. convert to h5:
 
+rosrun arm_hand_capture extract_from_rosbag.py -i <BAG-NAME-WITHOUT-SUFFIX> -o <OUTPUT-H5-NAME-WITHOUT-SUFFIX> -l <HAND-LENGTH>
+
+
+
+
+Calibration:
+
+remember to record hand length!!!! poke at the ground horizontally...
+
+
+
+
+
+
 
 
 
