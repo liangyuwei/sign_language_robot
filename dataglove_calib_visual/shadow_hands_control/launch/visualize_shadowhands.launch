@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <!-- Upload shadow hand's URDF -->
+  <param name="robot_description" command="$(find xacro)/xacro --inorder '$(find sr_description)/robots/bimanual_shadowhand_motor.urdf.xacro'" /> 
+  <!-- robots/bimanual_shadowhand_motor.urdf.xacro : five-fingered hand, this is what we need!!! -->
+  <!-- robots/bimanual_shadowhand_extra_lite.urdf.xacro : three-fingered hand -->
+  <!-- robots/bimanual_shadowhand_lite.urdf.xacro : four-fingered hand -->
+  <!-- robots/bimanual_shadowhand_motor_plus_right_biotac.urdf.xacro : with biotac on the right hand -->
+
+
+  <!-- Launch robot state publisher and joint state publisher -->
+  <arg name="use_gui" default="false"/>
+  <node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher">
+    <param name="use_gui" value="(arg use_gui)"/>
+  </node>
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" output="screen"/>
+
+  <!-- Start RViz for visualization -->
+  <arg name="command_args" value="-d $(find shadow_hands_control)/rviz/shadowhand_visual.rviz" />
+  <node name="rviz_shadowhand" pkg="rviz" type="rviz" respawn="false" args="$(arg command_args)" output="screen"/>
+
+
+</launch>
+
+
+
