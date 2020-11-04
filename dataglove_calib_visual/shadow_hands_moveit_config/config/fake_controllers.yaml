@@ -93,3 +93,6 @@ controller_list:
       - lh_THJ3
       - lh_THJ2
       - lh_THJ1
+  - name: fake_Empty_controller
+    joints:
+      []

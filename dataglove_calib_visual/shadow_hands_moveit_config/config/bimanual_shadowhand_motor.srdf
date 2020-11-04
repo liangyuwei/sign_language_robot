@@ -85,6 +85,10 @@
         <group name="l_hand" />
         <group name="r_hand" />
     </group>
+    <group name="Empty">
+        <joint name="world_joint" />
+        <joint name="right_hand_to_left_hand" />
+    </group>
     <!--DISABLE COLLISIONS: By default it is assumed that any link of the robot could potentially come into collision with any other link in the robot. This tag disables collision checking between a specified pair of links. -->
     <disable_collisions link1="lh_ffdistal" link2="lh_ffknuckle" reason="Never" />
     <disable_collisions link1="lh_ffdistal" link2="lh_ffmiddle" reason="Adjacent" />
