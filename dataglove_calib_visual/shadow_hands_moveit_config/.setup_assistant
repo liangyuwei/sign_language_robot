@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: sr_description
+    relative_path: robots/bimanual_shadowhand_motor.urdf.xacro
+    xacro_args: "--inorder "
+  SRDF:
+    relative_path: config/bimanual_shadowhand_motor.srdf
+  CONFIG:
+    author_name: Yuwei Liang
+    author_email: lyw.liangyuwei@gmail.com
+    generated_timestamp: 1604489235
