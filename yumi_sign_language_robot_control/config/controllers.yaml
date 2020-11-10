@@ -1,0 +1,170 @@
+yumi:
+
+  joint_state_controller:
+    type: joint_state_controller/JointStateController
+    publish_rate: 50
+
+    
+  left_arm_joint_controller: 
+    type: position_controllers/JointTrajectoryController
+    joints:
+      - yumi_joint_1_l
+      - yumi_joint_2_l
+      - yumi_joint_7_l
+      - yumi_joint_3_l
+      - yumi_joint_4_l
+      - yumi_joint_5_l
+      - yumi_joint_6_l
+    gazebo_ros_control:
+      pid_gains: 
+        yumi_joint_1_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_2_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_7_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_3_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_4_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_5_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_6_l: {p: 10.0, i: 0.01, d: 0.010}
+      
+
+  right_arm_joint_controller: 
+    type: position_controllers/JointTrajectoryController
+    joints:
+      - yumi_joint_1_r
+      - yumi_joint_2_r
+      - yumi_joint_7_r
+      - yumi_joint_3_r
+      - yumi_joint_4_r
+      - yumi_joint_5_r
+      - yumi_joint_6_r 
+    gazebo_ros_control:
+      pid_gains: 
+        yumi_joint_1_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_2_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_7_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_3_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_4_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_5_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_6_r: {p: 10.0, i: 0.01, d: 0.010}
+
+
+  dual_arm_joint_controller:
+    type: position_controllers/JointTrajectoryController
+    joints:
+      - yumi_joint_1_l
+      - yumi_joint_2_l
+      - yumi_joint_7_l
+      - yumi_joint_3_l
+      - yumi_joint_4_l
+      - yumi_joint_5_l
+      - yumi_joint_6_l
+      - yumi_joint_1_r
+      - yumi_joint_2_r
+      - yumi_joint_7_r
+      - yumi_joint_3_r
+      - yumi_joint_4_r
+      - yumi_joint_5_r
+      - yumi_joint_6_r 
+    gazebo_ros_control:
+      pid_gains: 
+        yumi_joint_1_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_2_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_7_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_3_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_4_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_5_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_6_l: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_1_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_2_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_7_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_3_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_4_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_5_r: {p: 10.0, i: 0.01, d: 0.010}
+        yumi_joint_6_r: {p: 10.0, i: 0.01, d: 0.010}
+
+
+  dual_arm_hand_joint_controller:
+    type: position_controllers/JointTrajectoryController
+    joints:
+      - yumi_joint_1_l
+      - yumi_joint_2_l
+      - yumi_joint_7_l
+      - yumi_joint_3_l
+      - yumi_joint_4_l
+      - yumi_joint_5_l
+      - yumi_joint_6_l
+      - yumi_joint_1_r
+      - yumi_joint_2_r
+      - yumi_joint_7_r
+      - yumi_joint_3_r
+      - yumi_joint_4_r
+      - yumi_joint_5_r
+      - yumi_joint_6_r 
+      - link1
+      - link11
+      - link2
+      - link22
+      - link3
+      - link33
+      - link4
+      - link44
+      - link5
+      - link51
+      - link52
+      - link53
+      - Link1
+      - Link11
+      - Link2
+      - Link22
+      - Link3
+      - Link33
+      - Link4
+      - Link44
+      - Link5
+      - Link51
+      - Link52
+      - Link53
+      
+gazebo_ros_control:
+  pid_gains: 
+    yumi_joint_1_l: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_2_l: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_7_l: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_3_l: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_4_l: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_5_l: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_6_l: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_1_r: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_2_r: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_7_r: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_3_r: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_4_r: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_5_r: {p: 100.0, i: 20.0, d: 20.00}
+    yumi_joint_6_r: {p: 100.0, i: 20.0, d: 20.00}
+    link1: {p: 0.0, i: 0.0, d: 0.00}
+    link11: {p: 0.0, i: 0.0, d: 0.00}
+    link2: {p: 0.0, i: 0.0, d: 0.00}
+    link22: {p: 0.0, i: 0.0, d: 0.00}
+    link3: {p: 0.0, i: 0.0, d: 0.00}
+    link33: {p: 0.0, i: 0.0, d: 0.00}
+    link4: {p: 0.0, i: 0.0, d: 0.00}
+    link44: {p: 0.0, i: 0.0, d: 0.00}
+    link5: {p: 1.0, i: 0.0, d: 0.01}
+    link51: {p: 0.05, i: 0.0, d: 0.00}
+    link52: {p: 0.01, i: 0.0, d: 0.00}
+    link53: {p: 0.0005, i: 0.0001, d: 0.0001}
+    Link1: {p: 0.0, i: 0.0, d: 0.00}
+    Link11: {p: 0.0, i: 0.0, d: 0.00}
+    Link2: {p: 0.0, i: 0.0, d: 0.00}
+    Link22: {p: 0.0, i: 0.0, d: 0.00}
+    Link3: {p: 0.0, i: 0.0, d: 0.00}
+    Link33: {p: 0.0, i: 0.0, d: 0.00}
+    Link4: {p: 0.0, i: 0.0, d: 0.00}
+    Link44: {p: 0.0, i: 0.0, d: 0.00}
+    Link5: {p: 1.0, i: 0.0, d: 0.01}
+    Link51: {p: 0.05, i: 0.0, d: 0.00}
+    Link52: {p: 0.01, i: 0.0, d: 0.00}
+    Link53: {p: 0.0005, i: 0.0001, d: 0.0001}
+
+
+
+    
