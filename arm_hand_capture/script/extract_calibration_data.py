@@ -5,26 +5,31 @@ import h5py
 import numpy as np
 import sys
 
-def bag_to_h5(bag_name, h5_name, group_name, left_or_right):
+import getopt
+
+def bag_to_h5(bag_name, h5_name, group_name):
   ## This function converts the rosbag file to h5 containing all the glove calibration data.
   
   # Prep
   glove_elec = []
   bag_file = rosbag.Bag(bag_name + '.bag')
   count = bag_file.get_message_count()
-  glove_elec = np.zeros([count, 14])
-  glove_angle = np.zeros([count, 14])
+  glove_elec = np.zeros([count, 30]) #14])
+  glove_angle = np.zeros([count, 30]) #14])
 
   # Iterate to get the message contents
   idx = 0
   for topic, msg, t in bag_file.read_messages():
     ## h5 content
-    if left_or_right:
-      glove_elec[idx, :] = np.array(msg.glove_state.l_glove_elec)
-      glove_angle[idx, :] = np.array(msg.glove_state.left_glove_state)
-    else:
-      glove_elec[idx, :] = np.array(msg.glove_state.r_glove_elec)
-      glove_angle[idx, :] = np.array(msg.glove_state.right_glove_state)
+    # l
+    glove_elec[idx, :15] = np.array(msg.glove_state.l_glove_elec)
+    glove_angle[idx, :15] = np.array(msg.glove_state.left_glove_state)
+    # r    
+    glove_elec[idx, 15:] = np.array(msg.glove_state.r_glove_elec)
+    glove_angle[idx, 15:] = np.array(msg.glove_state.right_glove_state)
+    #import pdb
+    #pdb.set_trace()
+   
     ## Set counter
     idx = idx + 1
 
@@ -41,32 +46,43 @@ def bag_to_h5(bag_name, h5_name, group_name, left_or_right):
 
 if __name__ == '__main__':
 
-  ### Set up parameters
-  # left or right
-  lr = 'l' # 'r'
 
-  # find finger-related info from bag name
-  finger_name = 'thumb' #['thumb', 'index', 'middle', 'ring', 'little']
-  
-  # ID for the calibrated joint, according to WiseGlove setup
-  id = 2
-  
-  # Actual angle (ground truth), in degree
-  angle = 90
-  
+  ### Set up parameters
   # export information from bag file
-  group_name = lr + '_' + finger_name + '_s' + str(id) + '_' + str(angle)
-  bag_name = group_name # 'test_seq_' + #'test_seq_l_thumb_s1_90' # no suffix is required
-  h5_name = 'glove_calib_data-20200827' #'glove_calib_data-20200825'
+  bag_name = None 
+  h5_name = None 
+  try:
+    options, args = getopt.getopt(sys.argv[1:], "hi:o:", ["help", "bag-name=", "h5-name="])
+  except getopt.GetoptError:
+    sys.exit()
+  for option, value in options:
+    if option in ("-h", "--help"):
+      print("Help:\n")
+      print("   This script exports *EVERYTHING* from rosbag file into h5 file and a video.\n")
+      print("Arguments:\n")
+      print("   -i, --bag-name=, Specify the name of the input bag file, otherwise operate on the bag file with the default name specified inside this script. No suffix is required.\n")
+      print("   -o, --h5-name=, Specify the name of the h5 output file, otherwise the default file name specified inside the script is used.\n")
+      exit(0)
+    if option in ("-i", "--bag-name"):
+      print("Input bag file name: {0}\n".format(value))
+      bag_name = value
+    if option in ("-o", "--h5-name"):
+      print("Output h5 file name: {0}\n".format(value))
+      h5_name = value
+
+  # check
+  if bag_name is None or h5_name is None:
+    print('Error: please fill in bag name or output h5 file name!')
+    sys.exit()
 
   # extract necessary info for learning
-  group_name = bag_name
-
   print("Input bag name is: " + bag_name + '.bag')
   print("Output h5 name is: " + h5_name + '.bag')
 
+  group_name = bag_name
 
-  ### Export *** EVERYTHING *** from rosbag file into h5 file and a video!!
-  bag_to_h5(bag_name, h5_name, group_name, lr == 'l')
+
+  ### Export *** ONLY *** glove angle data!!!
+  bag_to_h5(bag_name, h5_name, group_name)
   print('Done!')
 
