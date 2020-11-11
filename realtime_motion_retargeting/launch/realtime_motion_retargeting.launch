@@ -1,0 +1,20 @@
+<launch>
+  <!-- Start data sampler system -->
+  <include file="$(find arm_hand_capture)/launch/start_all_with_image.launch">
+  </include>
+
+  <!-- Start controller node : Input is mocap data and glove data, Output is joint state of robot  -->
+  <node pkg="realtime_motion_retargeting" name="ControllerNode" type="ControllerNode" output="screen" respawn="true">
+  </node>
+
+  <!-- Start exexute node : Input is joint state of robot, use this script to execute the command -->
+  <node pkg="realtime_motion_retargeting" name="ExecuteNode" type="ExecuteNode.py" output="screen" respawn="true">
+  </node>
+
+  <!-- Start YuMi robot -->
+  <include file="$(find yumi_sign_language_robot_control)/launch/yumi_control.launch" 
+           use_rviz="false" 
+           use_gazebo="false"/>
+
+
+</launch>

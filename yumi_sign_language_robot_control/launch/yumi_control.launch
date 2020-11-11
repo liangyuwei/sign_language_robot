@@ -16,10 +16,11 @@
   </node>
 
   <!-- Launch Gazebo for controller to be brought up -->
+  <arg name="use_gazebo" default="true" />
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
     <arg name="paused" value="false"/>
     <arg name="use_sim_time" value="true"/>
-    <arg name="gui" value="true"/>
+    <arg name="gui" value="$(arg use_gazebo)"/>
     <arg name="recording" value="false"/>
     <arg name="debug" value="false"/>
   </include>
@@ -43,14 +44,17 @@
   <rosparam file="$(find yumi_sign_language_robot_control)/config/controllers.yaml" command="load"/>
   <node name="yumi_joint_controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
       output="screen" ns="yumi" args="joint_state_controller 
-                                      dual_arm_joint_controller 
-                                      dual_hand_joint_controller " />
+                                      dual_arm_hand_joint_controller " />
   <!-- Don't use controllers that share common joints!!! It would produce Resource Conflict error!!!
        left_arm_joint_controller right_arm_joint_controller dual_arm_joint_controller -->
 
+
   <!-- Start RViz for visualization -->
-  <arg name="command_args" value="-d $(find yumi_sign_language_robot_control)/rviz/yumi_with_inspire_hand.rviz" />
-  <node name="rviz_yumi" pkg="rviz" type="rviz" respawn="false" args="$(arg command_args)" output="screen"/>
+  <!-- <arg name="use_rviz" default="true" />
+  <group if="$(arg use_rviz)">
+    <arg name="command_args" value="-d $(find yumi_sign_language_robot_control)/rviz/yumi_with_inspire_hand.rviz" />
+    <node name="rviz_yumi" pkg="rviz" type="rviz" respawn="false" args="$(arg command_args)" output="screen"/>
+  </group> -->
   
    
   
