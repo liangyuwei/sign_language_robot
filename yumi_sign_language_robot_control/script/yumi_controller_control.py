@@ -24,7 +24,7 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryActionGoal
 
-
+from std_msgs.msg import Float64MultiArray
 
 class YumiControl():
 
@@ -34,15 +34,20 @@ class YumiControl():
     
     # set up a publisher
     # self.arm_hand_pub = rospy.Publisher("/yumi/dual_arm_hand_joint_controller/command", JointTrajectory, queue_size=10)
-    self.arm_pub = rospy.Publisher("/yumi/dual_arm_joint_controller/command", JointTrajectory, queue_size=10)
-    self.hand_pub = rospy.Publisher("/yumi/dual_hand_joint_controller/command", JointTrajectory, queue_size=10)
+    # self.arm_pub = rospy.Publisher("/yumi/dual_arm_joint_controller/command", JointTrajectory, queue_size=10)
+    # self.hand_pub = rospy.Publisher("/yumi/dual_hand_joint_controller/command", JointTrajectory, queue_size=10)
 
 
     ### 2 - Command controller via action server
+    '''
     self.arm_client = actionlib.SimpleActionClient("/yumi/dual_arm_joint_controller/follow_joint_trajectory", FollowJointTrajectoryAction)
     self.arm_client.wait_for_server()
     self.hand_client = actionlib.SimpleActionClient("/yumi/dual_hand_joint_controller/follow_joint_trajectory", FollowJointTrajectoryAction)
     self.hand_client.wait_for_server()
+    '''
+
+    self.arm_hand_pub = rospy.Publisher("/yumi/dual_arm_hand_joint_controller/command", Float64MultiArray, queue_size=10) 
+
 
     ### Prep
     # self.joint_names = ['yumi_joint_1_l', 'yumi_joint_2_l', 'yumi_joint_7_l', 'yumi_joint_3_l', 'yumi_joint_4_l', 'yumi_joint_5_l', 'yumi_joint_6_l'] \
@@ -239,6 +244,15 @@ def main():
     ### Set up the control class
     yumi_control = YumiControl()
 
+
+    ### Set up for JointGroupPositionController
+    joint_pos_cmd = Float64MultiArray()
+    joint_pos_cmd.data = q_arm_hug + q_hand_open
+    rate = rospy.Rate(10)
+    while not rospy.is_shutdown():
+      yumi_control.arm_hand_pub.publish(joint_pos_cmd)
+      rate.sleep()
+      
 
     ### Move to some pre-defined poses for debugging
 

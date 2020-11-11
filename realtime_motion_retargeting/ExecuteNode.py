@@ -30,6 +30,7 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryActionGoal
 
+from std_msgs.msg import Float64MultiArray
 
 
 class YumiControl():
@@ -37,15 +38,17 @@ class YumiControl():
   def __init__(self):
        
     ### Command controller via action server
-    self.client = actionlib.SimpleActionClient("/yumi/dual_arm_hand_joint_controller/follow_joint_trajectory", FollowJointTrajectoryAction)
-    print("== Waiting for action server... ")
-    self.client.wait_for_server()
+    # self.client = actionlib.SimpleActionClient("/yumi/dual_arm_hand_joint_controller/follow_joint_trajectory", FollowJointTrajectoryAction)
+    # print("== Waiting for action server... ")
+    # self.client.wait_for_server()
 
     ### Prep
     self.joint_names = ['yumi_joint_1_l', 'yumi_joint_2_l', 'yumi_joint_7_l', 'yumi_joint_3_l', 'yumi_joint_4_l', 'yumi_joint_5_l', 'yumi_joint_6_l'] \
     + ['yumi_joint_1_r', 'yumi_joint_2_r', 'yumi_joint_7_r', 'yumi_joint_3_r', 'yumi_joint_4_r', 'yumi_joint_5_r', 'yumi_joint_6_r'] \
     + ['link1', 'link11', 'link2', 'link22', 'link3', 'link33', 'link4', 'link44', 'link5', 'link51', 'link52', 'link53'] \
     + ['Link1', 'Link11', 'Link2', 'Link22', 'Link3', 'Link33', 'Link4', 'Link44', 'Link5', 'Link51', 'Link52', 'Link53']
+
+    self.arm_hand_pub = rospy.Publisher("/yumi/dual_arm_hand_joint_controller/command", Float64MultiArray, queue_size=10) 
 
 
   def arm_hand_action_control(self, q_goal):
@@ -98,19 +101,18 @@ class ExecuteNode:
         q_arm_hug = [-1.42, -0.5, 1.57, -1.0, 0, 0, -0.7] \
         + [1.42, -0.5, -1.57, -1.0, 0, 0, 0.7] 
 
-        q_goal = q_arm_hug + q_hand_open
+        # q_goal = q_arm_hug + q_hand_open
 
         # calcualted results
-        # q_goal = msg.l_arm_joint_angle \
-        # + msg.r_arm_joint_angle \
-        # + msg.l_hand_joint_angle \
-        # + msg.r_hand_joint_angle
+        q_goal = msg.l_arm_joint_angle \
+        + msg.r_arm_joint_angle \
+        + msg.l_hand_joint_angle \
+        + msg.r_hand_joint_angle
 
         print("q_goal={}".format(q_goal))
 
         ### 1 - Use action server
-        self.yumi_controller.arm_hand_action_control(q_goal)
-
+        # self.yumi_controller.arm_hand_action_control(q_goal)
 
         ### 2 - Use topic
         # set up a JointTrajectory message
@@ -142,6 +144,12 @@ class ExecuteNode:
         self.joint_state_pub.publish(joint_state_cmd)
         '''
 
+        ### 4 - Use JointGroupPositionController
+        joint_pos_cmd = Float64MultiArray()
+        joint_pos_cmd.data = q_goal
+        self.yumi_controller.arm_hand_pub.publish(joint_pos_cmd)
+
+
     def runExecuteNode(self):
         # Init node
         rospy.init_node('executeNode', anonymous=True)
@@ -155,6 +163,7 @@ class ExecuteNode:
         # joint_state publisher
         self.joint_state_pub = rospy.Publisher("/yumi/joint_states", JointState, queue_size=10)
 
+        # self.arm_hand_pub = rospy.Publisher("/yumi/dual_arm_hand_joint_controller/command", Float64MultiArray, queue_size=10) 
 
         # # Init moveit group
         # self.moveit_group = moveit_commander.MoveGroupCommander("dual_arms_with_hands")

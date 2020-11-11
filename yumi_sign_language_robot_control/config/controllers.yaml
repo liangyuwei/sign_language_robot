@@ -6,7 +6,7 @@ yumi:
 
 
   dual_arm_hand_joint_controller:
-    type: effort_controllers/JointTrajectoryController
+    type: position_controllers/JointGroupPositionController
     joints:
       - yumi_joint_1_l
       - yumi_joint_2_l
@@ -46,43 +46,4 @@ yumi:
       - Link51
       - Link52
       - Link53
-    gains:
-      yumi_joint_1_l: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_2_l: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_7_l: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_3_l: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_4_l: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_5_l: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_6_l: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_1_r: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_2_r: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_7_r: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_3_r: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_4_r: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_5_r: {p: 10000.0, i: 0.01, d: 100.0}
-      yumi_joint_6_r: {p: 10000.0, i: 0.01, d: 100.0}
-      link1: {p: 1.0, i: 0.0, d: 0.00001}
-      link11: {p: 1.0, i: 0.0, d: 0.00001}
-      link2: {p: 1.0, i: 0.0, d: 0.00001}
-      link22: {p: 1.0, i: 0.0, d: 0.00001}
-      link3: {p: 1.0, i: 0.0, d: 0.00001}
-      link33: {p: 1.0, i: 0.0, d: 0.00001}
-      link4: {p: 1.0, i: 0.0, d: 0.00001}
-      link44: {p: 1.0, i: 0.0, d: 0.00001}
-      link5: {p: 1.0, i: 0.0, d: 0.00001}
-      link51: {p: 1.0, i: 0.0, d: 0.00001}
-      link52: {p: 1.0, i: 0.0, d: 0.00001}
-      link53: {p: 1.0, i: 0.0, d: 0.00001}
-      Link1: {p: 1.0, i: 0.0, d: 0.00001}
-      Link11: {p: 1.0, i: 0.0, d: 0.00001}
-      Link2: {p: 1.0, i: 0.0, d: 0.00001}
-      Link22: {p: 1.0, i: 0.0, d: 0.00001}
-      Link3: {p: 1.0, i: 0.0, d: 0.00001}
-      Link33: {p: 1.0, i: 0.0, d: 0.00001}
-      Link4: {p: 1.0, i: 0.0, d: 0.00001}
-      Link44: {p: 1.0, i: 0.0, d: 0.00001}
-      Link5: {p: 1.0, i: 0.0, d: 0.00001}
-      Link51: {p: 1.0, i: 0.0, d: 0.00001}
-      Link52: {p: 1.0, i: 0.0, d: 0.00001}
-      Link53: {p: 1.0, i: 0.0, d: 0.00001}    
-    
+   

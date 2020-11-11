@@ -18,11 +18,11 @@
   <!-- Launch Gazebo for controller to be brought up -->
   <arg name="use_gazebo" default="true" />
   <include file="$(find gazebo_ros)/launch/empty_world.launch">
-    <arg name="paused" value="false"/>
-    <arg name="use_sim_time" value="true"/>
-    <arg name="gui" value="$(arg use_gazebo)"/>
-    <arg name="recording" value="false"/>
-    <arg name="debug" value="false"/>
+    <arg name="paused" value="false" />
+    <arg name="use_sim_time" value="true" />
+    <arg name="gui" value="$(arg use_gazebo)" />
+    <arg name="recording" value="false" />
+    <arg name="debug" value="false" />
   </include>
   
 
