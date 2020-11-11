@@ -31,21 +31,20 @@
   <node name="spawn_yumi_with_hands" pkg="gazebo_ros" type="spawn_model" output="screen" respawn="false"
       args="-urdf -param robot_description 
             -model yumi_with_inspire_hands
-            -J yumi_joint_1_l -1.5
-            -J yumi_joint_2_l -1.5
-            -J yumi_joint_7_l  1.5
-            -J yumi_joint_6_l  0.0
-            -J yumi_joint_1_r  1.5
-            -J yumi_joint_2_r -1.5
-            -J yumi_joint_7_r -1.5 
-            -J yumi_joint_6_r  0.0 " />
+            -J yumi_joint_1_l -1.5  -J yumi_joint_2_l -1.5  -J yumi_joint_7_l 1.5
+            -J yumi_joint_3_l  0.0  -J yumi_joint_4_l  0.0  -J yumi_joint_5_l 0.0  -J yumi_joint_6_l  0.0 
+            -J yumi_joint_1_r  1.5  -J yumi_joint_2_r -1.5  -J yumi_joint_7_r -1.5 
+            -J yumi_joint_3_r  0.0  -J yumi_joint_4_r  0.0  -J yumi_joint_5_r 0.0  -J yumi_joint_6_r  0.0 " />
+  <!-- note that the joint values set by -J arguments only last for 1 second!!! for EffortJointInterface -->
+  <!-- When using PositionJointInterface without PID parameters in yaml, the initial state is unchanged even -J arguments are used. -->
 
 
   <!-- ROS controllers -->
   <rosparam file="$(find yumi_sign_language_robot_control)/config/controllers.yaml" command="load"/>
   <node name="yumi_joint_controller_spawner" pkg="controller_manager" type="spawner" respawn="false"
       output="screen" ns="yumi" args="joint_state_controller 
-                                      dual_arm_hand_joint_controller" />
+                                      dual_arm_joint_controller 
+                                      dual_hand_joint_controller " />
   <!-- Don't use controllers that share common joints!!! It would produce Resource Conflict error!!!
        left_arm_joint_controller right_arm_joint_controller dual_arm_joint_controller -->
 
