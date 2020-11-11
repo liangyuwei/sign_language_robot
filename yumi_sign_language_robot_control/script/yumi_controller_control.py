@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import rospy
+import actionlib
+
 import sys
 import copy
 import rospy
@@ -18,6 +21,8 @@ import getopt # process the terminal arguments
 import h5py
 
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+
+from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryActionGoal
 
 # Linear mapping: (x - x_min) / (x_max - x_min) == (x_hat - x_min_hat) / (x_max_hat - x_min_hat)
 def linear_map(x_min, x_max, x, x_min_hat, x_max_hat):
@@ -104,6 +109,23 @@ def map_glove_to_srhand(human_hand_path):
   return sr_hand_path
 
 
+def set_arm_hand_joint_goal(q_goal):
+  # init
+  arm_hand_cmd = JointTrajectory()
+  waypoint = JointTrajectoryPoint()
+  # joint names
+  arm_hand_cmd.joint_names = ['yumi_joint_1_l', 'yumi_joint_2_l', 'yumi_joint_7_l', 'yumi_joint_3_l', 'yumi_joint_4_l', 'yumi_joint_5_l', 'yumi_joint_6_l'] \
+  + ['yumi_joint_1_r', 'yumi_joint_2_r', 'yumi_joint_7_r', 'yumi_joint_3_r', 'yumi_joint_4_r', 'yumi_joint_5_r', 'yumi_joint_6_r'] \
+  + ['link1', 'link11', 'link2', 'link22', 'link3', 'link33', 'link4', 'link44', 'link5', 'link51', 'link52', 'link53'] \
+  + ['Link1', 'Link11', 'Link2', 'Link22', 'Link3', 'Link33', 'Link4', 'Link44', 'Link5', 'Link51', 'Link52', 'Link53']
+  # append waypoints
+  waypoint.positions = q_goal
+  waypoint.time_from_start.secs = 1.0
+  arm_hand_cmd.points.append(waypoint)
+  # return
+  return arm_hand_cmd
+
+
 def main():
 
   file_name = "glove-calib-2020-11-02.h5"
@@ -141,27 +163,62 @@ def main():
     rospy.init_node('yumi_controller_control_node')
 
 
-    ### Set up a Publisher for connecting to controller
-    arm_hand_pub = rospy.Publisher("/yumi/dual_arm_hand_joint_controller/command", JointTrajectory, queue_size=10)
-
-
-    ### Set up a JointTrajectory
-    arm_hand_cmd = JointTrajectory()
-    arm_hand_cmd.joint_names = ['yumi_joint_1_l', 'yumi_joint_2_l', 'yumi_joint_7_l', 'yumi_joint_3_l', 'yumi_joint_4_l', 'yumi_joint_5_l', 'yumi_joint_6_l'] \
-    + ['yumi_joint_1_r', 'yumi_joint_2_r', 'yumi_joint_7_r', 'yumi_joint_3_r', 'yumi_joint_4_r', 'yumi_joint_5_r', 'yumi_joint_6_r'] \
-    + ['link1', 'link11', 'link2', 'link22', 'link3', 'link33', 'link4', 'link44', 'link5', 'link51', 'link52', 'link53'] \
-    + ['Link1', 'Link11', 'Link2', 'Link22', 'Link3', 'Link33', 'Link4', 'Link44', 'Link5', 'Link51', 'Link52', 'Link53']
-    waypoint = JointTrajectoryPoint()
-    waypoint.positions = [-1.5, -2.0, 1.5, 0, 0, 0, 0] \
+    ### Prep
+    q_initial = [-1.5, -2.0, 1.5, 0, 0, 0, 0] \
     + [1.5, -2.0, -1.5, 0, 0, 0, 0] \
     + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] \
-    + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]     
-    waypoint.time_from_start.secs = 1.0
-    arm_hand_cmd.points.append(waypoint)
-    
-    arm_hand_pub.publish(arm_hand_cmd)
+    + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  
+    q_tpose = [-0.9, -1.3, 2.0, -1.6, 0, 0, 0] \
+    + [0.9, -1.3, -2.0, -1.6, 0, 0, 0] \
+    + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] \
+    + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]   # palm down
+    q_tpose2 = [-0.9, -1.3, 2.0, -1.6, 0, 0, -3.0] \
+    + [0.9, -1.3, -2.0, -1.6, 0, 0, 3.0] \
+    + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] \
+    + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]   # palm up
+    q_hug = [-1.42, -0.5, 1.57, -1.0, 0, 0, -0.7] \
+    + [1.42, -0.5, -1.57, -1.0, 0, 0, 0.7] \
+    + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] \
+    + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]   
 
-    rospy.spin()
+    ### 1 - Command controller via topic
+    '''
+    # set up a publisher
+    arm_hand_pub = rospy.Publisher("/yumi/dual_arm_hand_joint_controller/command", JointTrajectory, queue_size=10)
+    # set up a JointTrajectory message
+    # arm_hand_cmd = JointTrajectory()
+    # arm_hand_cmd.joint_names = ['yumi_joint_1_l', 'yumi_joint_2_l', 'yumi_joint_7_l', 'yumi_joint_3_l', 'yumi_joint_4_l', 'yumi_joint_5_l', 'yumi_joint_6_l'] \
+    # + ['yumi_joint_1_r', 'yumi_joint_2_r', 'yumi_joint_7_r', 'yumi_joint_3_r', 'yumi_joint_4_r', 'yumi_joint_5_r', 'yumi_joint_6_r'] \
+    # + ['link1', 'link11', 'link2', 'link22', 'link3', 'link33', 'link4', 'link44', 'link5', 'link51', 'link52', 'link53'] \
+    # + ['Link1', 'Link11', 'Link2', 'Link22', 'Link3', 'Link33', 'Link4', 'Link44', 'Link5', 'Link51', 'Link52', 'Link53']
+    # waypoint = JointTrajectoryPoint()
+    # waypoint.positions = q_initial
+    # waypoint.time_from_start.secs = 1.0
+    # arm_hand_cmd.points.append(waypoint)
+    arm_hand_cmd = set_arm_hand_joint_goal(q_initial)
+    # publish
+    rate = rospy.Rate(10)
+    while not rospy.is_shutdown():
+      arm_hand_pub.publish(arm_hand_cmd)
+      rate.sleep()
+    '''
+
+    ### 2 - Command controller via action server
+    client = actionlib.SimpleActionClient("/yumi/dual_arm_hand_joint_controller/follow_joint_trajectory", FollowJointTrajectoryAction)
+    client.wait_for_server()
+    # JointTrajectory
+    joint_goal = set_arm_hand_joint_goal(q_initial)
+    # FollowJointTrajectoryActionGoal
+    action_goal = FollowJointTrajectoryActionGoal()
+    import pdb
+    pdb.set_trace()
+    action_goal.goal.trajectory = joint_goal
+    # send goal
+    client.send_goal(action_goal.goal)
+    client.wait_for_result()
+
+    import pdb
+    pdb.set_trace()
 
   except rospy.ROSInterruptException:
     return

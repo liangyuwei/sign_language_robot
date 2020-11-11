@@ -26,7 +26,9 @@
   
 
   <!-- Spawn robot into Gazebo -->
-  <node name="spawn_yumi_with_hands" pkg="gazebo_ros" type="spawn_model" output="screen"
+  <!-- When using PositionJointInterface without PID, the dynamic behavior will be not simulated, hence pure position control. 
+       However, -J options below will not work under this situation. -->
+  <node name="spawn_yumi_with_hands" pkg="gazebo_ros" type="spawn_model" output="screen" respawn="false"
       args="-urdf -param robot_description 
             -model yumi_with_inspire_hands
             -J yumi_joint_1_l -1.5
