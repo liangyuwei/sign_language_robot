@@ -12,9 +12,7 @@
   </node>
 
   <!-- Start YuMi robot -->
-  <include file="$(find yumi_sign_language_robot_control)/launch/yumi_control.launch" 
-           use_rviz="false" 
-           use_gazebo="false"/>
+  <include file="$(find yumi_sign_language_robot_control)/launch/yumi_control.launch" />
 
 
 </launch>

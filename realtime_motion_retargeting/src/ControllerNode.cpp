@@ -66,6 +66,7 @@ class ControllerNode
         Eigen::Matrix<double,NUM_OF_JOINTS/2,1> ql_last;
         Eigen::Matrix<double,NUM_OF_JOINTS/2,1> qr_last;
         NullSpaceControl* nullspace_control_ptr = nullptr;
+        int count = 0;
         
 };
 
@@ -77,8 +78,8 @@ void ControllerNode::runControllerNode(int argc, char** argv)
     ros::init(argc, argv, "ControllerNode");
     ros::NodeHandle nh;
     this->pub = nh.advertise<realtime_motion_retargeting::ControlMsg>("cmdPublisher",1000);
-    this->dataSub = nh.subscribe("/dual_arms_dual_hands_state_with_image",1000,&ControllerNode::dataCallback,this); 
-    this->jointStateSub = nh.subscribe("/dual_arms_dual_hands_state_with_image",1000,&ControllerNode::jointStatecallback,this);
+    this->dataSub = nh.subscribe("/dual_arms_dual_hands_state_with_image",1,&ControllerNode::dataCallback,this); 
+    // this->jointStateSub = nh.subscribe("/dual_arms_dual_hands_state_with_image",1000,&ControllerNode::jointStatecallback,this);
     ros::Rate loop_rate(10);
 
     // Init joint angle
@@ -99,6 +100,8 @@ void ControllerNode::runControllerNode(int argc, char** argv)
 
 void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandStateWithImage::ConstPtr& msg)
 {
+    if (this->count%2==0) return;
+    this->count++;
     // Process msg
     geometry_msgs::Pose l_wrist_pose = msg->left_hand_pose.pose;
     geometry_msgs::Pose r_wrist_pose = msg->right_hand_pose.pose;
