@@ -21,7 +21,7 @@
 
 
   <!-- Start Rviz for visualization -->
-  <!-- <node name="rviz" pkg="rviz" type="rviz" args="-d $(find arm_hand_capture)/rviz/mocap_tf.rviz" /> -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(find arm_hand_capture)/rviz/mocap_tf.rviz" />
 
 
   <!-- For visualization -->
