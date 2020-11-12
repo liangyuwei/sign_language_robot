@@ -99,10 +99,16 @@ target_link_libraries(load_visualization_markers ${catkin_LIBRARIES} ${EIGEN3_LI
 add_dependencies(load_visualization_markers ${PROJECT_NAME}_generate_messages_cpp)
 
 
+
+
 ## Visualization directly using h5 file (used during data collection)
 add_executable(visualize_recorded_movements src/visualize_recorded_movements.cpp)
 target_link_libraries(visualize_recorded_movements ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES} ${HDF5_CXX_LIBRARIES})
 add_dependencies(visualize_recorded_movements ${PROJECT_NAME}_generate_messages_cpp)
+
+
+
+
 
 
 ## Sync the arm-hand state with the corresponding image
@@ -113,6 +119,27 @@ add_dependencies(sync_state_with_image ${PROJECT_NAME}_generate_messages_cpp)
 add_executable(unpack_synced_message_with_image src/unpack_synced_message_with_image.cpp)
 target_link_libraries(unpack_synced_message_with_image ${catkin_LIBRARIES})
 add_dependencies(unpack_synced_message_with_image ${PROJECT_NAME}_generate_messages_cpp)
+
+
+
+
+
+
+
+## Sync the arm-hand state without image (for robot teleoperation)
+add_executable(sync_state_without_image src/sync_state_without_image.cpp)
+target_link_libraries(sync_state_without_image ${catkin_LIBRARIES})
+add_dependencies(sync_state_without_image ${PROJECT_NAME}_generate_messages_cpp)
+
+add_executable(unpack_synced_message_without_image src/unpack_synced_message_without_image.cpp)
+target_link_libraries(unpack_synced_message_without_image ${catkin_LIBRARIES})
+add_dependencies(unpack_synced_message_without_image ${PROJECT_NAME}_generate_messages_cpp)
+
+add_executable(load_visualization_markers_without_image src/load_visualization_markers_without_image.cpp)
+target_link_libraries(load_visualization_markers_without_image ${catkin_LIBRARIES} ${EIGEN3_LIBRARIES})
+add_dependencies(load_visualization_markers_without_image ${PROJECT_NAME}_generate_messages_cpp)
+
+
 
 
 ## For displaying original and adjusted movements (hand tip as the base, and adjust according to human hand length and robot hand length)

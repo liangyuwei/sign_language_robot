@@ -4,7 +4,7 @@
 geometry_msgs/PoseStamped left_upperarm_pose
 geometry_msgs/PoseStamped left_forearm_pose
 geometry_msgs/PoseStamped left_hand_pose
-arm_hand_capture/GloveState left_glove_state
+# arm_hand_capture/GloveState left_glove_state
 
 # Right arm and right hand
 geometry_msgs/PoseStamped right_upperarm_pose
