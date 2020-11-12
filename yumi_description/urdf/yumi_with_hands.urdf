@@ -35,6 +35,15 @@
     <color rgba="1.0 1.0 1.0 1.0"/>
   </material>
 
+  <!-- Inspire hands material -->
+  <material name="InspirePalm">
+    <color rgba="0.827450980392157 0.83921568627451 0.827450980392157 1" />
+  </material> 
+  <material name="InspireFinger">
+    <color rgba="0.792156862745098 0.819607843137255 0.933333333333333 1" />
+  </material>
+
+
   <gazebo>
     <plugin filename="libgazebo_ros_control.so" name="gazebo_ros_controller">
       <legacyModeNS>true</legacyModeNS>
@@ -42,6 +51,9 @@
       <robotSimType>gazebo_ros_control/DefaultRobotHWSim</robotSimType>
     </plugin>
   </gazebo>
+
+
+
 
   <link name="yumi_base_link"/>
   <joint name="yumi_base_link_to_body" type="fixed">
@@ -2461,59 +2473,73 @@
   <gazebo reference="yumi_link_1_l">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_2_l">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_3_l">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_4_l">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_5_l">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_6_l">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_7_l">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
 
   <gazebo reference="yumi_link_1_r">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_2_r">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_3_r">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_4_r">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_5_r">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_6_r">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
   <gazebo reference="yumi_link_7_r">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Grey</material> 
   </gazebo>
 
 
@@ -2523,6 +2549,7 @@
     <!-- <selfCollide>false</selfCollide> -->
   </gazebo>
   <gazebo reference="link51">
+    <material>Gazebo/InspireFinger</material> 
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
   </gazebo>
@@ -2535,11 +2562,13 @@
     <!-- <selfCollide>false</selfCollide> -->
   </gazebo>
 
+
   <gazebo reference="Link5">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
   </gazebo>
   <gazebo reference="Link51">
+    <material>Gazebo/InspireFinger</material> 
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
   </gazebo>
@@ -2550,6 +2579,44 @@
   <gazebo reference="Link53">
     <!-- <turnGravityOff>true</turnGravityOff> -->
     <!-- <selfCollide>false</selfCollide> -->
+  </gazebo>
+
+
+  <!-- Color only -->
+  <gazebo reference="yumi_base_link">
+    <!-- <turnGravityOff>true</turnGravityOff> -->
+    <!-- <selfCollide>false</selfCollide> -->
+    <material>Gazebo/Ivory</material> 
+  </gazebo>
+  <gazebo reference="link111">
+    <material>Gazebo/InspirePalm</material> 
+  </gazebo>
+  <gazebo reference="link1">
+    <material>Gazebo/InspireFinger</material> 
+  </gazebo>
+  <gazebo reference="link2">
+    <material>Gazebo/InspireFinger</material> 
+  </gazebo>
+  <gazebo reference="link3">
+    <material>Gazebo/InspireFinger</material> 
+  </gazebo>
+  <gazebo reference="link4">
+    <material>Gazebo/InspireFinger</material> 
+  </gazebo>
+  <gazebo reference="Link111">
+    <material>Gazebo/InspirePalm</material> 
+  </gazebo>
+  <gazebo reference="Link1">
+    <material>Gazebo/InspireFinger</material> 
+  </gazebo>
+  <gazebo reference="Link2">
+    <material>Gazebo/InspireFinger</material> 
+  </gazebo>
+  <gazebo reference="Link3">
+    <material>Gazebo/InspireFinger</material> 
+  </gazebo>
+  <gazebo reference="Link4">
+    <material>Gazebo/InspireFinger</material> 
   </gazebo>
 
 
