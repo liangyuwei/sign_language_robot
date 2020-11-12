@@ -51,6 +51,8 @@ rosbag record <TOPIC-NAME> --duration=4 -O <BAG-NAME>
 
 
 ### Dataglove calibration procedure
+#### **Update at 2020-11-10: Record only aduction/adduction for four fingers, S14 for thumb and index-middle finger crossover, i.e. lr_all_close, lr_all_open, lr_thumb_s14_90 and lr_index_middle_crossover. That'll do for now.**
+
 1. Push on mocap clothes, the do not hang it to hands before collecting dataglove calibration data.
 
 2. Perform the calibration gestures given in the Wiseglove manual, the save the corresponding calibration texts.    
