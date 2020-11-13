@@ -1,15 +1,25 @@
 <launch>
   <!-- Start data sampler system -->
-  <include file="$(find arm_hand_capture)/launch/start_all_with_image.launch">
-  </include>
+  <!-- <include file="$(find arm_hand_capture)/launch/start_all_with_image.launch" /> -->
+  <include file="$(find arm_hand_capture)/launch/start_yumi_teleop.launch" />
 
   <!-- Start controller node : Input is mocap data and glove data, Output is joint state of robot  -->
-  <node pkg="realtime_motion_retargeting" name="ControllerNode" type="ControllerNode" output="screen" respawn="true">
+  <param name="k_nullspace_elbow" value="0.0"/>
+  <node pkg="realtime_motion_retargeting" name="ControllerNode" type="ControllerNode" output="screen" respawn="false">
   </node>
 
   <!-- Start exexute node : Input is joint state of robot, use this script to execute the command -->
   <node pkg="realtime_motion_retargeting" name="ExecuteNode" type="ExecuteNode.py" output="screen" respawn="true">
   </node>
+
+  <!-- Start dynamic recofigure node : For dynamic reconfiguration of mapping params -->
+  <node pkg="dynamic_mapping_params" name="dynamic_reconfigure_node" type="dynamic_reconfigure_node" respawn="true">
+  </node>
+
+  <!-- Start client of dynamic reconfigure -->
+  <node pkg="rqt_reconfigure" name="rgt_reconfigure" type="rgt_reconfigure">
+  </node>
+
 
   <!-- Start YuMi robot -->
   <include file="$(find yumi_sign_language_robot_control)/launch/yumi_control.launch" />

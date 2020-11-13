@@ -89,6 +89,12 @@ namespace cfg{
         2.94,0.75,2.94,1.39,5.06,2.40,3.99,
         2.94,0.75,2.94,1.39,5.06,2.40,3.99
     };
+    const static double yumi_velocity_lb[NUM_OF_JOINTS/2] = {
+        -0.10,-0.10,-0.10,-0.10,-0.10,-0.10,-0.10
+    };
+    const static double yumi_velocity_ub[NUM_OF_JOINTS/2] = {
+         0.10, 0.10, 0.10, 0.10, 0.10, 0.10, 0.10
+    };
     
     // remember to keep consistent with _robot_finger_start and _robot_finger_goal
     const std::vector<double> q_l_finger_lb = {-1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -0.75, 0.0, -0.2, -0.15};

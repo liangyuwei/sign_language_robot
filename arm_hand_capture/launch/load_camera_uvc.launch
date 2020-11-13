@@ -35,7 +35,7 @@
     </node>
 
 
-    <node name="image_view" pkg="image_view" type="image_view" respawn="false" output="screen">
+    <node name="image_view" pkg="image_view" type="image_view" respawn="false" > <!--output="screen"-->
       <remap from="image" to="/uvc_cam/image_raw"/>
       <param name="autosize" value="true" />
     </node>

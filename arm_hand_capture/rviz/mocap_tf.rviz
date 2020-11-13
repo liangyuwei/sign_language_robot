@@ -11,7 +11,7 @@ Panels:
         - /TF1/Tree1
         - /RobotModel1
       Splitter Ratio: 0.5
-    Tree Height: 747
+    Tree Height: 359
   - Class: rviz/Selection
     Name: Selection
   - Class: rviz/Tool Properties
@@ -65,6 +65,32 @@ Visualization Manager:
           Value: false
         LeftUpperarm:
           Value: false
+        Link1:
+          Value: false
+        Link11:
+          Value: false
+        Link111:
+          Value: false
+        Link2:
+          Value: false
+        Link22:
+          Value: false
+        Link3:
+          Value: false
+        Link33:
+          Value: false
+        Link4:
+          Value: false
+        Link44:
+          Value: false
+        Link5:
+          Value: false
+        Link51:
+          Value: false
+        Link52:
+          Value: false
+        Link53:
+          Value: false
         RightForearm:
           Value: false
         RightHand:
@@ -75,16 +101,78 @@ Visualization Manager:
           Value: true
         left_hand:
           Value: true
+        left_hand_base:
+          Value: false
         left_upperarm:
           Value: true
+        link1:
+          Value: false
+        link11:
+          Value: false
+        link111:
+          Value: false
+        link2:
+          Value: false
+        link22:
+          Value: false
+        link3:
+          Value: false
+        link33:
+          Value: false
+        link4:
+          Value: false
+        link44:
+          Value: false
+        link5:
+          Value: false
+        link51:
+          Value: false
+        link52:
+          Value: false
+        link53:
+          Value: false
         right_forearm:
           Value: true
         right_hand:
           Value: true
+        right_hand_base:
+          Value: false
         right_upperarm:
           Value: true
         world:
-          Value: true
+          Value: false
+        yumi_base_link:
+          Value: false
+        yumi_body:
+          Value: false
+        yumi_link_1_l:
+          Value: false
+        yumi_link_1_r:
+          Value: false
+        yumi_link_2_l:
+          Value: false
+        yumi_link_2_r:
+          Value: false
+        yumi_link_3_l:
+          Value: false
+        yumi_link_3_r:
+          Value: false
+        yumi_link_4_l:
+          Value: false
+        yumi_link_4_r:
+          Value: false
+        yumi_link_5_l:
+          Value: false
+        yumi_link_5_r:
+          Value: false
+        yumi_link_6_l:
+          Value: false
+        yumi_link_6_r:
+          Value: false
+        yumi_link_7_l:
+          Value: false
+        yumi_link_7_r:
+          Value: false
       Marker Scale: 1
       Name: TF
       Show Arrows: true
@@ -116,6 +204,60 @@ Visualization Manager:
             {}
           right_upperarm:
             {}
+          yumi_base_link:
+            yumi_body:
+              yumi_link_1_l:
+                yumi_link_2_l:
+                  yumi_link_3_l:
+                    yumi_link_4_l:
+                      yumi_link_5_l:
+                        yumi_link_6_l:
+                          yumi_link_7_l:
+                            left_hand_base:
+                              link111:
+                                link1:
+                                  link11:
+                                    {}
+                                link2:
+                                  link22:
+                                    {}
+                                link3:
+                                  link33:
+                                    {}
+                                link4:
+                                  link44:
+                                    {}
+                                link5:
+                                  link51:
+                                    link52:
+                                      link53:
+                                        {}
+              yumi_link_1_r:
+                yumi_link_2_r:
+                  yumi_link_3_r:
+                    yumi_link_4_r:
+                      yumi_link_5_r:
+                        yumi_link_6_r:
+                          yumi_link_7_r:
+                            right_hand_base:
+                              Link111:
+                                Link1:
+                                  Link11:
+                                    {}
+                                Link2:
+                                  Link22:
+                                    {}
+                                Link3:
+                                  Link33:
+                                    {}
+                                Link4:
+                                  Link44:
+                                    {}
+                                Link5:
+                                  Link51:
+                                    Link52:
+                                      Link53:
+                                        {}
       Update Interval: 0
       Value: true
     - Class: rviz/MarkerArray
@@ -136,6 +278,227 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
+        Link1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link11:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link111:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link22:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link33:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link44:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link51:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link52:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        Link53:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        left_hand_base:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        link1:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link11:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link111:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link2:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link22:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link3:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link33:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link4:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link44:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link5:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link51:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link52:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        link53:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        right_hand_base:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        world:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        yumi_base_link:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+        yumi_body:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_1_l:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_1_r:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_2_l:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_2_r:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_3_l:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_3_r:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_4_l:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_4_r:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_5_l:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_5_r:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_6_l:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_6_r:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_7_l:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
+        yumi_link_7_r:
+          Alpha: 1
+          Show Axes: false
+          Show Trail: false
+          Value: true
       Name: RobotModel
       Robot Description: robot_description
       TF Prefix: ""
@@ -167,7 +530,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 3.41534233
+      Distance: 3.21410966
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
         Stereo Focal Distance: 1
@@ -189,11 +552,11 @@ Visualization Manager:
     Saved: ~
 Window Geometry:
   Displays:
-    collapsed: false
+    collapsed: true
   Height: 1028
-  Hide Left Dock: false
+  Hide Left Dock: true
   Hide Right Dock: true
-  QMainWindow State: 000000ff00000000fd00000004000000000000016a0000037afc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000006100fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c00610079007301000000280000037a000000d700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f0000037afc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a0056006900650077007300000000280000037a000000ad00fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000003a00000003efc0100000002fb0000000800540069006d00650100000000000003a00000030000fffffffb0000000800540069006d00650100000000000004500000000000000000000002300000037a00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
+  QMainWindow State: 000000ff00000000fd00000004000000000000016a0000037afc0200000008fb0000001200530065006c0065006300740069006f006e00000001e10000009b0000006100fffffffb0000001e0054006f006f006c002000500072006f007000650072007400690065007302000001ed000001df00000185000000a3fb000000120056006900650077007300200054006f006f02000001df000002110000018500000122fb000000200054006f006f006c002000500072006f0070006500720074006900650073003203000002880000011d000002210000017afb000000100044006900730070006c00610079007300000000280000037a000000d700fffffffb0000002000730065006c0065006300740069006f006e00200062007500660066006500720200000138000000aa0000023a00000294fb00000014005700690064006500530074006500720065006f02000000e6000000d2000003ee0000030bfb0000000c004b0069006e0065006300740200000186000001060000030c00000261000000010000010f0000037afc0200000003fb0000001e0054006f006f006c002000500072006f00700065007200740069006500730100000041000000780000000000000000fb0000000a0056006900650077007300000000280000037a000000ad00fffffffb0000001200530065006c0065006300740069006f006e010000025a000000b200000000000000000000000200000490000000a9fc0100000001fb0000000a00560069006500770073030000004e00000080000002e10000019700000003000003a00000003efc0100000002fb0000000800540069006d00650100000000000003a00000030000fffffffb0000000800540069006d00650100000000000004500000000000000000000003a00000037a00000004000000040000000800000008fc0000000100000002000000010000000a0054006f006f006c00730100000000ffffffff0000000000000000
   Selection:
     collapsed: false
   Time:

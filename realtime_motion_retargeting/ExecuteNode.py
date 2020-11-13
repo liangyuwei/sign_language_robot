@@ -78,6 +78,12 @@ class YumiControl():
 
 class ExecuteNode:
 
+    def __init__(self):
+        self.joint_traj_plus = np.linspace(-2.0,2.0,1000)
+        self.joint_traj_minus = np.linspace(2.0,-2.0,1000)
+        self.joint_traj = np.hstack([self.joint_traj_plus,self.joint_traj_minus])
+        # self.joint_traj = list(self.joint_traj)
+
     def callback(self, msg):
         print("[ExecuteNode] Enter execute node callback")
         # joint_goal = msg.l_arm_joint_angle + msg.l_hand_joint_angle \
@@ -87,6 +93,7 @@ class ExecuteNode:
 
         q_hand_open = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] \
         + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  
+        q_hand_open_r = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  
         
         # arm
         q_arm_initial = [-1.5, -2.0, 1.5, 0, 0, 0, 0] \
@@ -101,15 +108,44 @@ class ExecuteNode:
         q_arm_hug = [-1.42, -0.5, 1.57, -1.0, 0, 0, -0.7] \
         + [1.42, -0.5, -1.57, -1.0, 0, 0, 0.7] 
 
+        q_arm_hug_r = [1.42, -0.5, -1.57, -1.0, 0, 0, 0.7]
+
         # q_goal = q_arm_hug + q_hand_open
 
         # calcualted results
-        q_goal = msg.l_arm_joint_angle \
-        + msg.r_arm_joint_angle \
-        + msg.l_hand_joint_angle \
-        + msg.r_hand_joint_angle
+        # q_goal = msg.l_arm_joint_angle \
+        # + msg.r_arm_joint_angle \
+        # + msg.l_hand_joint_angle \
+        # + msg.r_hand_joint_angle
 
-        print("q_goal={}".format(q_goal))
+        q_goal = list(msg.l_arm_joint_angle) \
+        + list(q_arm_hug_r) \
+        + list(msg.l_hand_joint_angle) \
+        + list(q_hand_open_r)
+
+        # const static double YUMI_LOWER_LIMITS[NUM_OF_JOINTS] = {
+        # -2.94,-2.50,-2.94,-2.15,-5.06,-1.53,-3.99,
+        # -2.94,-2.50,-2.94,-2.15,-5.06,-1.53,-3.99
+        # };
+        # const static double YUMI_UPPER_LIMITS[NUM_OF_JOINTS] = {
+        #     2.94,0.75,2.94,1.39,5.06,2.40,3.99,
+        #     2.94,0.75,2.94,1.39,5.06,2.40,3.99
+        # };
+
+        # q_up = 2.0
+        # q_down = -2.0
+        # # q_goal = np.zeros(38)
+        # q_goal = np.array(q_arm_hug + q_hand_open)
+        # if self.traj_count >= self.total_count:
+        #   self.traj_count = 0
+        # # import pdb
+        # # pdb.set_trace()
+        # # print("x = {}".format(self.joint_traj[int(self.traj_count)]))
+        # q_goal[0] = self.joint_traj[int(self.traj_count)]
+        # self.traj_count += 1 # self.traj_count + 1
+
+
+        # print("q_goal={}".format(q_goal))
 
         ### 1 - Use action server
         # self.yumi_controller.arm_hand_action_control(q_goal)
@@ -153,7 +189,12 @@ class ExecuteNode:
     def runExecuteNode(self):
         # Init node
         rospy.init_node('executeNode', anonymous=True)
-        self.t0 = rospy.Time.now()
+        # self.t0 = rospy.Time.now()
+
+
+        self.traj_count = 0
+        self.total_count = 2000
+
         # Init YuMi Control class
         self.yumi_controller = YumiControl()
 
@@ -161,7 +202,7 @@ class ExecuteNode:
         self.arm_hand_pub = rospy.Publisher("/yumi/dual_arm_hand_joint_controller/command", JointTrajectory, queue_size=100)
 
         # joint_state publisher
-        self.joint_state_pub = rospy.Publisher("/yumi/joint_states", JointState, queue_size=10)
+        # self.joint_state_pub = rospy.Publisher("/yumi/joint_states", JointState, queue_size=10)
 
         # self.arm_hand_pub = rospy.Publisher("/yumi/dual_arm_hand_joint_controller/command", Float64MultiArray, queue_size=10) 
 
@@ -170,7 +211,7 @@ class ExecuteNode:
         # self.moveit_group.allow_replanning(True)
 
         # Init subscriber
-        rospy.Subscriber('cmdPublisher', ControlMsg, self.callback, queue_size=100)
+        rospy.Subscriber('cmdPublisher', ControlMsg, self.callback, queue_size=1)
         rospy.spin()
 
 
