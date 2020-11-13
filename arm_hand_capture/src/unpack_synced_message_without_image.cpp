@@ -29,7 +29,7 @@ tf::Transform setup_tf_transform(geometry_msgs::PoseStamped pose)
 void poseCallback(const arm_hand_capture::DualArmDualHandStateConstPtr& msg){
 
   // Disp
-  ROS_INFO_STREAM("Get one message, unpack and broadcast...");
+  // ROS_INFO_STREAM("Get one message, unpack and broadcast...");
 
   // Prepare transform information -
   static tf::TransformBroadcaster br;

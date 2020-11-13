@@ -80,7 +80,7 @@ void TimeSyncStateAndPublish::callback(const PoseStampedConstPtr& right_upperarm
 {
 
   // Display the time-synced results
-  ROS_INFO_STREAM("========== Time-Sync Callback invoked ==========");
+  // ROS_INFO_STREAM("========== Time-Sync Callback invoked ==========");
   //ROS_INFO_STREAM("Topic 1: At time " << right_upperarm_msg->header.stamp.toSec());
 
 

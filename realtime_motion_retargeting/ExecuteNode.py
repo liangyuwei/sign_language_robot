@@ -85,7 +85,7 @@ class ExecuteNode:
         # self.joint_traj = list(self.joint_traj)
 
     def callback(self, msg):
-        print("[ExecuteNode] Enter execute node callback")
+        # print("[ExecuteNode] Enter execute node callback")
         # joint_goal = msg.l_arm_joint_angle + msg.l_hand_joint_angle \
         #     + msg.r_arm_joint_angle + msg.r_hand_joint_angle
         # self.moveit_group.go(joint_goal)
@@ -93,6 +93,7 @@ class ExecuteNode:
 
         q_hand_open = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0] \
         + [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  
+        q_hand_open_l = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
         q_hand_open_r = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]  
         
         # arm
@@ -108,20 +109,26 @@ class ExecuteNode:
         q_arm_hug = [-1.42, -0.5, 1.57, -1.0, 0, 0, -0.7] \
         + [1.42, -0.5, -1.57, -1.0, 0, 0, 0.7] 
 
+        q_arm_hug_l = [-1.42, -0.5, 1.57, -1.0, 0, 0, -0.7]
         q_arm_hug_r = [1.42, -0.5, -1.57, -1.0, 0, 0, 0.7]
 
         # q_goal = q_arm_hug + q_hand_open
 
         # calcualted results
-        # q_goal = msg.l_arm_joint_angle \
-        # + msg.r_arm_joint_angle \
-        # + msg.l_hand_joint_angle \
-        # + msg.r_hand_joint_angle
+        q_goal = msg.l_arm_joint_angle \
+        + msg.r_arm_joint_angle \
+        + msg.l_hand_joint_angle \
+        + msg.r_hand_joint_angle
 
-        q_goal = list(msg.l_arm_joint_angle) \
-        + list(q_arm_hug_r) \
-        + list(msg.l_hand_joint_angle) \
-        + list(q_hand_open_r)
+        # q_goal = list(msg.l_arm_joint_angle) \
+        # + list(q_arm_hug_r) \
+        # + list(msg.l_hand_joint_angle) \
+        # + list(q_hand_open_r)
+
+        # q_goal = list(q_arm_hug_l) \
+        # + list(msg.r_arm_joint_angle) \
+        # + list(q_hand_open_l) \
+        # + list(msg.r_hand_joint_angle)
 
         # const static double YUMI_LOWER_LIMITS[NUM_OF_JOINTS] = {
         # -2.94,-2.50,-2.94,-2.15,-5.06,-1.53,-3.99,
@@ -211,7 +218,7 @@ class ExecuteNode:
         # self.moveit_group.allow_replanning(True)
 
         # Init subscriber
-        rospy.Subscriber('cmdPublisher', ControlMsg, self.callback, queue_size=1)
+        rospy.Subscriber('cmdPublisher', ControlMsg, self.callback, queue_size=1000)
         rospy.spin()
 
 

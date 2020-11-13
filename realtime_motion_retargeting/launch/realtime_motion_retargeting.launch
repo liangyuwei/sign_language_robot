@@ -4,7 +4,7 @@
   <include file="$(find arm_hand_capture)/launch/start_yumi_teleop.launch" />
 
   <!-- Start controller node : Input is mocap data and glove data, Output is joint state of robot  -->
-  <param name="k_nullspace_elbow" value="0.0"/>
+  <param name="k_nullspace_elbow" value="0.4"/>
   <node pkg="realtime_motion_retargeting" name="ControllerNode" type="ControllerNode" output="screen" respawn="false">
   </node>
 
@@ -17,8 +17,8 @@
   </node>
 
   <!-- Start client of dynamic reconfigure -->
-  <node pkg="rqt_reconfigure" name="rgt_reconfigure" type="rgt_reconfigure">
-  </node>
+  <!-- <node pkg="rqt_reconfigure" name="rgt_reconfigure" type="rgt_reconfigure">
+  </node> -->
 
 
   <!-- Start YuMi robot -->

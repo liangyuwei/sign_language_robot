@@ -78,8 +78,10 @@ namespace cfg{
     const static double rot_r7[3] = {-1.57079632679, 0, 0};
 
      // Variables' bounds
-    // const static double YUMI_LOWER_LIMITS[NUM_OF_JOINTS] = {-2.8, -2.49, -1.2, -1.7, -2.0, -1.5, -2.0, -0.5, -2.49, -2.2, -1.7, -2.0, -1.5, -2.0}; 
-    // const static double YUMI_UPPER_LIMITS[NUM_OF_JOINTS] = {0.5, 0.75, 2.2, 1.4, 1.578, 2.1, 1.578, 2.8, 0.75, 1.2, 1.4, 1.578, 2.1, 1.578}; 
+    // const static double YUMI_LOWER_LIMITS[NUM_OF_JOINTS] = 
+    //     {-2.8, -2.49, -1.2, -1.7, -2.0, -1.5, -2.0, -0.5, -2.49, -2.2, -1.7, -2.0, -1.5, -2.0}; 
+    // const static double YUMI_UPPER_LIMITS[NUM_OF_JOINTS] = 
+    //     {0.5, 0.75, 2.2, 1.4, 1.578, 2.1, 1.578, 2.8, 0.75, 1.2, 1.4, 1.578, 2.1, 1.578}; 
 
     const static double YUMI_LOWER_LIMITS[NUM_OF_JOINTS] = {
         -2.94,-2.50,-2.94,-2.15,-5.06,-1.53,-3.99,
@@ -89,6 +91,7 @@ namespace cfg{
         2.94,0.75,2.94,1.39,5.06,2.40,3.99,
         2.94,0.75,2.94,1.39,5.06,2.40,3.99
     };
+
     const static double yumi_velocity_lb[NUM_OF_JOINTS/2] = {
         -0.10,-0.10,-0.10,-0.10,-0.10,-0.10,-0.10
     };

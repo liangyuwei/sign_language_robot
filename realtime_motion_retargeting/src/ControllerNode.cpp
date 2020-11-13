@@ -10,6 +10,7 @@
 #include "arm_hand_capture/DualArmDualHandState.h"
 #include "dynamic_mapping_params/MappingParams.h"
 #include "sensor_msgs/JointState.h"
+#include "std_msgs/Float64MultiArray.h"
 
 // For moveit
 #include <moveit/move_group_interface/move_group_interface.h>
@@ -29,12 +30,12 @@ using namespace cfg;
 
 static double l_scale = 1.0;
 static double l_offs[3] = {0.0, 0.2, 0.2};
-const static Eigen::Vector3d l_offset = 
+static Eigen::Vector3d l_offset = 
     matrix_helper::create_translation_vector(l_offs[0],l_offs[1],l_offs[2]);
 
 static double r_scale = 1.0;
 static double r_offs[3] = {0.0, -0.2, 0.2};
-const static Eigen::Vector3d r_offset = 
+static Eigen::Vector3d r_offset = 
     matrix_helper::create_translation_vector(r_offs[0],r_offs[1],r_offs[2]);
 
 // static const std::string PLANNING_GROUP = "dual_arm_with_hands";
@@ -66,6 +67,7 @@ class ControllerNode
         void jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg);
     private:
         ros::Publisher pub;
+        ros::Publisher jointStatePub;
         ros::Subscriber dataSub;
         ros::Subscriber jointStateSub;
         ros::Subscriber mappingParamSub;
@@ -77,6 +79,8 @@ class ControllerNode
         };
         std::vector<double> ql_vec;
         std::vector<double> qr_vec;
+        Eigen::Matrix<double,NUM_OF_JOINTS/2,1> ql_initial;
+        Eigen::Matrix<double,NUM_OF_JOINTS/2,1> qr_initial;
         Eigen::Matrix<double,NUM_OF_JOINTS/2,1> ql_last;
         Eigen::Matrix<double,NUM_OF_JOINTS/2,1> qr_last;
         Eigen::Matrix<double,NUM_OF_JOINTS/2,1> ql_current;
@@ -117,9 +121,9 @@ void ControllerNode::runControllerNode(int argc, char** argv)
     ros::init(argc, argv, "ControllerNode");
     ros::NodeHandle nh;
     this->pub = nh.advertise<realtime_motion_retargeting::ControlMsg>("cmdPublisher",1000);
-    this->dataSub = nh.subscribe("/dual_arms_dual_hands_state_with_image",1,&ControllerNode::dataCallback,this); 
-    this->dataSub = nh.subscribe("/dual_arms_dual_hands_state",1,&ControllerNode::dataCallback,this); 
-    this->mappingParamSub = nh.subscribe("/current_mapping_params",1000,&ControllerNode::paramCallback,this);
+    this->jointStatePub = nh.advertise<std_msgs::Float64MultiArray>("current_joint_states",1000);
+    this->dataSub = nh.subscribe("/dual_arms_dual_hands_state",1000,&ControllerNode::dataCallback,this); 
+    this->mappingParamSub = nh.subscribe("current_mapping_params",1000,&ControllerNode::paramCallback,this);
     this->jointStateSub = nh.subscribe("/yumi/joint_states",1000,&ControllerNode::jointStateCallback,this);
     ros::Rate loop_rate(10);
 
@@ -133,6 +137,8 @@ void ControllerNode::runControllerNode(int argc, char** argv)
     }
     ql_last = matrix_helper::stdVec2Matrix(ql_vec);
     qr_last = matrix_helper::stdVec2Matrix(qr_vec);
+    ql_initial = matrix_helper::stdVec2Matrix(ql_vec);
+    qr_initial = matrix_helper::stdVec2Matrix(qr_vec);
     ql_current = matrix_helper::stdVec2Matrix(ql_vec);
     qr_current = matrix_helper::stdVec2Matrix(qr_vec);
     
@@ -144,15 +150,16 @@ void ControllerNode::runControllerNode(int argc, char** argv)
 void ControllerNode::paramCallback(const dynamic_mapping_params::MappingParams::ConstPtr& msg)
 {
     std::cout<<"[ControllerNode] The mapping params has changed"<<std::endl;
+    ROS_WARN("The mapping params has changed");
     l_scale = msg->l_scale;
-    l_offs[0] = msg->l_offs_x;
-    l_offs[1] = msg->l_offs_y;
-    l_offs[2] = msg->l_offs_z;
+    l_offset[0] = msg->l_offs_x;
+    l_offset[1] = msg->l_offs_y;
+    l_offset[2] = msg->l_offs_z;
 
     r_scale = msg->r_scale;
-    r_offs[0] = msg->r_offs_x;
-    r_offs[1] = msg->r_offs_y;
-    r_offs[2] = msg->r_offs_z;
+    r_offset[0] = msg->r_offs_x;
+    r_offset[1] = msg->r_offs_y;
+    r_offset[2] = msg->r_offs_z;
 }
 
 void ControllerNode::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
@@ -163,27 +170,27 @@ void ControllerNode::jointStateCallback(const sensor_msgs::JointState::ConstPtr&
     std::map<string,double> m;
     for (int i = 0; i < n.size(); i++)
     {
-        std::cout<<n[i]<<" : " << p[i] <<std::endl;
+        // std::cout<<n[i]<<" : " << p[i] <<std::endl;
         m[n[i]] = p[i];
     }
-    double l_joint1_state = m["yumi_joint_1_l"]; 
-    double l_joint2_state = m["yumi_joint_2_l"]; 
-    double l_joint3_state = m["yumi_joint_7_l"]; 
-    double l_joint4_state = m["yumi_joint_3_l"]; 
-    double l_joint5_state = m["yumi_joint_4_l"]; 
-    double l_joint6_state = m["yumi_joint_5_l"]; 
-    double l_joint7_state = m["yumi_joint_6_l"]; 
+    double l_joint1_state = m.at("yumi_joint_1_l"); 
+    double l_joint2_state = m.at("yumi_joint_2_l"); 
+    double l_joint3_state = m.at("yumi_joint_7_l"); 
+    double l_joint4_state = m.at("yumi_joint_3_l"); 
+    double l_joint5_state = m.at("yumi_joint_4_l"); 
+    double l_joint6_state = m.at("yumi_joint_5_l"); 
+    double l_joint7_state = m.at("yumi_joint_6_l"); 
 
-    double r_joint1_state = m["yumi_joint_1_r"]; 
-    double r_joint2_state = m["yumi_joint_2_r"]; 
-    double r_joint3_state = m["yumi_joint_7_r"]; 
-    double r_joint4_state = m["yumi_joint_3_r"]; 
-    double r_joint5_state = m["yumi_joint_4_r"]; 
-    double r_joint6_state = m["yumi_joint_5_r"]; 
-    double r_joint7_state = m["yumi_joint_6_r"];
+    double r_joint1_state = m.at("yumi_joint_1_r"); 
+    double r_joint2_state = m.at("yumi_joint_2_r"); 
+    double r_joint3_state = m.at("yumi_joint_7_r"); 
+    double r_joint4_state = m.at("yumi_joint_3_r"); 
+    double r_joint5_state = m.at("yumi_joint_4_r"); 
+    double r_joint6_state = m.at("yumi_joint_5_r"); 
+    double r_joint7_state = m.at("yumi_joint_6_r");
     
-    std::vector<double> l_arm_p(NUM_OF_JOINTS/2);
-    std::vector<double> r_arm_p(NUM_OF_JOINTS/2);
+    std::vector<double> l_arm_p;
+    std::vector<double> r_arm_p;
 
     l_arm_p.push_back(l_joint1_state);
     l_arm_p.push_back(l_joint2_state);
@@ -213,6 +220,10 @@ void ControllerNode::jointStateCallback(const sensor_msgs::JointState::ConstPtr&
     // Eigen::Matrix<double,NUM_OF_JOINTS,1> joint_angle = matrix_helper::stdVec2Matrix(arm_p);
     // ql_current = joint_angle.block(0,0,NUM_OF_JOINTS/2,1);
     // qr_current = joint_angle.block(NUM_OF_JOINTS/2,0,NUM_OF_JOINTS/2,1);
+
+    std_msgs::Float64MultiArray joint_state_message;
+    joint_state_message.data = ql_vec;
+    this->jointStatePub.publish(joint_state_message);
 }
 
 // void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandStateWithImage::ConstPtr& msg)
@@ -242,7 +253,7 @@ void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandState::
     Eigen::Vector3d l_wrist_pos = PointMsg2Pos(l_wrist_point_msg);
     Eigen::Vector3d r_wrist_pos = PointMsg2Pos(r_wrist_point_msg);
     Eigen::Quaterniond l_wrist_quat = TransformToRobotFrame(QuatMsg2Quat(l_wrist_quat_msg),true);
-    Eigen::Quaterniond r_wrist_quat = TransformToRobotFrame(QuatMsg2Quat(r_wrist_quat_msg),false);
+    Eigen::Quaterniond r_wrist_quat = TransformToRobotFrame(QuatMsg2Quat(r_wrist_quat_msg),true);
     Eigen::Vector3d l_elbow_pos = PointMsg2Pos(l_elbow_point_msg);
     Eigen::Vector3d r_elbow_pos = PointMsg2Pos(r_elbow_point_msg);
     Eigen::Vector3d l_shoulder_pos = PointMsg2Pos(l_shoulder_point_msg);
@@ -262,7 +273,7 @@ void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandState::
     // NullSpace IK
     Eigen::Matrix<double,NUM_OF_JOINTS,1> joint_angle = 
         this->nullspace_control_ptr->solve_one_step(
-            l_wrist_pos,r_wrist_pos,l_wrist_quat,r_wrist_quat,l_elbow_pos,r_elbow_pos,ql_current,qr_current
+            l_wrist_pos,r_wrist_pos,l_wrist_quat,r_wrist_quat,l_elbow_pos,r_elbow_pos,ql_last,qr_last
         );
 
     // Linear mapping for glove angle
@@ -271,34 +282,23 @@ void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandState::
     std::vector<double> l_hand_joint_angle = convert_glove_angle_dof15(l_glove_angle);
     std::vector<double> r_hand_joint_angle = convert_glove_angle_dof15(r_glove_angle);
 
-    // Construct & Publish controlMsg
-    realtime_motion_retargeting::ControlMsg control_message;
     Eigen::Matrix<double,NUM_OF_JOINTS/2,1> l_joint_angle = joint_angle.block(0,0,NUM_OF_JOINTS/2,1);
     Eigen::Matrix<double,NUM_OF_JOINTS/2,1> r_joint_angle = joint_angle.block(NUM_OF_JOINTS/2,0,NUM_OF_JOINTS/2,1);
 
-    // Eigen::Matrix<double,NUM_OF_JOINTS/2,1> dql = l_joint_angle - ql_last;
-    // Eigen::Matrix<double,NUM_OF_JOINTS/2,1> dqr = r_joint_angle - qr_last;
+    // Eigen::Matrix<double,NUM_OF_JOINTS/2,1> dql = l_joint_angle - ql_current;
+    // Eigen::Matrix<double,NUM_OF_JOINTS/2,1> dqr = r_joint_angle - qr_current;
     // matrix_helper::clamp_to_joint_limits(dql,cfg::yumi_velocity_lb,cfg::yumi_velocity_ub);
     // matrix_helper::clamp_to_joint_limits(dqr,cfg::yumi_velocity_lb,cfg::yumi_velocity_ub);
     // std::cout<< "[ControllerNode] dql: "<<dql.transpose()<<std::endl;
     // std::cout<< "[ControllerNode] dqr: "<<dqr.transpose()<<std::endl;
-    // l_joint_angle = ql_last + dql;
-    // r_joint_angle = qr_last + dqr;
+    // l_joint_angle = ql_current + dql;
+    // r_joint_angle = qr_current + dqr;
 
     // l_joint_angle = 0.9 * ql_last + 0.1 * l_joint_angle;
     // r_joint_angle = 0.9 * qr_last + 0.1 * r_joint_angle;
 
     std::vector<double> l_arm_joint_angle = matrix_helper::Matrix2stdVec(l_joint_angle);
     std::vector<double> r_arm_joint_angle = matrix_helper::Matrix2stdVec(r_joint_angle);
-    
-    control_message.l_arm_joint_angle = l_arm_joint_angle;
-    control_message.r_arm_joint_angle = r_arm_joint_angle;
-    control_message.l_hand_joint_angle = l_hand_joint_angle;
-    control_message.r_hand_joint_angle = r_hand_joint_angle;
-
-    // Save the result at last time
-    ql_last = l_joint_angle;
-    qr_last = r_joint_angle;
 
     // Check the correctness of result
     kinematics::Result res = kinematics::yumi_forward_kinematics(joint_angle);
@@ -329,23 +329,34 @@ void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandState::
     std::cout<<"[ControllerNode] Right arm joint angle: " << r_joint_angle.transpose() << std::endl;
     std::cout<<"[ControllerNode] Current left joint angle: " << ql_current.transpose() << std::endl;
     std::cout<<"[ControllerNode] Current right joint angle: " << qr_current.transpose() << std::endl;
-    std::cout<<"[ControllerNode] Left hand joint angle: " ;
-    for (int i = 0; i < l_hand_joint_angle.size(); i++)
-    {
-        std::cout << l_hand_joint_angle[i] << " ";
-    }
-    std::cout<<std::endl;
+    // std::cout<<"[ControllerNode] Left hand joint angle: " ;
+    // for (int i = 0; i < l_hand_joint_angle.size(); i++)
+    // {
+    //     std::cout << l_hand_joint_angle[i] << " ";
+    // }
+    // std::cout<<std::endl;
     
-    std::cout<<"[ControllerNode] Right hand joint angle: " ;
-    for (int i = 0; i < r_hand_joint_angle.size(); i++)
-    {
-        std::cout << r_hand_joint_angle[i] << " ";
-    }
-    std::cout<<std::endl;
+    // std::cout<<"[ControllerNode] Right hand joint angle: " ;
+    // for (int i = 0; i < r_hand_joint_angle.size(); i++)
+    // {
+    //     std::cout << r_hand_joint_angle[i] << " ";
+    // }
+    // std::cout<<std::endl;
     std::chrono::duration<double> dt = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
     std::cout<<"[ControllerNode] Inverse Kinematics cost "<< dt.count() << "s" << std::endl;
     
+    // Construct & Publish controlMsg
+    realtime_motion_retargeting::ControlMsg control_message;
+    control_message.l_arm_joint_angle = l_arm_joint_angle;
+    control_message.r_arm_joint_angle = r_arm_joint_angle;
+    control_message.l_hand_joint_angle = l_hand_joint_angle;
+    control_message.r_hand_joint_angle = r_hand_joint_angle;
     this->pub.publish(control_message);
+
+    // Save the result at last time
+    ql_last = l_joint_angle;
+    qr_last = r_joint_angle;
+
 }
 
 int main(int argc, char** argv)

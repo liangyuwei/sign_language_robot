@@ -228,17 +228,20 @@ def main():
     + [0, 0, 0, 0, 0, 0, 0, 0, -0.95, 0, 0, 0] 
 
     # arm
-    q_arm_initial = [-1.5, -2.0, 1.5, 0, 0, 0, 0] \
-    + [1.5, -2.0, -1.5, 0, 0, 0, 0] 
-    
-    q_arm_tpose = [-0.9, -1.3, 2.0, -1.6, 0, 0, 0] \
-    + [0.9, -1.3, -2.0, -1.6, 0, 0, 0]  # palm down
+    q_arm_initial_l = [-1.5, -2.0, 1.5, 0, 0, 0, 0] 
+    q_arm_initial_r = [1.5, -2.0, -1.5, 0, 0, 0, 0] 
+    q_arm_initial = q_arm_initial_l + q_arm_initial_r
+
+    q_arm_tpose_l = [-0.9, -1.3, 2.0, -1.6, 0, 0, 0] 
+    q_arm_tpose_r = [0.9, -1.3, -2.0, -1.6, 0, 0, 0]  # palm down
+    q_arm_tpose = q_arm_tpose_l + q_arm_tpose_r
 
     q_arm_tpose2 = [-0.9, -1.3, 2.0, -1.6, 0, 0, -3.0] \
     + [0.9, -1.3, -2.0, -1.6, 0, 0, 3.0] # palm up
 
-    q_arm_hug = [-1.42, -0.5, 1.57, -1.0, 0, 0, -0.7] \
-    + [1.42, -0.5, -1.57, -1.0, 0, 0, 0.7] 
+    q_arm_hug_l = [-1.42, -0.5, 1.57, -1.0, 0, 0, -0.7] 
+    q_arm_hug_r = [1.42, -0.5, -1.57, -1.0, 0, 0, 0.7] 
+    q_arm_hug = q_arm_hug_l + q_arm_hug_r
 
 
     ### Set up the control class
@@ -247,12 +250,26 @@ def main():
 
     ### Set up for JointGroupPositionController
     joint_pos_cmd = Float64MultiArray()
-    joint_pos_cmd.data = q_arm_hug + q_hand_open
-    rate = rospy.Rate(10)
-    while not rospy.is_shutdown():
-      yumi_control.arm_hand_pub.publish(joint_pos_cmd)
-      rate.sleep()
+    joint_pos_cmd.data = q_arm_hug_l + q_arm_tpose_r + q_hand_open
+    import pdb
+    pdb.set_trace()
+
+    yumi_control.arm_hand_pub.publish(joint_pos_cmd)
+    # rate = rospy.Rate(10)
+    # while not rospy.is_shutdown():
+      # yumi_control.arm_hand_pub.publish(joint_pos_cmd)
+      # rate.sleep()
+
+    pdb.set_trace()
+    joint_pos_cmd.data = q_arm_tpose_l + q_arm_initial_r + q_hand_open
+    yumi_control.arm_hand_pub.publish(joint_pos_cmd)
+
+    pdb.set_trace()
+    joint_pos_cmd.data = q_arm_initial_l + q_arm_hug_r + q_hand_open
+    yumi_control.arm_hand_pub.publish(joint_pos_cmd)
       
+    pdb.set_trace()
+
 
     ### Move to some pre-defined poses for debugging
 
