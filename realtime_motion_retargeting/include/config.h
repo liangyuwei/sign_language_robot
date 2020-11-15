@@ -92,6 +92,15 @@ namespace cfg{
         2.94,0.75,2.94,1.39,5.06,2.40,3.99
     };
 
+    const std::vector<double> q_l_arm_lb = {-2.8, -2.49, -1.2, -1.7, -2.0, -1.5, -2.0};
+    const std::vector<double> q_l_arm_ub = {0.5, 0.75, 2.2, 1.4, 1.578, 2.1, 1.578};//{2.94, 0.76, 2.94, 1.4, 5.06, 2.41, 4.0};
+    const std::vector<double> q_r_arm_lb = {-0.5, -2.49, -2.2, -1.7, -2.0, -1.5, -2.0}; // modified on 2020/07/20
+    const std::vector<double> q_r_arm_ub = {2.8, 0.75, 1.2, 1.4, 1.578, 2.1, 1.578}; // modified on 2020/07/20
+    const Eigen::Matrix<double,7,1> q_l_arm_lb_mat(q_l_arm_lb.data());
+    const Eigen::Matrix<double,7,1> q_l_arm_ub_mat(q_l_arm_ub.data());
+    const Eigen::Matrix<double,7,1> q_r_arm_lb_mat(q_r_arm_lb.data());
+    const Eigen::Matrix<double,7,1> q_r_arm_ub_mat(q_r_arm_ub.data());
+
     const static double yumi_velocity_lb[NUM_OF_JOINTS/2] = {
         -0.10,-0.10,-0.10,-0.10,-0.10,-0.10,-0.10
     };

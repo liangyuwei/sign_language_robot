@@ -20,24 +20,36 @@ void DynamicReconfigureNode::runDynamicReconfigureNode(ros::NodeHandle nh)
 
 void DynamicReconfigureNode::callback(dynamic_mapping_params::MappingParamsConfig &config, uint32_t level) 
 {
-    ROS_INFO("Reconfigure Request: %f %f %f %f %f %f %f %f", 
-           config.l_scale, 
-           config.l_offs_x, 
-           config.l_offs_y, 
-           config.l_offs_z,
-           config.r_scale,
-           config.r_offs_x,
-           config.r_offs_y,
-           config.r_offs_z);
+    // ROS_INFO("Reconfigure Request: %f %f %f %f %f %f %f %f", 
+    //        config.l_scale, 
+    //        config.l_offs_x, 
+    //        config.l_offs_y, 
+    //        config.l_offs_z,
+    //        config.r_scale,
+    //        config.r_offs_x,
+    //        config.r_offs_y,
+    //        config.r_offs_z);
     dynamic_mapping_params::MappingParams msg;
-    msg.l_scale = config.l_scale;
-    msg.l_offs_x = config.l_offs_x;
-    msg.l_offs_y = config.l_offs_y;
-    msg.l_offs_z = config.l_offs_z;
-    msg.r_scale = config.r_scale;
-    msg.r_offs_x = config.r_offs_x;
-    msg.r_offs_y = config.r_offs_y;
-    msg.r_offs_z = config.r_offs_z;
+    msg.l_elbow_scale = config.l_elbow_scale;
+    msg.l_elbow_offs_x = config.l_elbow_offs_x;
+    msg.l_elbow_offs_y = config.l_elbow_offs_y;
+    msg.l_elbow_offs_z = config.l_elbow_offs_z;
+
+    msg.r_elbow_scale = config.r_elbow_scale;
+    msg.r_elbow_offs_x = config.r_elbow_offs_x;
+    msg.r_elbow_offs_y = config.r_elbow_offs_y;
+    msg.r_elbow_offs_z = config.r_elbow_offs_z;
+
+    msg.l_wrist_scale = config.l_wrist_scale;
+    msg.l_wrist_offs_x = config.l_wrist_offs_x;
+    msg.l_wrist_offs_y = config.l_wrist_offs_y;
+    msg.l_wrist_offs_z = config.l_wrist_offs_z;
+
+    msg.r_wrist_scale = config.r_wrist_scale;
+    msg.r_wrist_offs_x = config.r_wrist_offs_x;
+    msg.r_wrist_offs_y = config.r_wrist_offs_y;
+    msg.r_wrist_offs_z = config.r_wrist_offs_z;
+
     this->params_pub.publish(msg);
 }
 

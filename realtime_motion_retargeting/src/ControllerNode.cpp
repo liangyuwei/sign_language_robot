@@ -25,18 +25,29 @@
 #include "NullSpaceControl.h"
 #include "util_functions.h"
 #include "kinematics.h"
+#include "yumi_trac_ik_solver.h"
 
 using namespace cfg;
 
-static double l_scale = 1.0;
-static double l_offs[3] = {0.0, 0.2, 0.2};
-static Eigen::Vector3d l_offset = 
-    matrix_helper::create_translation_vector(l_offs[0],l_offs[1],l_offs[2]);
+static double l_elbow_scale = 1.0;
+static double l_elbow_offs[3] = {0.0, 0.2, 0.2};
+static Eigen::Vector3d l_elbow_offset = 
+    matrix_helper::create_translation_vector(l_elbow_offs[0],l_elbow_offs[1],l_elbow_offs[2]);
 
-static double r_scale = 1.0;
-static double r_offs[3] = {0.0, -0.2, 0.2};
-static Eigen::Vector3d r_offset = 
-    matrix_helper::create_translation_vector(r_offs[0],r_offs[1],r_offs[2]);
+static double r_elbow_scale = 1.0;
+static double r_elbow_offs[3] = {0.0, -0.2, 0.2};
+static Eigen::Vector3d r_elbow_offset = 
+    matrix_helper::create_translation_vector(r_elbow_offs[0],r_elbow_offs[1],r_elbow_offs[2]);
+
+static double l_wrist_scale = 1.0;
+static double l_wrist_offs[3] = {0.0, 0.2, 0.2};
+static Eigen::Vector3d l_wrist_offset = 
+    matrix_helper::create_translation_vector(l_wrist_offs[0],l_wrist_offs[1],l_wrist_offs[2]);
+
+static double r_wrist_scale = 1.0;
+static double r_wrist_offs[3] = {0.0, -0.2, 0.2};
+static Eigen::Vector3d r_wrist_offset = 
+    matrix_helper::create_translation_vector(r_wrist_offs[0],r_wrist_offs[1],r_wrist_offs[2]);
 
 // static const std::string PLANNING_GROUP = "dual_arm_with_hands";
 // moveit::planning_interface::MoveGroupInterface move_group(PLANNING_GROUP);
@@ -89,6 +100,8 @@ class ControllerNode
         Eigen::Matrix3d rotm_left_arm;
         Eigen::Matrix3d rotm_right_arm;
         Eigen::Quaterniond TransformToRobotFrame(Eigen::Quaterniond quat, bool left_or_right);
+        yumi_trac_ik_solver trac_ik_solver;
+        bool offset_init_flag = false;
 
         int count = 0;
         
@@ -145,21 +158,34 @@ void ControllerNode::runControllerNode(int argc, char** argv)
     // Init nullspace control ptr
     this->nullspace_control_ptr = new NullSpaceControl();
     ros::spin();
+
+    // Init yumi trac ik solver
+    trac_ik_solver = yumi_trac_ik_solver();
 }
 
 void ControllerNode::paramCallback(const dynamic_mapping_params::MappingParams::ConstPtr& msg)
 {
     std::cout<<"[ControllerNode] The mapping params has changed"<<std::endl;
     ROS_WARN("The mapping params has changed");
-    l_scale = msg->l_scale;
-    l_offset[0] = msg->l_offs_x;
-    l_offset[1] = msg->l_offs_y;
-    l_offset[2] = msg->l_offs_z;
+    l_elbow_scale = msg->l_elbow_scale;
+    l_elbow_offset[0] = msg->l_elbow_offs_x;
+    l_elbow_offset[1] = msg->l_elbow_offs_y;
+    l_elbow_offset[2] = msg->l_elbow_offs_z;
 
-    r_scale = msg->r_scale;
-    r_offset[0] = msg->r_offs_x;
-    r_offset[1] = msg->r_offs_y;
-    r_offset[2] = msg->r_offs_z;
+    r_elbow_scale = msg->r_elbow_scale;
+    r_elbow_offset[0] = msg->r_elbow_offs_x;
+    r_elbow_offset[1] = msg->r_elbow_offs_y;
+    r_elbow_offset[2] = msg->r_elbow_offs_z;
+    
+    l_wrist_scale = msg->l_wrist_scale;
+    l_wrist_offset[0] = msg->l_wrist_offs_x;
+    l_wrist_offset[1] = msg->l_wrist_offs_y;
+    l_wrist_offset[2] = msg->l_wrist_offs_z;
+
+    r_wrist_scale = msg->r_wrist_scale;
+    r_wrist_offset[0] = msg->r_wrist_offs_x;
+    r_wrist_offset[1] = msg->r_wrist_offs_y;
+    r_wrist_offset[2] = msg->r_wrist_offs_z;
 }
 
 void ControllerNode::jointStateCallback(const sensor_msgs::JointState::ConstPtr& msg)
@@ -217,18 +243,18 @@ void ControllerNode::jointStateCallback(const sensor_msgs::JointState::ConstPtr&
     }
     ql_current = matrix_helper::stdVec2Matrix(ql_vec);
     qr_current = matrix_helper::stdVec2Matrix(qr_vec);
-    // Eigen::Matrix<double,NUM_OF_JOINTS,1> joint_angle = matrix_helper::stdVec2Matrix(arm_p);
-    // ql_current = joint_angle.block(0,0,NUM_OF_JOINTS/2,1);
-    // qr_current = joint_angle.block(NUM_OF_JOINTS/2,0,NUM_OF_JOINTS/2,1);
 
-    std_msgs::Float64MultiArray joint_state_message;
-    joint_state_message.data = ql_vec;
-    this->jointStatePub.publish(joint_state_message);
+    // std_msgs::Float64MultiArray joint_state_message;
+    // joint_state_message.data = ql_vec;
+    // this->jointStatePub.publish(joint_state_message);
+
+    
 }
 
 // void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandStateWithImage::ConstPtr& msg)
 void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandState::ConstPtr& msg)
 {
+    std::cout<<"---------------------------------------"<<std::endl;
     // if (this->count%2==0) return;
     // this->count++;
     std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
@@ -264,17 +290,52 @@ void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandState::
     Eigen::Vector3d l_elbow_pos_rel = l_elbow_pos - l_shoulder_pos;
     Eigen::Vector3d r_elbow_pos_rel = r_elbow_pos - r_shoulder_pos;
     
-    // Map to yumi workspace
-    l_wrist_pos = l_scale * l_wrist_pos_rel + l_offset;
-    r_wrist_pos = r_scale * r_wrist_pos_rel + r_offset;
-    l_elbow_pos = l_scale * l_elbow_pos_rel + l_offset;
-    r_elbow_pos = r_scale * r_elbow_pos_rel + r_offset;
+    // Init offsets
+    if(!this->offset_init_flag) {
+        Eigen::Matrix<double,14,1> q_intial = concat_joint_angles(ql_initial,qr_initial);
+        kinematics::Result res = kinematics::yumi_forward_kinematics(q_intial);
+        Eigen::Vector3d l_elbow_pos_robot = res.l_elbow_pos;
+        Eigen::Vector3d r_elbow_pos_robot = res.r_elbow_pos;
+        Eigen::Vector3d l_wrist_pos_robot = res.l_wrist_pos;
+        Eigen::Vector3d r_wrist_pos_robot = res.r_wrist_pos;
 
-    // NullSpace IK
-    Eigen::Matrix<double,NUM_OF_JOINTS,1> joint_angle = 
-        this->nullspace_control_ptr->solve_one_step(
-            l_wrist_pos,r_wrist_pos,l_wrist_quat,r_wrist_quat,l_elbow_pos,r_elbow_pos,ql_last,qr_last
-        );
+        l_elbow_offset = l_elbow_pos_robot - l_elbow_scale * l_elbow_pos_rel;
+        r_elbow_offset = r_elbow_pos_robot - r_elbow_scale * r_elbow_pos_rel;
+        l_wrist_offset = l_wrist_pos_robot - l_wrist_scale * l_wrist_pos_rel;
+        r_wrist_offset = r_wrist_pos_robot - r_wrist_scale * r_wrist_pos_rel;
+
+        this->offset_init_flag = true;
+    }
+
+    std::cout<< "[ControllerNode] l elbow offset: " << l_elbow_offset.transpose()<<std::endl;
+    std::cout<< "[ControllerNode] r elbow offset: " << r_elbow_offset.transpose()<<std::endl;
+    std::cout<< "[ControllerNode] l wrist offset: " << l_wrist_offset.transpose()<<std::endl;
+    std::cout<< "[ControllerNode] r wrist offset: " << r_wrist_offset.transpose()<<std::endl;
+    std::cout<<std::endl;
+    
+    // Map to yumi workspace
+    l_elbow_pos = l_elbow_scale * l_elbow_pos_rel + l_elbow_offset;
+    r_elbow_pos = r_elbow_scale * r_elbow_pos_rel + r_elbow_offset;
+    l_wrist_pos = l_wrist_scale * l_wrist_pos_rel + l_wrist_offset;
+    r_wrist_pos = r_wrist_scale * r_wrist_pos_rel + r_wrist_offset;
+
+    // // NullSpace IK
+    // Eigen::Matrix<double,NUM_OF_JOINTS,1> joint_angle = 
+    //     this->nullspace_control_ptr->solve_one_step(
+    //         l_wrist_pos,r_wrist_pos,l_wrist_quat,r_wrist_quat,l_elbow_pos,r_elbow_pos,ql_last,qr_last
+    //     );
+
+    // Try trac-ik
+    Eigen::Matrix<double,NUM_OF_JOINTS/2,1> ql_result;
+    Eigen::Matrix<double,NUM_OF_JOINTS/2,1> qr_result;
+    double timeout = 0.002;
+    Eigen::Matrix3d l_wrist_rot = l_wrist_quat.toRotationMatrix();
+    Eigen::Matrix3d r_wrist_rot = r_wrist_quat.toRotationMatrix();
+    trac_ik_solver.run_trac_ik_left(ql_last,ql_result,l_wrist_pos,l_wrist_rot,
+                    cfg::q_l_arm_lb_mat,cfg::q_l_arm_ub_mat,timeout);
+    trac_ik_solver.run_trac_ik_right(qr_last,qr_result,r_wrist_pos,r_wrist_rot,
+                    cfg::q_r_arm_lb_mat,cfg::q_r_arm_ub_mat,timeout);
+    Eigen::Matrix<double,NUM_OF_JOINTS,1> joint_angle = concat_joint_angles(ql_result,qr_result);
 
     // Linear mapping for glove angle
     std::vector<double> l_glove_angle = msg->glove_state.left_glove_state;
@@ -304,26 +365,38 @@ void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandState::
     kinematics::Result res = kinematics::yumi_forward_kinematics(joint_angle);
     Eigen::Vector3d l_wrist_pos_fk = res.l_wrist_pos;
     Eigen::Vector3d r_wrist_pos_fk = res.r_wrist_pos;
+    Eigen::Quaterniond l_wrist_quat_fk = res.l_wrist_quat;
+    Eigen::Quaterniond r_wrist_quat_fk = res.r_wrist_quat;
     Eigen::Vector3d l_elbow_pos_fk = res.l_elbow_pos;
     Eigen::Vector3d r_elbow_pos_fk = res.r_elbow_pos;
 
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
-    std::cout<<"---------------------------------------"<<std::endl;
     std::cout<<"[ControllerNode] l_wrist_pos_rel: " << l_wrist_pos_rel.transpose() << std::endl;
     std::cout<<"[ControllerNode] r_wrist_pos_rel: " << r_wrist_pos_rel.transpose() << std::endl;
     std::cout<<"[ControllerNode] l_elbow_pos_rel: " << l_elbow_pos_rel.transpose() << std::endl;
     std::cout<<"[ControllerNode] r_elbow_pos_rel: " << r_elbow_pos_rel.transpose() << std::endl;
+    std::cout<<std::endl;
 
     std::cout<<"[ControllerNode] l_wrist_pos: " << l_wrist_pos.transpose() << std::endl;
     std::cout<<"[ControllerNode] r_wrist_pos: " << r_wrist_pos.transpose() << std::endl;
+    std::cout<<"[ControllerNode] l_wrist_quat: " << 
+    l_wrist_quat.w() << " " << l_wrist_quat.x() << " " << l_wrist_quat.y() << " " << l_wrist_quat.z() << std::endl;
+    std::cout<<"[ControllerNode] r_wrist_quat: " << 
+    r_wrist_quat.w() << " " << r_wrist_quat.x() << " " << r_wrist_quat.y() << " " << r_wrist_quat.z() << std::endl;
     std::cout<<"[ControllerNode] l_elbow_pos: " << l_elbow_pos.transpose() << std::endl;
     std::cout<<"[ControllerNode] r_elbow_pos: " << r_elbow_pos.transpose() << std::endl;
+    std::cout<<std::endl;
 
     std::cout<<"[ControllerNode] l_wrist_pos_fk: " << l_wrist_pos_fk.transpose() << std::endl;
     std::cout<<"[ControllerNode] r_wrist_pos_fk: " << r_wrist_pos_fk.transpose() << std::endl;
+    std::cout<<"[ControllerNode] l_wrist_quat_fk: " << 
+    l_wrist_quat_fk.w() << " " << l_wrist_quat_fk.x() << " " << l_wrist_quat_fk.y() << " " << l_wrist_quat_fk.z() << std::endl;
+    std::cout<<"[ControllerNode] r_wrist_quat_fk: " << 
+    r_wrist_quat_fk.w() << " " << r_wrist_quat_fk.x() << " " << r_wrist_quat_fk.y() << " " << r_wrist_quat_fk.z() << std::endl;
     std::cout<<"[ControllerNode] l_elbow_pos_fk: " << l_elbow_pos_fk.transpose() << std::endl;
     std::cout<<"[ControllerNode] r_elbow_pos_fk: " << r_elbow_pos_fk.transpose() << std::endl;
+    std::cout<<std::endl;
 
     std::cout<<"[ControllerNode] Left arm joint angle: " << l_joint_angle.transpose() << std::endl;
     std::cout<<"[ControllerNode] Right arm joint angle: " << r_joint_angle.transpose() << std::endl;

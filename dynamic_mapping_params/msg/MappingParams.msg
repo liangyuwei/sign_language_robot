@@ -1,8 +1,19 @@
-float64 l_scale
-float64 l_offs_x
-float64 l_offs_y
-float64 l_offs_z
-float64 r_scale
-float64 r_offs_x
-float64 r_offs_y
-float64 r_offs_z
+float64 l_elbow_scale
+float64 l_elbow_offs_x
+float64 l_elbow_offs_y
+float64 l_elbow_offs_z
+
+float64 r_elbow_scale
+float64 r_elbow_offs_x
+float64 r_elbow_offs_y
+float64 r_elbow_offs_z
+
+float64 l_wrist_scale
+float64 l_wrist_offs_x
+float64 l_wrist_offs_y
+float64 l_wrist_offs_z
+
+float64 r_wrist_scale
+float64 r_wrist_offs_x
+float64 r_wrist_offs_y
+float64 r_wrist_offs_z
