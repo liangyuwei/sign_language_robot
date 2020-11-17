@@ -63,19 +63,18 @@ std::vector<double>  convert_glove_angle_dof15(std::vector<double> q_finger_huma
     q_finger_robot_goal[10] = linear_map(q_finger_human[0], WISEGLOVE_LB[0], WISEGLOVE_UB[0], ROBOTHAND_LB[10], ROBOTHAND_UB[10]);
     q_finger_robot_goal[11] = linear_map(q_finger_human[1], WISEGLOVE_LB[1], WISEGLOVE_UB[1], ROBOTHAND_LB[11], ROBOTHAND_UB[11]);
 
-    q_finger_robot_goal[0] = util_clamp(q_finger_robot_goal[0],ROBOTHAND_LB[0],ROBOTHAND_UB[0]);
-    q_finger_robot_goal[1] = util_clamp(q_finger_robot_goal[1],ROBOTHAND_LB[1],ROBOTHAND_UB[1]);
-    q_finger_robot_goal[2] = util_clamp(q_finger_robot_goal[2],ROBOTHAND_LB[2],ROBOTHAND_UB[2]);
-    q_finger_robot_goal[3] = util_clamp(q_finger_robot_goal[3],ROBOTHAND_LB[3],ROBOTHAND_UB[3]);
-    q_finger_robot_goal[4] = util_clamp(q_finger_robot_goal[4],ROBOTHAND_LB[4],ROBOTHAND_UB[4]);
-    q_finger_robot_goal[5] = util_clamp(q_finger_robot_goal[5],ROBOTHAND_LB[5],ROBOTHAND_UB[5]);
-    q_finger_robot_goal[6] = util_clamp(q_finger_robot_goal[6],ROBOTHAND_LB[6],ROBOTHAND_UB[6]);
-    q_finger_robot_goal[7] = util_clamp(q_finger_robot_goal[7],ROBOTHAND_LB[7],ROBOTHAND_UB[7]);
-    q_finger_robot_goal[8] = util_clamp(q_finger_robot_goal[8],ROBOTHAND_LB[8],ROBOTHAND_UB[8]);
-    q_finger_robot_goal[9] = util_clamp(q_finger_robot_goal[9],ROBOTHAND_LB[9],ROBOTHAND_UB[9]);
-    q_finger_robot_goal[10] = util_clamp(q_finger_robot_goal[10],ROBOTHAND_LB[10],ROBOTHAND_UB[10]);
-    q_finger_robot_goal[11] = util_clamp(q_finger_robot_goal[11],ROBOTHAND_LB[11],ROBOTHAND_UB[11]);
-    q_finger_robot_goal[12] = util_clamp(q_finger_robot_goal[12],ROBOTHAND_LB[12],ROBOTHAND_UB[12]);
+    q_finger_robot_goal[0] = util_clamp(q_finger_robot_goal[0],ROBOTHAND_UB[0],ROBOTHAND_LB[0]);
+    q_finger_robot_goal[1] = util_clamp(q_finger_robot_goal[1],ROBOTHAND_UB[1],ROBOTHAND_LB[1]);
+    q_finger_robot_goal[2] = util_clamp(q_finger_robot_goal[2],ROBOTHAND_UB[2],ROBOTHAND_LB[2]);
+    q_finger_robot_goal[3] = util_clamp(q_finger_robot_goal[3],ROBOTHAND_UB[3],ROBOTHAND_LB[3]);
+    q_finger_robot_goal[4] = util_clamp(q_finger_robot_goal[4],ROBOTHAND_UB[4],ROBOTHAND_LB[4]);
+    q_finger_robot_goal[5] = util_clamp(q_finger_robot_goal[5],ROBOTHAND_UB[5],ROBOTHAND_LB[5]);
+    q_finger_robot_goal[6] = util_clamp(q_finger_robot_goal[6],ROBOTHAND_UB[6],ROBOTHAND_LB[6]);
+    q_finger_robot_goal[7] = util_clamp(q_finger_robot_goal[7],ROBOTHAND_UB[7],ROBOTHAND_LB[7]);
+    q_finger_robot_goal[8] = util_clamp(q_finger_robot_goal[8],ROBOTHAND_UB[8],ROBOTHAND_LB[8]);
+    q_finger_robot_goal[9] = util_clamp(q_finger_robot_goal[9],ROBOTHAND_UB[9],ROBOTHAND_LB[9]);
+    q_finger_robot_goal[10] = util_clamp(q_finger_robot_goal[10],ROBOTHAND_UB[10],ROBOTHAND_LB[10]);
+    q_finger_robot_goal[11] = util_clamp(q_finger_robot_goal[11],ROBOTHAND_UB[11],ROBOTHAND_LB[11]);
 
     return q_finger_robot_goal;
 }

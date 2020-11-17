@@ -29,23 +29,23 @@
 
 using namespace cfg;
 
-static double l_elbow_scale = 1.0;
-static double l_elbow_offs[3] = {0.0, 0.2, 0.2};
+static double l_elbow_scale = 1.379;
+static double l_elbow_offs[3] = {0.1343, 0.2068, 0.5541};
 static Eigen::Vector3d l_elbow_offset = 
     matrix_helper::create_translation_vector(l_elbow_offs[0],l_elbow_offs[1],l_elbow_offs[2]);
 
-static double r_elbow_scale = 1.0;
-static double r_elbow_offs[3] = {0.0, -0.2, 0.2};
+static double r_elbow_scale = 1.379;
+static double r_elbow_offs[3] = {0.1331, -0.2067, 0.5654};
 static Eigen::Vector3d r_elbow_offset = 
     matrix_helper::create_translation_vector(r_elbow_offs[0],r_elbow_offs[1],r_elbow_offs[2]);
 
-static double l_wrist_scale = 1.0;
-static double l_wrist_offs[3] = {0.0, 0.2, 0.2};
+static double l_wrist_scale = 1.277;
+static double l_wrist_offs[3] = {0.1548, 0.2081, 0.5593};
 static Eigen::Vector3d l_wrist_offset = 
     matrix_helper::create_translation_vector(l_wrist_offs[0],l_wrist_offs[1],l_wrist_offs[2]);
 
-static double r_wrist_scale = 1.0;
-static double r_wrist_offs[3] = {0.0, -0.2, 0.2};
+static double r_wrist_scale = 1.423;
+static double r_wrist_offs[3] = {0.1708, -0.2093, 0.5904};
 static Eigen::Vector3d r_wrist_offset = 
     matrix_helper::create_translation_vector(r_wrist_offs[0],r_wrist_offs[1],r_wrist_offs[2]);
 
@@ -372,51 +372,70 @@ void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandState::
 
     std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
 
-    std::cout<<"[ControllerNode] l_wrist_pos_rel: " << l_wrist_pos_rel.transpose() << std::endl;
-    std::cout<<"[ControllerNode] r_wrist_pos_rel: " << r_wrist_pos_rel.transpose() << std::endl;
-    std::cout<<"[ControllerNode] l_elbow_pos_rel: " << l_elbow_pos_rel.transpose() << std::endl;
-    std::cout<<"[ControllerNode] r_elbow_pos_rel: " << r_elbow_pos_rel.transpose() << std::endl;
-    std::cout<<std::endl;
-
-    std::cout<<"[ControllerNode] l_wrist_pos: " << l_wrist_pos.transpose() << std::endl;
-    std::cout<<"[ControllerNode] r_wrist_pos: " << r_wrist_pos.transpose() << std::endl;
-    std::cout<<"[ControllerNode] l_wrist_quat: " << 
-    l_wrist_quat.w() << " " << l_wrist_quat.x() << " " << l_wrist_quat.y() << " " << l_wrist_quat.z() << std::endl;
-    std::cout<<"[ControllerNode] r_wrist_quat: " << 
-    r_wrist_quat.w() << " " << r_wrist_quat.x() << " " << r_wrist_quat.y() << " " << r_wrist_quat.z() << std::endl;
-    std::cout<<"[ControllerNode] l_elbow_pos: " << l_elbow_pos.transpose() << std::endl;
-    std::cout<<"[ControllerNode] r_elbow_pos: " << r_elbow_pos.transpose() << std::endl;
-    std::cout<<std::endl;
-
-    std::cout<<"[ControllerNode] l_wrist_pos_fk: " << l_wrist_pos_fk.transpose() << std::endl;
-    std::cout<<"[ControllerNode] r_wrist_pos_fk: " << r_wrist_pos_fk.transpose() << std::endl;
-    std::cout<<"[ControllerNode] l_wrist_quat_fk: " << 
-    l_wrist_quat_fk.w() << " " << l_wrist_quat_fk.x() << " " << l_wrist_quat_fk.y() << " " << l_wrist_quat_fk.z() << std::endl;
-    std::cout<<"[ControllerNode] r_wrist_quat_fk: " << 
-    r_wrist_quat_fk.w() << " " << r_wrist_quat_fk.x() << " " << r_wrist_quat_fk.y() << " " << r_wrist_quat_fk.z() << std::endl;
-    std::cout<<"[ControllerNode] l_elbow_pos_fk: " << l_elbow_pos_fk.transpose() << std::endl;
-    std::cout<<"[ControllerNode] r_elbow_pos_fk: " << r_elbow_pos_fk.transpose() << std::endl;
-    std::cout<<std::endl;
-
-    std::cout<<"[ControllerNode] Left arm joint angle: " << l_joint_angle.transpose() << std::endl;
-    std::cout<<"[ControllerNode] Right arm joint angle: " << r_joint_angle.transpose() << std::endl;
-    std::cout<<"[ControllerNode] Current left joint angle: " << ql_current.transpose() << std::endl;
-    std::cout<<"[ControllerNode] Current right joint angle: " << qr_current.transpose() << std::endl;
-    // std::cout<<"[ControllerNode] Left hand joint angle: " ;
-    // for (int i = 0; i < l_hand_joint_angle.size(); i++)
-    // {
-    //     std::cout << l_hand_joint_angle[i] << " ";
-    // }
+    // // ---- Robot Arm
+    // std::cout<<"[ControllerNode] l_wrist_pos_rel: " << l_wrist_pos_rel.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] r_wrist_pos_rel: " << r_wrist_pos_rel.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] l_elbow_pos_rel: " << l_elbow_pos_rel.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] r_elbow_pos_rel: " << r_elbow_pos_rel.transpose() << std::endl;
     // std::cout<<std::endl;
+
+    // std::cout<<"[ControllerNode] l_wrist_pos: " << l_wrist_pos.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] r_wrist_pos: " << r_wrist_pos.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] l_wrist_quat: " << 
+    // l_wrist_quat.w() << " " << l_wrist_quat.x() << " " << l_wrist_quat.y() << " " << l_wrist_quat.z() << std::endl;
+    // std::cout<<"[ControllerNode] r_wrist_quat: " << 
+    // r_wrist_quat.w() << " " << r_wrist_quat.x() << " " << r_wrist_quat.y() << " " << r_wrist_quat.z() << std::endl;
+    // std::cout<<"[ControllerNode] l_elbow_pos: " << l_elbow_pos.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] r_elbow_pos: " << r_elbow_pos.transpose() << std::endl;
+    // std::cout<<std::endl;
+
+    // std::cout<<"[ControllerNode] l_wrist_pos_fk: " << l_wrist_pos_fk.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] r_wrist_pos_fk: " << r_wrist_pos_fk.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] l_wrist_quat_fk: " << 
+    // l_wrist_quat_fk.w() << " " << l_wrist_quat_fk.x() << " " << l_wrist_quat_fk.y() << " " << l_wrist_quat_fk.z() << std::endl;
+    // std::cout<<"[ControllerNode] r_wrist_quat_fk: " << 
+    // r_wrist_quat_fk.w() << " " << r_wrist_quat_fk.x() << " " << r_wrist_quat_fk.y() << " " << r_wrist_quat_fk.z() << std::endl;
+    // std::cout<<"[ControllerNode] l_elbow_pos_fk: " << l_elbow_pos_fk.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] r_elbow_pos_fk: " << r_elbow_pos_fk.transpose() << std::endl;
+    // std::cout<<std::endl;
+
+    // std::cout<<"[ControllerNode] Left arm joint angle: " << l_joint_angle.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] Right arm joint angle: " << r_joint_angle.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] Current left joint angle: " << ql_current.transpose() << std::endl;
+    // std::cout<<"[ControllerNode] Current right joint angle: " << qr_current.transpose() << std::endl;
+
+    // ---- Robot Hand
+    std::cout<<"[ControllerNode] Left glove state: " ;
+    for (int i = 0; i < l_glove_angle.size(); i++)
+    {
+        std::cout << l_glove_angle[i] << " ";
+    }
+    std::cout<<std::endl;
     
-    // std::cout<<"[ControllerNode] Right hand joint angle: " ;
-    // for (int i = 0; i < r_hand_joint_angle.size(); i++)
-    // {
-    //     std::cout << r_hand_joint_angle[i] << " ";
-    // }
-    // std::cout<<std::endl;
-    std::chrono::duration<double> dt = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
-    std::cout<<"[ControllerNode] Inverse Kinematics cost "<< dt.count() << "s" << std::endl;
+    std::cout<<"[ControllerNode] Right glove state: " ;
+    for (int i = 0; i < r_glove_angle.size(); i++)
+    {
+        std::cout << r_glove_angle[i] << " ";
+    }
+    std::cout<<std::endl;
+    std::cout<<std::endl;
+
+    std::cout<<"[ControllerNode] Left hand joint angle: " ;
+    for (int i = 0; i < l_hand_joint_angle.size(); i++)
+    {
+        std::cout << l_hand_joint_angle[i] << " ";
+    }
+    std::cout<<std::endl;
+    
+    std::cout<<"[ControllerNode] Right hand joint angle: " ;
+    for (int i = 0; i < r_hand_joint_angle.size(); i++)
+    {
+        std::cout << r_hand_joint_angle[i] << " ";
+    }
+    std::cout<<std::endl;
+
+    // std::chrono::duration<double> dt = std::chrono::duration_cast<std::chrono::duration<double>>(t1 - t0);
+    // std::cout<<"[ControllerNode] Inverse Kinematics cost "<< dt.count() << "s" << std::endl;
     
     // Construct & Publish controlMsg
     realtime_motion_retargeting::ControlMsg control_message;

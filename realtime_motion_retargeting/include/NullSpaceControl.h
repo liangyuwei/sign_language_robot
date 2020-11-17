@@ -123,7 +123,7 @@ Eigen::Matrix<double,NUM_OF_JOINTS,1> NullSpaceControl::solve_one_step(
 
     for (int n = 0; n < cfg::nbInterval; n++)
     {
-        double t = double(n) / double(cfg::nbInterval);
+        double t = double(n+1) / double(cfg::nbInterval);
         Pose6d xl0 = xl;
         Pose6d xr0 = xr;
         Eigen::Vector3d xel0 = xel;

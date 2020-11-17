@@ -17,7 +17,7 @@ namespace cfg{
     const static int DENSE_DATAPOINTS = 1000;
     const static int NUM_OF_JOINTS = 14;
     const static int NUM_OF_FINGER_JOINTS = 24;
-    const static int NUM_OF_GLOVE_ANGLES = 14;
+    const static int NUM_OF_GLOVE_ANGLES = 15;
     const static int TOTAL_NUM_OF_JOINTS = 38;
     const static int JOINT_DOF = 38;  // 2*(12+7)
     const static int DMPPOINTS_DOF = 24;  // 2(start & goal)*4*3
@@ -45,7 +45,7 @@ namespace cfg{
     static double lambda = 0.1;
     static int num_check = 10;
     static bool isDamped = false;
-    static int nbInterval = 10;
+    static int nbInterval = 1;
 
     const static double trans_l1[3] =  {0.05355, 0.0725, 0.51492};
     const static double trans_l2[3] =  {0.03, 0.0, 0.1};
@@ -123,8 +123,8 @@ namespace cfg{
     // onst static double ROBOTHAND_LB[NUM_OF_FINGER_JOINTS/2] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
     // const static double ROBOTHAND_UB[NUM_OF_FINGER_JOINTS/2] = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
     
-    const static double WISEGLOVE_LB[NUM_OF_GLOVE_ANGLES] = {0,  0,   53,  0,   0,   22,  0,   0,   22,  0,  0,   35,  0,  0};
-    const static double WISEGLOVE_UB[NUM_OF_GLOVE_ANGLES] = {45, 100, 0,   90,  120, 0,   90,  120, 0,   90, 120, 0,   90, 120};
+    const static double WISEGLOVE_LB[NUM_OF_GLOVE_ANGLES] = {0,  0,   53,  0,   0,   22,  0,   0,   22,  0,  0,   35,  0,  0,   0};
+    const static double WISEGLOVE_UB[NUM_OF_GLOVE_ANGLES] = {45, 100, 0,   90,  120, 0,   90,  120, 0,   90, 120, 0,   90, 120, 58};
     const static double q_pos_lb[JOINT_DOF] = {
         -2.94,-2.50,-2.94,-2.15,-5.06,-1.53,-3.99,
         -2.94,-2.50,-2.94,-2.15,-5.06,-1.53,-3.99,
