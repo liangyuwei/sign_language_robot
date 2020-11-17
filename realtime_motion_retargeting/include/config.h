@@ -118,9 +118,9 @@ namespace cfg{
     const std::vector<double> q_r_finger_ub = {0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3, 0.1,  0.0,  0.0}; 
                                                 //{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
 
-    const static double ROBOTHAND_LB[NUM_OF_FINGER_JOINTS/2] = {0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3,  0.1,  0.0,  0.0};
-    const static double ROBOTHAND_UB[NUM_OF_FINGER_JOINTS/2] = {-1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.6, -1.0, 0.0, -0.2, -0.15};
-    // onst static double ROBOTHAND_LB[NUM_OF_FINGER_JOINTS/2] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.3, 0.4, 0.0, 0.0};
+    const static double ROBOTHAND_LB[NUM_OF_FINGER_JOINTS/2] = { 0.0,  0.0,  0.0,  0.0,   0.0,   0.0,   0.0,   0.0,   0.3,  0.4,  0.0,  0.0};
+    const static double ROBOTHAND_UB[NUM_OF_FINGER_JOINTS/2] = {-1.6, -1.7, -1.6, -1.7,  -1.6,  -1.7,  -1.6,  -1.7,  -1.0,  0.0, -0.4, -1.0};
+    // onst static double ROBOTHAND_LB[NUM_OF_FINGER_JOINTS/2] = {  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.3, 0.4,  0.0,  0.0};
     // const static double ROBOTHAND_UB[NUM_OF_FINGER_JOINTS/2] = {-1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.6, -1.7, -1.0, 0.0, -0.4, -1.0};
     
     const static double WISEGLOVE_LB[NUM_OF_GLOVE_ANGLES] = {0,  0,   53,  0,   0,   22,  0,   0,   22,  0,  0,   35,  0,  0,   0};

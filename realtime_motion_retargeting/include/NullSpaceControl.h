@@ -186,7 +186,17 @@ Eigen::Matrix<double,NUM_OF_JOINTS,1> NullSpaceControl::solve_one_step(
             kinematics::Result2xe(res,xel,xer);
         }
     }
-    return concat_joint_angles(ql,qr);
+    if((tracking_pos_err(xl.t,xl1.t)>tracking_pos_err_bound) || (tracking_ori_err_with_quat(xl.R,xl1.R)>tracking_ori_err_bound) 
+                || (tracking_pos_err(xel,xel1)>tracking_pos_err_bound_elbow))
+    {
+        ql = ql_in;
+    }
+    if((tracking_pos_err(xr.t,xr1.t)>tracking_pos_err_bound) || (tracking_ori_err_with_quat(xr.R,xr1.R)>tracking_ori_err_bound) 
+                || (tracking_pos_err(xer,xer1)>tracking_pos_err_bound_elbow))
+    {
+        qr = qr_in;
+    }
+    else return concat_joint_angles(ql,qr);
 }
 
 void NullSpaceControl::get_hand_pos(Matrix<double,3,NUM_DATAPOINTS> hd_pos, Pose6d &x, int i) {
