@@ -29,22 +29,22 @@
 
 using namespace cfg;
 
-static double l_elbow_scale = 1.379;
+static double l_elbow_scale = 0.6;
 static double l_elbow_offs[3] = {0.1343, 0.2068, 0.5541};
 static Eigen::Vector3d l_elbow_offset = 
     matrix_helper::create_translation_vector(l_elbow_offs[0],l_elbow_offs[1],l_elbow_offs[2]);
 
-static double r_elbow_scale = 1.379;
+static double r_elbow_scale = 0.6;
 static double r_elbow_offs[3] = {0.1331, -0.2067, 0.5654};
 static Eigen::Vector3d r_elbow_offset = 
     matrix_helper::create_translation_vector(r_elbow_offs[0],r_elbow_offs[1],r_elbow_offs[2]);
 
-static double l_wrist_scale = 1.277;
+static double l_wrist_scale = 0.6;
 static double l_wrist_offs[3] = {0.1548, 0.2081, 0.5593};
 static Eigen::Vector3d l_wrist_offset = 
     matrix_helper::create_translation_vector(l_wrist_offs[0],l_wrist_offs[1],l_wrist_offs[2]);
 
-static double r_wrist_scale = 1.423;
+static double r_wrist_scale = 0.6;
 static double r_wrist_offs[3] = {0.1708, -0.2093, 0.5904};
 static Eigen::Vector3d r_wrist_offset = 
     matrix_helper::create_translation_vector(r_wrist_offs[0],r_wrist_offs[1],r_wrist_offs[2]);
@@ -290,22 +290,22 @@ void ControllerNode::dataCallback(const arm_hand_capture::DualArmDualHandState::
     Eigen::Vector3d l_elbow_pos_rel = l_elbow_pos - l_shoulder_pos;
     Eigen::Vector3d r_elbow_pos_rel = r_elbow_pos - r_shoulder_pos;
     
-    // Init offsets
-    if(!this->offset_init_flag) {
-        Eigen::Matrix<double,14,1> q_intial = concat_joint_angles(ql_initial,qr_initial);
-        kinematics::Result res = kinematics::yumi_forward_kinematics(q_intial);
-        Eigen::Vector3d l_elbow_pos_robot = res.l_elbow_pos;
-        Eigen::Vector3d r_elbow_pos_robot = res.r_elbow_pos;
-        Eigen::Vector3d l_wrist_pos_robot = res.l_wrist_pos;
-        Eigen::Vector3d r_wrist_pos_robot = res.r_wrist_pos;
+    // // Init offsets
+    // if(!this->offset_init_flag) {
+    //     Eigen::Matrix<double,14,1> q_intial = concat_joint_angles(ql_initial,qr_initial);
+    //     kinematics::Result res = kinematics::yumi_forward_kinematics(q_intial);
+    //     Eigen::Vector3d l_elbow_pos_robot = res.l_elbow_pos;
+    //     Eigen::Vector3d r_elbow_pos_robot = res.r_elbow_pos;
+    //     Eigen::Vector3d l_wrist_pos_robot = res.l_wrist_pos;
+    //     Eigen::Vector3d r_wrist_pos_robot = res.r_wrist_pos;
 
-        l_elbow_offset = l_elbow_pos_robot - l_elbow_scale * l_elbow_pos_rel;
-        r_elbow_offset = r_elbow_pos_robot - r_elbow_scale * r_elbow_pos_rel;
-        l_wrist_offset = l_wrist_pos_robot - l_wrist_scale * l_wrist_pos_rel;
-        r_wrist_offset = r_wrist_pos_robot - r_wrist_scale * r_wrist_pos_rel;
+    //     l_elbow_offset = l_elbow_pos_robot - l_elbow_scale * l_elbow_pos_rel;
+    //     r_elbow_offset = r_elbow_pos_robot - r_elbow_scale * r_elbow_pos_rel;
+    //     l_wrist_offset = l_wrist_pos_robot - l_wrist_scale * l_wrist_pos_rel;
+    //     r_wrist_offset = r_wrist_pos_robot - r_wrist_scale * r_wrist_pos_rel;
 
-        this->offset_init_flag = true;
-    }
+    //     this->offset_init_flag = true;
+    // }
 
     std::cout<< "[ControllerNode] l elbow offset: " << l_elbow_offset.transpose()<<std::endl;
     std::cout<< "[ControllerNode] r elbow offset: " << r_elbow_offset.transpose()<<std::endl;
