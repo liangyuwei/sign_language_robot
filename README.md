@@ -1,5 +1,9 @@
 # sign_language_robot
-This is the code for the paper [_"Dynamic Movement Primitive based Motion Retargeting for Dual-Arm Sign Language Motions"_](http://arxiv.org/abs/2011.03914) submitted to ICRA 2021.
+This is the code for the paper [_"Dynamic Movement Primitive based Motion Retargeting for Dual-Arm Sign Language Motions"_](http://arxiv.org/abs/2011.03914) accepted by ICRA 2021.
+
+Youtube Video: [_Click Here_](https://www.youtube.com/watch?v=jPvrAsN1Iwk&t=7s)
+
+Bilibili Video: [_Click Here_](https://www.bilibili.com/video/BV12i4y1K76G/)
 
 # Structure
 This repo contains code for recording and processing sign language demonstrations, motion retargeting, and other stuffs. Will be re-organized soon...
