@@ -180,7 +180,7 @@ def main():
         last_acc = np.array(path_point.accelerations)
         # set time
         '''
-        t = rospy.Time(t_delay + i*1.0/150.0) #rospy.Time(i*1.0/15.0) # rospy.Time(timestamp_array[i]) # 15 Hz # rospy.Time(0.5*i) #
+        t = rospy.Time(t_delay + i*1.0/15.0) #rospy.Time(i*1.0/15.0) # rospy.Time(timestamp_array[i]) # 15 Hz # rospy.Time(0.5*i) #
         path_point.time_from_start.secs = t.secs
         path_point.time_from_start.nsecs = t.nsecs        
         cartesian_plan.joint_trajectory.points.append(copy.deepcopy(path_point))

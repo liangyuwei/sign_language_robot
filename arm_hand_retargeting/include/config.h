@@ -45,6 +45,8 @@ double total_smoothness = 0;  ///< Total time used for calculating smoothness co
 double total_tracking = 0;    ///< Total time used for computing the cost value of tracking edge.
 
 unsigned int num_update = 0;  ///< Number of times DMP starts and goals vertex is updated.
+unsigned long joint_interations = 0;
+unsigned long dmp_iteractions = 0;
 
 /// URDF file path of the sign language robot model
 const static std::string URDF_FILE = "/home/liangyuwei/sign_language_robot_ws/src/yumi_description/urdf/yumi_with_hands.urdf";

@@ -171,7 +171,7 @@ void DualArmDualHandVertex::oplusImpl(const double *update)
 
   // Assign processed estimates to _estimate for g2o
   _estimate = new_estimate; //tmp_estimate;
-
+  joint_interations += 1;
 }
 
 

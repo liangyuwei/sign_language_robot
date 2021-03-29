@@ -70,6 +70,7 @@ void DMPStartsGoalsVertex::oplusImpl(const double *update)
     _estimate[i] += update[i];
     last_update(i, 0) = update[i]; // record updates
   }
+  dmp_iteractions += 1;
   //std::cout << "debug: current update = " << last_update.transpose() << std::endl;
 }
 

@@ -1928,7 +1928,7 @@ int main(int argc, char *argv[])
 
     // record for ease
     max_round = n;   
-
+    std::cout << "joint iterations: " << joint_interations / 50 << "    dmp iteractions: " << dmp_iteractions << std::endl;
   }    
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();

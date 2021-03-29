@@ -117,8 +117,6 @@ void TimeSyncWithImageAndPublish::callback(const PoseStampedConstPtr& right_uppe
   output.glove_state.header = glove_msg->header;
   output.glove_state.left_glove_state = glove_msg->left_glove_state;
   output.glove_state.right_glove_state = glove_msg->right_glove_state;
-  output.glove_state.l_glove_elec = glove_msg->l_glove_elec;
-  output.glove_state.r_glove_elec = glove_msg->r_glove_elec;
 
 
   output.image.header = image->header;

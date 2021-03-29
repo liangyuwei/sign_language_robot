@@ -175,7 +175,7 @@ typedef struct {
 
 
   // Indicate whether the current point is a keypoint
-  // bool is_keypoint = false;
+  bool is_keypoint = false;
 
 
 } my_constraint_struct;
@@ -211,7 +211,7 @@ class MyNLopt
     static double linear_map(double x_, double min_, double max_, double min_hat, double max_hat);
     static double compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool left_or_right, my_constraint_struct *fdata);
     static double compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<double, 7, 1> q_cur, unsigned int num_wrist_seg, unsigned int num_elbow_seg, unsigned int num_shoulder_seg, bool left_or_right, my_constraint_struct *fdata);
-    // static double compute_keypoint_cost(KDL::ChainFkSolverPos_recursive left_fk_solver, KDL::ChainFkSolverPos_recursive right_fk_solver, Matrix<double, 7, 1> q_cur_l, Matrix<double, 7, 1> q_cur_r, bool is_keypoint, my_constraint_struct *fdata);
+    static double compute_keypoint_cost(KDL::ChainFkSolverPos_recursive left_fk_solver, KDL::ChainFkSolverPos_recursive right_fk_solver, Matrix<double, 7, 1> q_cur_l, Matrix<double, 7, 1> q_cur_r, bool is_keypoint, my_constraint_struct *fdata);
 
     static double myfunc(const std::vector<double> &x, std::vector<double> &grad, void *f_data);
 
@@ -348,7 +348,7 @@ double MyNLopt::compute_finger_cost(Matrix<double, 12, 1> q_finger_robot, bool l
 }
 
 
-/*
+
 double MyNLopt::compute_keypoint_cost(KDL::ChainFkSolverPos_recursive left_fk_solver, KDL::ChainFkSolverPos_recursive right_fk_solver, Matrix<double, 7, 1> q_cur_l, Matrix<double, 7, 1> q_cur_r, bool is_keypoint, my_constraint_struct *fdata)
 {
 
@@ -375,15 +375,16 @@ double MyNLopt::compute_keypoint_cost(KDL::ChainFkSolverPos_recursive left_fk_so
   // Compute keypoint cost
   Matrix3d l_r_relative_rot_human = wrist_ori_human_l * wrist_ori_human_r.transpose();
   Matrix3d l_r_relative_rot_robot = wrist_ori_cur_l * wrist_ori_cur_r.transpose();
-  double cost = 1.0 * ((wrist_pos_cur_l - wrist_pos_cur_r) - (wrist_pos_human_l - wrist_pos_human_r)).norm()
-              + 1.0 * std::fabs( std::acos (( (l_r_relative_rot_human * l_r_relative_rot_robot.transpose()).trace() - 1.0) / 2.0)); // only wrist
+  double k_rel_pos = 20.0; //10.0; //5.0; //1.0;
+  double k_rel_rot = 0.0; // relative orientation constraint is useless, since here it uses the original demonstration data, and the tracking goal of orientation also comes from the demonstration, so their effects overlap...
+  double cost = k_rel_pos * ((wrist_pos_cur_l - wrist_pos_cur_r) - (wrist_pos_human_l - wrist_pos_human_r)).norm()
+              + k_rel_rot * std::fabs( std::acos (( (l_r_relative_rot_human * l_r_relative_rot_robot.transpose()).trace() - 1.0) / 2.0)); // only wrist
 
   // Return cost function value
   return cost;
 
-
 }
-*/
+
 
 
 // Used for computing cost and grad(numeric differentiation) in myfunc()
@@ -492,11 +493,11 @@ double MyNLopt::compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<d
   // Do position scaling on the original data
   Vector3d scaled_elbow_pos, scaled_wrist_pos;
   // way 1 - scaling w.r.t the center of shoulders
-  // scaled_elbow_pos = ratio * (elbow_pos_human - human_shoulder_mid) + robot_shoulder_mid;
-  // scaled_wrist_pos = ratio * (wrist_pos_human - human_shoulder_mid) + robot_shoulder_mid;
+  scaled_elbow_pos = ratio * (elbow_pos_human - human_shoulder_mid) + robot_shoulder_mid;
+  scaled_wrist_pos = ratio * (wrist_pos_human - human_shoulder_mid) + robot_shoulder_mid;
   // way 2 - scaling w.r.t the parent, i.e. elbow in this case (*** causes misalignment in fengren_1 motion ***)
-  scaled_elbow_pos = (elbow_pos_human - shoulder_pos_human).normalized() * (elbow_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
-  scaled_wrist_pos = (wrist_pos_human - elbow_pos_human).normalized() * (wrist_pos_cur - elbow_pos_cur).norm() + scaled_elbow_pos;
+  // scaled_elbow_pos = (elbow_pos_human - shoulder_pos_human).normalized() * (elbow_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
+  // scaled_wrist_pos = (wrist_pos_human - elbow_pos_human).normalized() * (wrist_pos_cur - elbow_pos_cur).norm() + scaled_elbow_pos;
   // way 3 - scaling w.r.t the shoulder (to avoid accumulated error from elbow part) (*** causes misalignment in fengren_1 motion ***)        
   // scaled_elbow_pos = (elbow_pos_human - shoulder_pos_human).normalized() * (elbow_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
   // scaled_wrist_pos = (wrist_pos_human - shoulder_pos_human).normalized() * (wrist_pos_cur - shoulder_pos_cur).norm() + shoulder_pos_cur;
@@ -549,13 +550,19 @@ double MyNLopt::compute_cost(KDL::ChainFkSolverPos_recursive fk_solver, Matrix<d
   double cost = 0.0 * upperarm_direction_cost
               + 0.0 * forearm_direction_cost
               + 0.0 * shoulder_wrist_direction_cost
-              + wrist_ori_cost * 10.0 //5.0 
+              + wrist_ori_cost * 5.0 //5.0 
               + 0.0 * wrist_pos_cost
               + 0.0 * elbow_pos_cost
-              + scaled_wrist_pos_cost * 10.0 //5.0
-              + scaled_elbow_pos_cost * 5.0 //10.0 //5.0 //2.0 //1.0
-              + smoothness_cost * 1.0
+              + scaled_wrist_pos_cost * 5.0 //5.0
+              + scaled_elbow_pos_cost * 2.0 //10.0 //5.0 //2.0 //1.0
+              + smoothness_cost * 4.0 //2.0 //2.0 //5.0//1.0
               + 0.0 * l_r_pos_diff_cost;
+              // for ICRA, coefficients are 10.0 10.0 5.0 1.0
+              // for fengren_1/kai_3, coefficients are 5.0 5.0 2.0 2.0
+              // for gun_2, coefficients 5.0 5.0 2.0 3.0
+              // for pao_3, coefficients are 5.0 5.0 2.0 4.0
+
+
 
   // record the costs for display
   fdata->upperarm_direction_cost = upperarm_direction_cost;
@@ -757,7 +764,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
   double k_arm_cost = 1.0;
   double k_finger_cost = 1.0;
   double k_col = 1.0;
-  // double k_keypoint_cost = 1.0;
+  double k_keypoint_cost = 1.0;
 
   std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
   double cost = 0;
@@ -772,8 +779,8 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
   cost += finger_cost;
   std::chrono::steady_clock::time_point t3 = std::chrono::steady_clock::now();
   // keypoints
-  // double keypoint_cost = k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_cur_l, q_cur_r, fdata->is_keypoint, fdata);
-  // cost += keypoint_cost;
+  double keypoint_cost = k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_cur_l, q_cur_r, fdata->is_keypoint, fdata);
+  cost += keypoint_cost;
   std::chrono::steady_clock::time_point t4 = std::chrono::steady_clock::now();
   // cost for collision checking
   double min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x); // 1 for colliding, -1 for non-colliding
@@ -784,7 +791,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
 
   fdata->arm_cost = arm_cost;
   fdata->finger_cost = finger_cost;
-  // fdata->keypoint_cost = (keypoint_cost == 0 ? -1 : keypoint_cost); // if not keypoint, set to -1
+  fdata->keypoint_cost = (keypoint_cost == 0 ? -1 : keypoint_cost); // if not keypoint, set to -1
   fdata->col_cost = col_cost;
   fdata->total_cost = cost; // store the results
   
@@ -826,7 +833,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
       cost1 += k_arm_cost * compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       cost1 += k_finger_cost * compute_finger_cost(q_tmp_finger_l, true, fdata);
       cost1 += k_finger_cost * compute_finger_cost(q_tmp_finger_r, false, fdata);
-      // cost1 += k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_tmp_l, q_tmp_r, fdata->is_keypoint, fdata);
+      cost1 += k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_tmp_l, q_tmp_r, fdata->is_keypoint, fdata);
       // for collision cost
       min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x_tmp_plus); // 1 for colliding, -1 for non-colliding
       cost1 += k_col * (min_distance + 1) * (min_distance + 1);
@@ -843,7 +850,7 @@ double MyNLopt::myfunc(const std::vector<double> &x, std::vector<double> &grad, 
       cost2 += k_arm_cost * compute_cost(right_fk_solver, q_tmp_r, fdata->r_num_wrist_seg, fdata->r_num_elbow_seg, fdata->r_num_shoulder_seg, false, fdata);
       cost2 += k_finger_cost * compute_finger_cost(q_tmp_finger_l, true, fdata);
       cost2 += k_finger_cost * compute_finger_cost(q_tmp_finger_r, false, fdata);
-      // cost2 += k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_tmp_l, q_tmp_r, fdata->is_keypoint, fdata);
+      cost2 += k_keypoint_cost * compute_keypoint_cost(left_fk_solver, right_fk_solver, q_tmp_l, q_tmp_r, fdata->is_keypoint, fdata);
       // for collision cost
       min_distance = dual_arm_dual_hand_collision_ptr->check_self_collision(x_tmp_minus); // 1 for colliding, -1 for non-colliding
       cost2 += k_col * (min_distance + 1) * (min_distance + 1); 
@@ -1359,11 +1366,14 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
 
   unsigned int num_datapoints = read_l_wrist_pos_traj.size(); 
 
+
+
   // read keypoint id list
-  /*
+  
   std::vector<std::vector<double>> read_kp_id_list = read_h5(in_file_name, in_group_name, "kp_id_list");
   unsigned int num_keypoints = read_kp_id_list.size(); 
-  */
+
+  
   /*std::cout << num_keypoints << " and " << read_kp_id_list[0].size() << std::endl;
   for (int i = 0; i < read_kp_id_list.size(); ++i)
   {
@@ -1490,14 +1500,13 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
   std::vector<std::vector<double> > time_spent_history(num_datapoints, std::vector<double>(1));  
 
 
-  // unsigned int next_kp_id_in_list = 0; // use the 1st keypoint
-
+  unsigned int next_kp_id_in_list = 0; // use the 1st keypoint
 
   for (unsigned int it = 0; it < num_datapoints; ++it)
   {
 
     // Check whether the current point is a keypoint
-    /*
+    
     if (next_kp_id_in_list < num_keypoints) // still not running out of keypoints in list
     {
       if ( it + 1 == (int)(read_kp_id_list[next_kp_id_in_list][0]) ) // if the current point is a keypoint
@@ -1511,7 +1520,7 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
         constraint_data.is_keypoint = false;      
       }
     }
-    */
+    
 
     // Reset counter.
     count = 0; 
@@ -1600,8 +1609,8 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
     {*/
 
       // Display messages
-      // std::cout << "========== Path point " << it + 1  <<"/" << num_datapoints << (constraint_data.is_keypoint ? " (keypoint)" : " (not keypoint)") << " ==========" << std::endl;
-      std::cout << "========== Path point " << it + 1  <<"/" << num_datapoints << " ==========" << std::endl;
+      std::cout << "========== Path point " << it + 1  <<"/" << num_datapoints << (constraint_data.is_keypoint ? " (keypoint)" : " (not keypoint)") << " ==========" << std::endl;
+      // std::cout << "========== Path point " << it + 1  <<"/" << num_datapoints << " ==========" << std::endl;
       nlopt::result opt_result; 
       //std::cout << "first_iter is " << first_iter << " before optimizing the first point." << std::endl; // ok, checked
       if (first_iter)
@@ -1680,6 +1689,7 @@ MyNLopt::MyNLopt(int argc, char **argv, std::string in_file_name, std::string in
       std::cout << "Two arm's wrist positions difference Cost: " << f_data->l_r_pos_diff_cost << std::endl;
       std::cout << "Left finger scaled pos Cost: " << f_data->scaled_l_finger_pos_cost << std::endl;
       std::cout << "Right finger scaled pos Cost: " << f_data->scaled_r_finger_pos_cost << std::endl;
+      std::cout << "Keypoint Cost: " << f_data->keypoint_cost << std::endl;
       std::cout << "Total Cost: " << f_data->total_cost << std::endl;
 
       // Store the statistics
